@@ -1,9 +1,10 @@
-# rustvis_draft
-
-* move ? to ?
-* how do an expression mapped to path/place
-  * use location-map?
-* how to find the variable name that involved in the movement
-* where(which line) does the movement happen
-
-# rustviz
+# rustviz_draft
+Usage:
+  cd print
+  cargo install --path .
+  cd test-crate
+  touch src/lib.rs
+  cargo print-all-items > ../../output
+Note:
+  modify print_all-items() in print/src/lib.rs
+  modify test file in print/test-crate/src/lib.rs
