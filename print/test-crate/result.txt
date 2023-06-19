@@ -1,0 +1,59 @@
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).31) (expr `{ 
+      let a;
+      a = 3 + 2;
+      let x = String::from("hello"); 
+      let z = {
+        let y = x;
+        //println!("{}", y); 
+      };
+
+
+
+      //println!("hellow world")
+        
+}`)
+visiting block
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).4) (expr `a = 3 + 2`)
+visiting assign lhsHirId(DefId(0:3 ~ test_crate[d4d2]::main).5) (expr `a`)
+visiting assign rhsHirId(DefId(0:3 ~ test_crate[d4d2]::main).7) (expr `3 + 2`)
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).5) (expr `a`)
+visiting path
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).7) (expr `3 + 2`)
+visiting binary HirId(DefId(0:3 ~ test_crate[d4d2]::main).8) (expr `3`) HirId(DefId(0:3 ~ test_crate[d4d2]::main).9) (expr `2`)
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).8) (expr `3`)
+visiting lit
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).9) (expr `2`)
+visiting lit
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).12) (expr `String::from("hello")`)
+visiting default
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).13) (expr `String::from`)
+visiting default
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).17) (expr `"hello"`)
+visiting lit
+visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).21) (expr `{
+        let y = x;
+        //println!("{}", y); 
+      }`)
+visiting block
+visiting HirId(Defd(0:3 ~ test_crate[d4d2]::main).23) (expr `x`)
+visiting path
+visiting stmt HirId(DefId(0:3 ~ test_crate[d4d2]::main).4) (expr `a = 3 + 2`)
+visit variable HirId(DefId(0:3 ~ test_crate[d4d2]::main).19) (pat `x`)
+visiting local HirId(DefId(0:3 ~ test_crate[d4d2]::main).12) (expr `String::from("hello")`)
+visit variable HirId(DefId(0:3 ~ test_crate[d4d2]::main).29) (pat `z`)
+visiting local HirId(DefId(0:3 ~ test_crate[d4d2]::main).21) (expr `{
+        let y = x;
+        //println!("{}", y); 
+      }`)
+computing body permissions "main"
+Move out at line 38: mp3@bb4[0]
+Move out at line 38: mp1@bb4[1]
+Move out at line 32: mp5@bb3[0]
+Init at line 25: mp0@Statement(bb3[2]) (Deep)
+Move out at line 38: mp4@bb3[3]
+Init at line 30: mp5@Statement(bb2[3]) (Deep)
+Move out at line 30: mp3@bb2[3]
+Init at line 29: mp4@Statement(bb2[5]) (Deep)
+Init at line 27: mp1@Statement(bb1[0]) (Deep)
+Move out at line 27: mp7@bb1[0]
+Init at line 27: mp2@Statement(bb0[1]) (Deep)

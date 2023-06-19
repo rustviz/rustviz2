@@ -1,0 +1,95 @@
+********************************************************************
+computing body permissions "main"
+Body_range from CharPos(0) to CharPos(123).
+Boundary at location: CharPos(92).
+Boundary at location: CharPos(94).
+Boundary at location: CharPos(117).
+Boundary at location: CharPos(119).
+Step on line 3 from CharPos(78) to CharPos(78).
+Table from CharPos(52)-CharPos(53) to CharPos(91)-CharPos(96).
+y with permission diff 
+Permissions Data Step
+  Permissions:          ↑R   ―<Some(false)>―W   ↑D
+    is_live:            ↑
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+Step on line 5 from CharPos(121) to CharPos(121).
+Table from CharPos(100)-CharPos(121) to CharPos(100)-CharPos(121).
+a with permission diff 
+Permissions Data Step
+  Permissions:          ↓R   ―<Some(false)>―W   ↓D
+    is_live:            ↓
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+b with permission diff 
+Permissions Data Step
+  Permissions:          ↓R   ―<Some(false)>―W   ↓D
+    is_live:            ↓
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+Step on line 2 from CharPos(45) to CharPos(45).
+Table from CharPos(18)-CharPos(19) to CharPos(52)-CharPos(53).
+x with permission diff 
+Permissions Data Step
+  Permissions:          ↑R   ―<Some(false)>―W   ↑D
+    is_live:            ↑
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+Step on line 4 from CharPos(97) to CharPos(97).
+Table from CharPos(91)-CharPos(96) to CharPos(100)-CharPos(121).
+x with permission diff 
+Permissions Data Step
+  Permissions:          ↓R   ―<Some(false)>―W   ↓D
+    is_live:            ↓
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ↑
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+y with permission diff 
+Permissions Data Step
+  Permissions:          ↓R   ―<Some(false)>―W   ↓D
+    is_live:            ↓
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ↑
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+a with permission diff 
+Permissions Data Step
+  Permissions:          ↑R   ―<Some(false)>―W   ↑D
+    is_live:            ↑
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+b with permission diff 
+Permissions Data Step
+  Permissions:          ↑R   ―<Some(false)>―W   ↑D
+    is_live:            ↑
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
