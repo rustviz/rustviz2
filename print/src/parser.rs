@@ -316,8 +316,11 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           }
     
          ExprKind::Block(block, _) => {
-            //println!("visiting block");
+            //println!("visiting block");//z is block
             self.visit_block(block);
+          }
+          ExprKind::Closure(_) => {
+            //println!("visiting closure");
           }
     
           ExprKind::AssignOp(_, lhs, rhs) => {
@@ -343,7 +346,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           )) if !span.from_expansion() => {
             let bytepos=span.lo();
             let boundary=self.boundary_map.get(&bytepos);
-            println!("{:?} with boundary {:?}",self.tcx.hir().node_to_string(hirid),boundary);
+            //println!("{:?} with boundary {:?}",self.tcx.hir().node_to_string(hirid),boundary);
           }
           
           _ => {
@@ -364,12 +367,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       }
       fn visit_local(&mut self, local: &'tcx Local<'tcx>) {
         println!();
-        println!("This is a let statement: {}", self.tcx.hir().node_to_string(local.hir_id));
+        println!("Statement: {}", self.tcx.hir().node_to_string(local.hir_id));
         // lhs
         let mut lhs_var : String= "".to_string();
         match local.pat.kind {
           PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) => {
-            println!("lhs is: {}", ident);
+            //println!("lhs is: {}", ident);
             //println!("lhs binding_annotation: {:?}", binding_annotation);//tell mut or not
             //println!("lhs ann_hirid: {:?}", ann_hirid);
             lhs_var = ident.to_string();
@@ -424,13 +427,29 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                   
                 }
                 ExprKind::Path(QPath::Resolved(_,p)) => {
-                  let long_name = self.tcx.hir().node_to_string(p.segments[0].hir_id);
-                  let name = extract_var_name(&long_name);
-                  if let Some(name) = name {
-                    if lhs_var !="" {
-                      println!("Move({}->{})", name, lhs_var);
+                  let bytepos=p.span.lo();
+                  let boundary=self.boundary_map.get(&bytepos);
+                  //println!("boundary {:?}",boundary);
+                  if let Some(boundary) = boundary {
+                    if boundary.expected.drop {
+                      let long_name = self.tcx.hir().node_to_string(p.segments[0].hir_id);
+                      let name = extract_var_name(&long_name);
+                      if let Some(name) = name {
+                        if lhs_var !="" {
+                          println!("Move({}->{})", name, lhs_var);
+                        }
+                      }
+                    } else {
+                      let long_name = self.tcx.hir().node_to_string(p.segments[0].hir_id);
+                      let name = extract_var_name(&long_name);
+                      if let Some(name) = name {
+                        if lhs_var !="" {
+                          println!("Copy({}->{})", name, lhs_var);
+                        }
+                      }
                     }
                   }
+                  
                 }
                 _ => {
                   println!("rhs is not implemented");

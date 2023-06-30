@@ -276,8 +276,8 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
         let state = table.state;
         let from = table.from;
         let to = table.to;
-        println!("Table from {:?}-{:?} to {:?}-{:?}.",
-        from.start,from.end,to.start,to.end);
+        //println!("Table from {:?}-{:?} to {:?}-{:?}.",
+        //from.start,from.end,to.start,to.end);
         for (x,diff) in state{
           println!("{} with permission diff {:?} ",
           x,diff);
