@@ -1,95 +1,81 @@
 ********************************************************************
 computing body permissions "main"
-Body_range from CharPos(0) to CharPos(123).
-Boundary at location: CharPos(92).
-Boundary at location: CharPos(94).
-Boundary at location: CharPos(117).
-Boundary at location: CharPos(119).
-Step on line 3 from CharPos(78) to CharPos(78).
-Table from CharPos(52)-CharPos(53) to CharPos(91)-CharPos(96).
-y with permission diff 
+Body_range from CharPos(0) to CharPos(97).
+Boundary at location: CharPos(57).
+Boundary at location: CharPos(93).
+Step on line 3 from CharPos(59) to CharPos(59).
+Table from CharPos(54)-CharPos(56) to CharPos(66)-CharPos(71).
+s with permission diff 
 Permissions Data Step
-  Permissions:          ↑R   ―<Some(false)>―W   ↑D
-    is_live:            ↑
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
-    path_moved:         ―<None>―
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-Step on line 5 from CharPos(121) to CharPos(121).
-Table from CharPos(100)-CharPos(121) to CharPos(100)-CharPos(121).
-a with permission diff 
-Permissions Data Step
-  Permissions:          ↓R   ―<Some(false)>―W   ↓D
+  Permissions:          ↓R   ↓W   ↓D
     is_live:            ↓
     type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
-    path_moved:         ―<None>―
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-b with permission diff 
-Permissions Data Step
-  Permissions:          ↓R   ―<Some(false)>―W   ↓D
-    is_live:            ↓
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
-    path_moved:         ―<None>―
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-Step on line 2 from CharPos(45) to CharPos(45).
-Table from CharPos(18)-CharPos(19) to CharPos(52)-CharPos(53).
-x with permission diff 
-Permissions Data Step
-  Permissions:          ↑R   ―<Some(false)>―W   ↑D
-    is_live:            ↑
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
-    path_moved:         ―<None>―
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-Step on line 4 from CharPos(97) to CharPos(97).
-Table from CharPos(91)-CharPos(96) to CharPos(100)-CharPos(121).
-x with permission diff 
-Permissions Data Step
-  Permissions:          ↓R   ―<Some(false)>―W   ↓D
-    is_live:            ↓
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
+    type_writeable:     ―<Some(true)>―
     path_moved:         ↑
     loan_write_refined: ―<None>―
     loan_drop_refined:  ―<None>―
  
-y with permission diff 
-Permissions Data Step
-  Permissions:          ↓R   ―<Some(false)>―W   ↓D
-    is_live:            ↓
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
-    path_moved:         ↑
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
+Step on line 5 from CharPos(95) to CharPos(95).
+Table from CharPos(91)-CharPos(92) to CharPos(10)-CharPos(97).
 a with permission diff 
 Permissions Data Step
-  Permissions:          ↑R   ―<Some(false)>―W   ↑D
-    is_live:            ↑
+  Permissions:          ↓R   ↓W   ↓D
+    is_live:            ↓
     type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
+    type_writeable:     ―<Some(true)>―
     path_moved:         ―<None>―
     loan_write_refined: ―<None>―
     loan_drop_refined:  ―<None>―
  
-b with permission diff 
+Step on line 2 from CharPos(47) to CharPos(47).
+Table from CharPos(18)-CharPos(23) to CharPos(54)-CharPos(56).
+s with permission diff 
 Permissions Data Step
-  Permissions:          ↑R   ―<Some(false)>―W   ↑D
+  Permissions:          ↑R   ↑W   ↑D
     is_live:            ↑
     type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
+    type_writeable:     ―<Some(true)>―
     path_moved:         ―<None>―
     loan_write_refined: ―<None>―
     loan_drop_refined:  ―<None>―
  
+Step on line 4 from CharPos(84) to CharPos(84).
+Table from CharPos(66)-CharPos(71) to CharPos(91)-CharPos(92).
+a with permission diff 
+Permissions Data Step
+  Permissions:          ↑R   ↑W   ↑D
+    is_live:            ↑
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(true)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+
+This is a let statement: HirId(DefId(0:3 ~ test_crate[75bf]::main).8) (local `let mut s =String::from("hello");`)
+lhs: HirId(DefId(0:3 ~ test_crate[75bf]::main).9) (pat `mut s`)
+rhs is a call
+on line: 2
+fn_name "HirId(DefId(0:3 ~ test_crate[75bf]::main).3) (expr `String::from`)"
+arg: "HirId(DefId(0:3 ~ test_crate[75bf]::main).7) (expr `\"hello\"`)"
+visiting lit HirId(DefId(0:3 ~ test_crate[75bf]::main).7) (expr `"hello"`)
+
+This is a let statement: HirId(DefId(0:3 ~ test_crate[75bf]::main).13) (local `let s1=s;`)
+lhs: HirId(DefId(0:3 ~ test_crate[75bf]::main).14) (pat `s1`)
+rhs is a path
+"HirId(DefId(0:3 ~ test_crate[75bf]::main).11) (expr `s`)" with boundary Some(PermissionsBoundary { location: CharPos(57), byte_location: BytePos(57), expected: RD, actual: PermissionsData { type_droppable: true, type_writeable: true, type_copyable: false, is_live: true, path_uninitialized: false, path_moved: None, loan_read_refined: None, loan_write_refined: None, loan_drop_refined: None, permissions: RWD }, expecting_flow: None })
+
+This is a let statement: HirId(DefId(0:3 ~ test_crate[75bf]::main).19) (local `let mut a=returnone();`)
+lhs: HirId(DefId(0:3 ~ test_crate[75bf]::main).20) (pat `mut a`)
+rhs is a call
+on line: 4
+fn_name "HirId(DefId(0:3 ~ test_crate[75bf]::main).17) (expr `returnone`)"
+
+This is a let statement: HirId(DefId(0:3 ~ test_crate[75bf]::main).24) (local `let b=a;`)
+lhs: HirId(DefId(0:3 ~ test_crate[75bf]::main).25) (pat `b`)
+rhs is a path
+"HirId(DefId(0:3 ~ test_crate[75bf]::main).22) (expr `a`)" with boundary Some(PermissionsBoundary { location: CharPos(93), byte_location: BytePos(93), expected: R, actual: PermissionsData { type_droppable: true, type_writeable: true, type_copyable: true, is_live: true, path_uninitialized: false, path_moved: None, loan_read_refined: None, loan_write_refined: None, loan_drop_refined: None, permissions: RWD }, expecting_flow: None })
+********************************************************************
+computing body permissions "returnone"
+Body_range from CharPos(99) to CharPos(127).
+visiting lit HirId(DefId(0:4 ~ test_crate[75bf]::returnone).1) (expr `1`)

@@ -83,7 +83,7 @@ pub mod ir_mapper;
 use crate::rustc_span::Pos;
 use either::Either;
 use std::path;
-use std::{borrow::Cow, env};
+use std::{borrow::Cow, env, collections::HashMap};
 use rustc_utils::{OperandExt,PlaceExt};
 use clap::Parser;
 use rustc_plugin::{CrateFilter, RustcPlugin, RustcPluginArgs, Utf8Path};
@@ -92,7 +92,8 @@ use rustc_utils::source_map;
 use serde::{Deserialize, Serialize};
 use rustc_span::source_map::{SourceMap};
 use rustc_span::{Span, SourceFile};
-use aquascope::analysis::{AquascopeAnalysis,AquascopeResult,AnalysisOutput};
+use aquascope::analysis::{AquascopeAnalysis,AquascopeResult,AnalysisOutput,
+  boundaries::PermissionsBoundary};
 //use datafrog::{Iteration, Relation, RelationLeaper, ValueFilter};
 //use polonius_engine::{Algorithm, FactTypes, Output as PEOutput};
 //use rustc_borrowck::{borrow_set::BorrowSet};//, consumers::BodyWithBorrowckFacts};
@@ -249,12 +250,6 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
       move_data
     }
   };
-  let mut visitor = ExprVisitor { tcx, 
-    mir_body:body, 
-    ir_mapper,
-    move_data,
-  };
-  visitor.visit_body(hir_body);
 
   let result=AquascopeAnalysis::run(tcx,body_id);
   let source_map = tcx.sess.source_map();
@@ -264,9 +259,14 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
      let boundaries = output.boundaries;
      let steps = output.steps;
      println!("Body_range from {:?} to {:?}.", body_range.start , body_range.end);
-    // for boundary in boundaries {
-    //  println!("Boundary at location: {:?}.", boundary.location);
-    // };
+     
+     let mut boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary> = HashMap::new();
+
+     for boundary in boundaries {
+      println!("Boundary at location: {:?}.", boundary.location);
+      let bytepos=boundary.byte_location.0 as u32;
+      boundary_map.insert(rustc_span::BytePos(bytepos),boundary);
+    };
      for step in steps {
       let location = step.location;
       let line = charrange_to_line(location,source_map);
@@ -284,15 +284,17 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
         };
       };
      };
+     let mut visitor = ExprVisitor { tcx, 
+      mir_body:body, 
+      ir_mapper,
+      move_data,
+      boundary_map,
+    };
+    visitor.visit_body(hir_body);
     },
     _ =>{println!("Analysis Error.");}
   }
-
-
-
-  
-
-  })
+})
 
 }
 
