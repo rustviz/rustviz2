@@ -102,30 +102,22 @@ use rustc_hir::intravisit::{self, Visitor, Map};
 use rustc_hir::{StmtKind, Block, Stmt, Local, Expr, ExprKind, HirId, BodyId, ItemKind, UnOp, QPath, Path, def::Res, Let};
 //use rustc_index::vec::IndexVec;
 use rustc_middle::{
-
-  hir::place::PlaceWithHirId,
-  mir::{LocalDecl,Place,Body,Location,Rvalue, Statement, StatementKind},//{Place, ProjectionElem},
-
+  //mir::{LocalDecl,Place,Body,Location,Rvalue, Statement, StatementKind},//{Place, ProjectionElem},
   ty::{self, TyCtxt},
 };
-use rustc_mir_dataflow::move_paths::{MoveData,InitKind};
+use rustc_mir_dataflow::move_paths::{MoveData};//,InitKind};
 use rustc_utils::{
-
   source_map::range::{BytePos, ByteRange, CharPos, CharRange},
   SpanExt,
   mir::{borrowck_facts}, BodyExt,//places_conflict::{self, AccessDepth, PlaceConflictBias}
   //BodyExt, PlaceExt,
 };
-use smallvec::{smallvec, SmallVec};
+//use smallvec::{smallvec, SmallVec};
 use ir_mapper::{GatherDepth, IRMapper,GatherMode};
-use std::ops::Index;
-fn find_line_number(source_map: &SourceMap, span: Span) -> usize {
-  let loc = source_map.lookup_char_pos(span.lo());
-  loc.line
-}
+//use std::ops::Index;
+use crate::parser::ExprVisitor;
 
-
-
+pub mod parser;
 pub struct PrintAllItemsPlugin;
 
 #[derive(Parser, Serialize, Deserialize)]
@@ -152,8 +144,7 @@ impl RustcPlugin for PrintAllItemsPlugin {
     RustcPluginArgs { args, filter }
   }
 
-  // In the driver, we use the Rustc API to start a compiler session
-  // for the arguments given to us by rustc-plugin.
+
   //'run' is called when the plugin is executed by the Rust compiler
   fn run(
     self,
@@ -183,23 +174,19 @@ impl rustc_driver::Callbacks for PrintAllItemsCallbacks {
       // You MUST configure rustc to ensure `get_body_with_borrowck_facts` will work.
       config.override_queries = Some(borrowck_facts::override_queries);
     }
-  // At the top-level, the Rustc API uses an event-based interface for
-  // accessing the compiler at different stages of compilation. In this callback,
-  // all the type-checking has completed.
-  fn after_analysis<'tcx>(
-    &mut self,
-    _compiler: &rustc_interface::interface::Compiler,
-    queries: &'tcx rustc_interface::Queries<'tcx>, 
-  ) -> rustc_driver::Compilation {
-    queries
-      .global_ctxt()//return an option TyCtxt
-      .unwrap()
-      .enter(|tcx| print_all_items(tcx, &self.args));
 
-
-    // allow compilation to continue.
-    rustc_driver::Compilation::Continue
-  }
+    fn after_analysis<'tcx>(
+      &mut self,
+      _compiler: &rustc_interface::interface::Compiler,
+      queries: &'tcx rustc_interface::Queries<'tcx>, 
+    ) -> rustc_driver::Compilation {
+      queries
+        .global_ctxt()//return an option TyCtxt
+        .unwrap()
+        .enter(|tcx| print_all_items(tcx, &self.args));
+      // allow compilation to continue.
+      rustc_driver::Compilation::Continue
+    }
 }
 
 
@@ -226,12 +213,10 @@ fn charrange_to_line(crange:CharRange,source_map:&SourceMap)->usize{
   line
 }
 
-// The core of our analysis. It doesn't do much, just access some methods on the `TyCtxt`.
-//reading the Rustc Development Guide to better understand which compiler APIs
+// The core of our analysis.
 fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
   let hir = tcx.hir().clone();
  
-
   hir
   .items()
   .filter_map(|id| match hir.item(id).kind {
@@ -254,6 +239,23 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
   };
   println!("********************************************************************");
   println!("computing body permissions {:?}", name);
+
+  let ir_mapper = IRMapper::new(tcx,body,GatherMode::IgnoreCleanup);
+  let move_data = match MoveData::gather_moves(body, tcx, tcx.param_env(def_id))
+  {
+    Ok((_, move_data)) => move_data,
+    Err((move_data, _illegal_moves)) => {
+      log::debug!("illegal moves found {_illegal_moves:?}");
+      move_data
+    }
+  };
+  let mut visitor = ExprVisitor { tcx, 
+    mir_body:body, 
+    ir_mapper,
+    move_data,
+  };
+  visitor.visit_body(hir_body);
+
   let result=AquascopeAnalysis::run(tcx,body_id);
   let source_map = tcx.sess.source_map();
   match result {
@@ -262,9 +264,9 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
      let boundaries = output.boundaries;
      let steps = output.steps;
      println!("Body_range from {:?} to {:?}.", body_range.start , body_range.end);
-     for boundary in boundaries {
-      println!("Boundary at location: {:?}.", boundary.location);
-     };
+    // for boundary in boundaries {
+    //  println!("Boundary at location: {:?}.", boundary.location);
+    // };
      for step in steps {
       let location = step.location;
       let line = charrange_to_line(location,source_map);

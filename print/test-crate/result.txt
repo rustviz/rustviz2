@@ -1,59 +1,113 @@
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).31) (expr `{ 
-      let a;
-      a = 3 + 2;
-      let x = String::from("hello"); 
-      let z = {
-        let y = x;
-        //println!("{}", y); 
-      };
-
-
-
-      //println!("hellow world")
-        
-}`)
-visiting block
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).4) (expr `a = 3 + 2`)
-visiting assign lhsHirId(DefId(0:3 ~ test_crate[d4d2]::main).5) (expr `a`)
-visiting assign rhsHirId(DefId(0:3 ~ test_crate[d4d2]::main).7) (expr `3 + 2`)
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).5) (expr `a`)
-visiting path
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).7) (expr `3 + 2`)
-visiting binary HirId(DefId(0:3 ~ test_crate[d4d2]::main).8) (expr `3`) HirId(DefId(0:3 ~ test_crate[d4d2]::main).9) (expr `2`)
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).8) (expr `3`)
-visiting lit
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).9) (expr `2`)
-visiting lit
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).12) (expr `String::from("hello")`)
-visiting default
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).13) (expr `String::from`)
-visiting default
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).17) (expr `"hello"`)
-visiting lit
-visiting HirId(DefId(0:3 ~ test_crate[d4d2]::main).21) (expr `{
-        let y = x;
-        //println!("{}", y); 
-      }`)
-visiting block
-visiting HirId(Defd(0:3 ~ test_crate[d4d2]::main).23) (expr `x`)
-visiting path
-visiting stmt HirId(DefId(0:3 ~ test_crate[d4d2]::main).4) (expr `a = 3 + 2`)
-visit variable HirId(DefId(0:3 ~ test_crate[d4d2]::main).19) (pat `x`)
-visiting local HirId(DefId(0:3 ~ test_crate[d4d2]::main).12) (expr `String::from("hello")`)
-visit variable HirId(DefId(0:3 ~ test_crate[d4d2]::main).29) (pat `z`)
-visiting local HirId(DefId(0:3 ~ test_crate[d4d2]::main).21) (expr `{
-        let y = x;
-        //println!("{}", y); 
-      }`)
+********************************************************************
 computing body permissions "main"
-Move out at line 38: mp3@bb4[0]
-Move out at line 38: mp1@bb4[1]
-Move out at line 32: mp5@bb3[0]
-Init at line 25: mp0@Statement(bb3[2]) (Deep)
-Move out at line 38: mp4@bb3[3]
-Init at line 30: mp5@Statement(bb2[3]) (Deep)
-Move out at line 30: mp3@bb2[3]
-Init at line 29: mp4@Statement(bb2[5]) (Deep)
-Init at line 27: mp1@Statement(bb1[0]) (Deep)
-Move out at line 27: mp7@bb1[0]
-Init at line 27: mp2@Statement(bb0[1]) (Deep)
+
+This is a let statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).8) (local `let x = String::from("hello");`)
+lhs: HirId(DefId(0:3 ~ test_crate[cdd0]::main).9) (pat `x`)
+rhs is a call
+on line: 2
+fn_name "HirId(DefId(0:3 ~ test_crate[cdd0]::main).3) (expr `String::from`)"
+arg: "HirId(DefId(0:3 ~ test_crate[cdd0]::main).7) (expr `\"hello\"`)"
+visiting lit HirId(DefId(0:3 ~ test_crate[cdd0]::main).7) (expr `"hello"`)
+
+This is a let statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).17) (local `let y = String::from("hello");`)
+lhs: HirId(DefId(0:3 ~ test_crate[cdd0]::main).18) (pat `y`)
+rhs is a call
+on line: 3
+fn_name "HirId(DefId(0:3 ~ test_crate[cdd0]::main).12) (expr `String::from`)"
+arg: "HirId(DefId(0:3 ~ test_crate[cdd0]::main).16) (expr `\"hello\"`)"
+visiting lit HirId(DefId(0:3 ~ test_crate[cdd0]::main).16) (expr `"hello"`)
+
+This is a let statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).25) (local `let (a,b)=(x,y);`)
+lhs: HirId(DefId(0:3 ~ test_crate[cdd0]::main).28) (pat `(a,b)`)
+rhs is not listed
+on line: 137
+fn_name "HirId(DefId(0:3 ~ test_crate[cdd0]::main).31) (expr `$crate::io::_print`)"
+Body_range from CharPos(0) to CharPos(124).
+Step on line 3 from CharPos(78) to CharPos(78).
+Table from CharPos(52)-CharPos(53) to CharPos(91)-CharPos(96).
+y with permission diff 
+Permissions Data Step
+  Permissions:          ↑R   ―<Some(false)>―W   ↑D
+    is_live:            ↑
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+Step on line 5 from CharPos(122) to CharPos(122).
+Table from CharPos(100)-CharPos(121) to CharPos(100)-CharPos(121).
+a with permission diff 
+Permissions Data Step
+  Permissions:          ↓R   ―<Some(false)>―W   ↓D
+    is_live:            ↓
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+b with permission diff 
+Permissions Data Step
+  Permissions:          ↓R   ―<Some(false)>―W   ↓D
+    is_live:            ↓
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+Step on line 2 from CharPos(45) to CharPos(45).
+Table from CharPos(18)-CharPos(19) to CharPos(52)-CharPos(53).
+x with permission diff 
+Permissions Data Step
+  Permissions:          ↑R   ―<Some(false)>―W   ↑D
+    is_live:            ↑
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+Step on line 4 from CharPos(97) to CharPos(97).
+Table from CharPos(91)-CharPos(96) to CharPos(100)-CharPos(121).
+x with permission diff 
+Permissions Data Step
+  Permissions:          ↓R   ―<Some(false)>―W   ↓D
+    is_live:            ↓
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ↑
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+y with permission diff 
+Permissions Data Step
+  Permissions:          ↓R   ―<Some(false)>―W   ↓D
+    is_live:            ↓
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ↑
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+a with permission diff 
+Permissions Data Step
+  Permissions:          ↑R   ―<Some(false)>―W   ↑D
+    is_live:            ↑
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
+b with permission diff 
+Permissions Data Step
+  Permissions:          ↑R   ―<Some(false)>―W   ↑D
+    is_live:            ↑
+    type_droppable:     ―<Some(true)>―
+    type_writeable:     ―<Some(false)>―
+    path_moved:         ―<None>―
+    loan_write_refined: ―<None>―
+    loan_drop_refined:  ―<None>―
+ 
