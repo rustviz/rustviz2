@@ -221,7 +221,7 @@ pub struct FlowBoundary {
 pub struct PermissionsBoundary {
   pub location: CharPos,
   #[serde(skip)]
-  byte_location: BytePos,
+  pub byte_location: BytePos,
   pub expected: Permissions,
   pub actual: PermissionsData,
   #[serde(skip_serializing_if = "Option::is_none")]

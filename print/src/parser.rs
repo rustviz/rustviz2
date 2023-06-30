@@ -8,7 +8,7 @@ use ir_mapper::{GatherDepth, IRMapper,GatherMode};
 use rustc_hir::{StmtKind, Block, Stmt, Local, Expr, ExprKind, HirId, BodyId, ItemKind, UnOp, QPath, Path, def::Res, Let, PatKind};
 use either::Either;
 use std::path;
-use std::{borrow::Cow, env};
+use std::{borrow::Cow, env, collections::HashMap};
 use rustc_utils::{OperandExt,PlaceExt};
 use clap::Parser;
 use rustc_ast::walk_list;
@@ -16,7 +16,8 @@ use rustc_utils::source_map;
 use serde::{Deserialize, Serialize};
 use rustc_span::source_map::{SourceMap};
 use rustc_span::{Span, SourceFile};
-use aquascope::analysis::{AquascopeAnalysis,AquascopeResult,AnalysisOutput};
+use aquascope::analysis::{AquascopeAnalysis,AquascopeResult,AnalysisOutput,
+  boundaries::PermissionsBoundary};
 use rustc_hir::intravisit::{self, Visitor, Map};
 use rustc_utils::{
   source_map::range::{BytePos, ByteRange, CharPos, CharRange},
@@ -39,6 +40,7 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub mir_body: &'a Body<'tcx>,
   pub ir_mapper: IRMapper<'a, 'tcx>,
   pub move_data: MoveData<'a>,
+  pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
 }
 
 impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
@@ -339,7 +341,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               ..
             },
           )) if !span.from_expansion() => {
-           //println!("visiting path");
+            let bytepos=span.lo();
+            let boundary=self.boundary_map.get(&bytepos);
+            println!("{:?} with boundary {:?}",self.tcx.hir().node_to_string(hirid),boundary);
           }
           
           _ => {

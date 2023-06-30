@@ -1,8 +1,10 @@
 fn main() {
-  let x = String::from("hello"); 
-  let y = String::from("hello");
-  let (a,b)=(x,y);
-  println!("{} {}",a,b);
+  let mut s =String::from("hello");
+  let s1=s;
+  let mut a=returnone();
+  let b=a;
 } 
-
+fn returnone()->usize{
+  1
+}
    
