@@ -297,6 +297,79 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             rhs,
             _,
           ) => {
+            println!();
+            println!("Assign Expression: {}", self.tcx.hir().node_to_string(hirid));
+            let line_number = self.tcx.sess.source_map().lookup_char_pos(expr.span.lo()).line;
+            println!("On line: {}", line_number);
+            let mut lhs_var = "".to_string();
+            match lhs.kind {
+              ExprKind::Path(QPath::Resolved(_,p)) => {
+                let long_name = self.tcx.hir().node_to_string(p.segments[0].hir_id);
+                let name = extract_var_name(&long_name);
+                if let Some(name) = name {
+                  lhs_var = name;
+                }
+              },
+              _=>{}
+            }
+            match rhs.kind {
+              ExprKind::Path(QPath::Resolved(_,p)) => {
+                let bytepos=p.span.lo();
+                  let boundary=self.boundary_map.get(&bytepos);
+                  //println!("boundary {:?}",boundary);
+                  if let Some(boundary) = boundary {
+                    if boundary.expected.drop {
+                      let long_name = self.tcx.hir().node_to_string(p.segments[0].hir_id);
+                      let name = extract_var_name(&long_name);
+                      if let Some(name) = name {
+                        if lhs_var !="" {
+                          println!("Move({}->{})", name, lhs_var);
+                        }
+                      }
+                    } else {
+                      let long_name = self.tcx.hir().node_to_string(p.segments[0].hir_id);
+                      let name = extract_var_name(&long_name);
+                      if let Some(name) = name {
+                        if lhs_var !="" {
+                          println!("Copy({}->{})", name, lhs_var);
+                        }
+                      }
+                    }
+                  }
+              },
+              ExprKind::Call(fn_expr, args) => {
+                let fn_hir_id = fn_expr.hir_id;
+                let fn_long_name = self.tcx.hir().node_to_string(fn_hir_id);
+                let fn_name = extract_var_name(&fn_long_name);
+                if let Some(fn_name) = fn_name {
+                  if (!fn_name.contains("crate::io") && !fn_name.contains("String::from")) { //neglect println
+                    if lhs_var !="" {
+                      println!("Move({}()->{})", fn_name, lhs_var);
+                    }
+                    for a in args.iter() {
+                      println!("arg: {:#?}", self.tcx.hir().node_to_string(a.hir_id));
+                      self.visit_expr(a);
+                    }
+                  }else{
+                    if fn_name.contains("String::from") {
+                      if lhs_var !="" {
+                        println!("Move({}->{})", "String::from()", lhs_var);
+                      }
+                    }
+                  }
+                }
+              },
+              ExprKind::Lit(_) => {
+                let long_name = self.tcx.hir().node_to_string(hirid);
+                let name = extract_var_name(&long_name);
+                if let Some(name) = name {
+                  if lhs_var !="" {
+                    println!("Bind({})", lhs_var);
+                  }
+                }
+              }
+              _=>{}
+            }
             //println!();
             //println!("This is an assign expression: {}", self.tcx.hir().node_to_string(hirid));
             //println!("This is the rhs: {}", self.tcx.hir().node_to_string(rhs.hir_id));
@@ -318,9 +391,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
          ExprKind::Block(block, _) => {
             //println!("visiting block");//z is block
             self.visit_block(block);
-          }
-          ExprKind::Closure(_) => {
-            //println!("visiting closure");
           }
     
           ExprKind::AssignOp(_, lhs, rhs) => {
@@ -368,6 +438,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       fn visit_local(&mut self, local: &'tcx Local<'tcx>) {
         println!();
         println!("Statement: {}", self.tcx.hir().node_to_string(local.hir_id));
+        let line_number= self.tcx.sess.source_map().lookup_char_pos(local.span.lo());
+        println!("on line: {:#?}", line_number.line);
         // lhs
         let mut lhs_var : String= "".to_string();
         match local.pat.kind {
@@ -401,16 +473,13 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                   }
                 }
                 ExprKind::Call(fn_expr, args) => {
-                  let fn_span = fn_expr.span;
                   let fn_hir_id = fn_expr.hir_id;
                   let fn_long_name = self.tcx.hir().node_to_string(fn_hir_id);
                   let fn_name = extract_var_name(&fn_long_name);
                   if let Some(fn_name) = fn_name {
-                    let line_number= self.tcx.sess.source_map().lookup_char_pos(fn_span.lo());
-                    println!("on line: {:#?}", line_number.line);
                     if (!fn_name.contains("crate::io") && !fn_name.contains("String::from")) { //neglect println
                       if lhs_var !="" {
-                        println!("Move({}->{})", fn_name, lhs_var);
+                        println!("Move({}()->{})", fn_name, lhs_var);
                       }
                       for a in args.iter() {
                         println!("arg: {:#?}", self.tcx.hir().node_to_string(a.hir_id));

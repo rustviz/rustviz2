@@ -263,14 +263,14 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
      let mut boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary> = HashMap::new();
 
      for boundary in boundaries {
-      println!("Boundary at location: {:?}.", boundary.location);
+      //println!("Boundary at location: {:?}.", boundary.location);
       let bytepos=boundary.byte_location.0 as u32;
       boundary_map.insert(rustc_span::BytePos(bytepos),boundary);
     };
      for step in steps {
       let location = step.location;
       let line = charrange_to_line(location,source_map);
-      println!("Step on line {} from {:?} to {:?}.",line,location.start,location.end);
+      //println!("Step on line {} from {:?} to {:?}.",line,location.start,location.end);
       let state = step.state;
       for table in state {
         let state = table.state;
@@ -278,10 +278,10 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
         let to = table.to;
         //println!("Table from {:?}-{:?} to {:?}-{:?}.",
         //from.start,from.end,to.start,to.end);
-        for (x,diff) in state{
-          println!("{} with permission diff {:?} ",
-          x,diff);
-        };
+        //for (x,diff) in state{
+        //  println!("{} with permission diff {:?} ",
+        //  x,diff);
+        //};
       };
      };
      let mut visitor = ExprVisitor { tcx, 
