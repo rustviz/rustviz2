@@ -1,7 +1,7 @@
 // Some headers
 use rustc_middle::{
   mir::{Body},
-  ty::{TyCtxt},
+  ty::{TyCtxt,Ty},
 };
 use rustc_hir::{StmtKind, Stmt, Local, Expr, ExprKind, UnOp, QPath, Path, def::Res, PatKind};
 use std::{collections::HashMap};
@@ -25,6 +25,17 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
 }
 
 impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
+  fn is_return_type_copyable(&self,fn_expr:&Expr)->bool{
+    let mut flag = false;
+    let type_check = self.tcx.typeck(fn_expr.hir_id.owner);
+    let type_of_path = type_check.expr_ty(fn_expr);
+    let fn_sig = type_of_path.fn_sig(self.tcx).skip_binder().output().walk(); 
+    if let Some(return_type)= fn_sig.last(){
+      let return_type=return_type.expect_ty();
+      flag = return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(fn_expr.hir_id.owner));
+    }
+    flag
+  }
 }
 
 // the visitor will walk through the hir
@@ -111,9 +122,14 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                 let fn_long_name = self.tcx.hir().node_to_string(fn_hir_id);
                 let fn_name = extract_var_name(&fn_long_name);
                 if let Some(fn_name) = fn_name {
-                  if (!fn_name.contains("crate::io") && !fn_name.contains("String::from")) { //neglect println
+                  if !fn_name.contains("crate::io") && !fn_name.contains("String::from") { //neglect println
                     if lhs_var !="" {
-                      println!("Move({}()->{})", fn_name, lhs_var);
+                      if self.is_return_type_copyable(fn_expr) {
+                        println!("Copy({}()->{})", fn_name, lhs_var);
+                      }
+                      else {
+                        println!("Move({}()->{})", fn_name, lhs_var);
+                      }
                     }
                     for a in args.iter() {
                       println!("arg: {:#?}", self.tcx.hir().node_to_string(a.hir_id));
@@ -220,9 +236,14 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                   let fn_long_name = self.tcx.hir().node_to_string(fn_hir_id);
                   let fn_name = extract_var_name(&fn_long_name);
                   if let Some(fn_name) = fn_name {
-                    if (!fn_name.contains("crate::io") && !fn_name.contains("String::from")) { //neglect println
+                    if !fn_name.contains("crate::io") && !fn_name.contains("String::from") { //neglect println
                       if lhs_var !="" {
-                        println!("Move({}()->{})", fn_name, lhs_var);
+                        if self.is_return_type_copyable(fn_expr) {
+                          println!("Copy({}()->{})", fn_name, lhs_var);
+                        }
+                        else {
+                          println!("Move({}()->{})", fn_name, lhs_var);
+                        }
                       }
                       for a in args.iter() {
                         println!("arg: {:#?}", self.tcx.hir().node_to_string(a.hir_id));
