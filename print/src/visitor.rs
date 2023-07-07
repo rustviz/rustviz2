@@ -193,7 +193,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                 }
                 _=>{}
               }
-              self.visit_expr(arg);
+              // self.visit_expr(arg);
             }
           }
           ExprKind::MethodCall(_, rcvr, args, fn_span)
@@ -237,7 +237,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             }
             self.match_rhs(lhs_var, rhs);
             self.visit_expr(lhs);
-            self.visit_expr(rhs);
+            match rhs.kind {
+              ExprKind::Path(_) => {},
+              _=>{
+                self.visit_expr(rhs);
+              }
+            }
           }
     
           ExprKind::Block(block, _) => {
@@ -264,6 +269,16 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           )) if !span.from_expansion() => {
             let bytepos=span.lo();
             let boundary=self.boundary_map.get(&bytepos);
+            if let Some(boundary)=boundary{
+              if boundary.expected.drop {
+                let name = self.hirid_to_var_name(hirid);
+                if let Some(name) = name {
+                  println!();
+                  println!("On line: {}", self.expr_to_line(expr));
+                  println!("Move({}->none)", name);
+                }
+              }
+            }
           }
           
           _ => {
@@ -300,12 +315,18 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           match local.init {
           | Some(expr) => {
               self.match_rhs(lhs_var, expr);
+              match expr.kind {
+                ExprKind::Path(_) => {},
+                _=>{
+                  self.visit_expr(expr);
+                }
+              }
           },
           | _ => {},
           };
         
         
-        walk_list!(self, visit_expr, &local.init);
+        //walk_list!(self, visit_expr, &local.init);
         if let Some(els) = local.els {
         self.visit_block(els);
         }

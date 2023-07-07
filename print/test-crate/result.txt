@@ -1,126 +1,155 @@
 ********************************************************************
 computing body permissions "main"
-Body_range from CharPos(0) to CharPos(135).
-Boundary at location: CharPos(57).
-Boundary at location: CharPos(93).
-Boundary at location: CharPos(131).
-Step on line 6 from CharPos(122) to CharPos(122).
-c with permission diff 
-Permissions Data Step
-  Permissions:          ↑R   ―<Some(false)>―W   ↑D
-    is_live:            ↑
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
-    path_moved:         ―<None>―
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-Step on line 3 from CharPos(59) to CharPos(59).
-s with permission diff 
-Permissions Data Step
-  Permissions:          ↓R   ↓W   ↓D
-    is_live:            ↓
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(true)>―
-    path_moved:         ↑
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-Step on line 5 from CharPos(96) to CharPos(96).
-a with permission diff 
-Permissions Data Step
-  Permissions:          ↓R   ↓W   ↓D
-    is_live:            ↓
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(true)>―
-    path_moved:         ―<None>―
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-Step on line 2 from CharPos(47) to CharPos(47).
-s with permission diff 
-Permissions Data Step
-  Permissions:          ↑R   ↑W   ↑D
-    is_live:            ↑
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(true)>―
-    path_moved:         ―<None>―
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-Step on line 7 from CharPos(133) to CharPos(133).
-c with permission diff 
-Permissions Data Step
-  Permissions:          ↓R   ―<Some(false)>―W   ↓D
-    is_live:            ↓
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
-    path_moved:         ↑
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-Step on line 4 from CharPos(84) to CharPos(84).
-a with permission diff 
-Permissions Data Step
-  Permissions:          ↑R   ↑W   ↑D
-    is_live:            ↑
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(true)>―
-    path_moved:         ―<None>―
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
+Body_range from CharPos(0) to CharPos(435).
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).8) (local `let mut s =String::from("hello");`)
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).5) (local `let z = returnonetup();`)
 on line: 2
+Copy(returnonetup()->z)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).2) (expr `returnonetup()`)
+On line: 2
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).11) (local `let ss = returnstringtup();`)
+on line: 3
+Move(returnstringtup()->ss)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).8) (expr `returnstringtup()`)
+On line: 3
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).20) (local `let mut s =String::from("hello");`)
+on line: 4
 Move(String::from()->s)
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).13) (local `let s1=s;`)
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).14) (expr `String::from("hello")`)
+On line: 4
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).29) (local `let s0 =String::from("hello");`)
+on line: 5
+Move(String::from()->s0)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).23) (expr `String::from("hello")`)
+On line: 5
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).38) (local `let s2 =String::from("hello");`)
+on line: 6
+Move(String::from()->s2)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).32) (expr `String::from("hello")`)
+On line: 6
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).47) (local `let mut s3 =String::from("hello");`)
+on line: 7
+Move(String::from()->s3)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).41) (expr `String::from("hello")`)
+On line: 7
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).56) (local `let s4 =String::from("hello");`)
+on line: 8
+Move(String::from()->s4)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).50) (expr `String::from("hello")`)
+On line: 8
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).59) (expr `$crate::io::_print($crate::format_args_nl!($($arg)*))`)
+On line: 137
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).85) (local `let s1;`)
+on line: 10
+
+Assign Expression: HirId(DefId(0:3 ~ test_crate[cdd0]::main).87) (expr `s1=s`)
+On line: 11
 Move(s->s1)
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).19) (local `let mut a=returnone();`)
-on line: 4
-Move(returnone->a)
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).97) (local `let s1r=&s1;`)
+on line: 12
+StaticBorrow(s1->s1r)
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).24) (local `let b=a;`)
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).103) (local `let s3rr=&mut s3;`)
+on line: 13
+MutableBorrow(s3->s3rr)
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).114) (local `let s3r=foo(&s4,s0);`)
+on line: 14
+Move(foo()->s3r)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).106) (expr `foo(&s4,s0)`)
+On line: 14
+PassByStaticReference(s4->foo())
+Move(s0->foo())
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).118) (local `let a=1;`)
+on line: 16
+Bind(a)
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).121) (local `let b;`)
+on line: 17
+
+Assign Expression: HirId(DefId(0:3 ~ test_crate[cdd0]::main).123) (expr `b=a`)
+On line: 18
 Copy(a->b)
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).30) (local `let c = returnstring();`)
-on line: 6
-Move(returnstring->c)
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).130) (local `let c;`)
+on line: 19
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).35) (local `let d=c;`)
+Assign Expression: HirId(DefId(0:3 ~ test_crate[cdd0]::main).132) (expr `c = returnstring()`)
+On line: 20
+Move(returnstring()->c)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).135) (expr `returnstring()`)
+On line: 20
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).142) (local `let d=c;`)
+on line: 21
 Move(c->d)
 ********************************************************************
 computing body permissions "returnone"
-Body_range from CharPos(137) to CharPos(165).
+Body_range from CharPos(437) to CharPos(465).
+********************************************************************
+computing body permissions "returnonetup"
+Body_range from CharPos(466) to CharPos(509).
+********************************************************************
+computing body permissions "takestring_returnone"
+Body_range from CharPos(510) to CharPos(594).
 ********************************************************************
 computing body permissions "returnstring"
-Body_range from CharPos(170) to CharPos(233).
-Boundary at location: CharPos(230).
-Step on line 14 from CharPos(227) to CharPos(227).
-s with permission diff 
-Permissions Data Step
-  Permissions:          ↑R   ―<Some(false)>―W   ↑D
-    is_live:            ↑
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
-    path_moved:         ―<None>―
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
-Step on line 15 from CharPos(231) to CharPos(231).
-s with permission diff 
-Permissions Data Step
-  Permissions:          ↓R   ―<Some(false)>―W   ↓D
-    is_live:            ↓
-    type_droppable:     ―<Some(true)>―
-    type_writeable:     ―<Some(false)>―
-    path_moved:         ↑
-    loan_write_refined: ―<None>―
-    loan_drop_refined:  ―<None>―
- 
+Body_range from CharPos(595) to CharPos(658).
 
-Statement: HirId(DefId(0:5 ~ test_crate[cdd0]::returnstring).8) (local `let s=String::from("hello");`)
-on line: 14
+Statement: HirId(DefId(0:7 ~ test_crate[cdd0]::returnstring).8) (local `let s=String::from("hello");`)
+on line: 33
 Move(String::from()->s)
+
+Function Call: HirId(DefId(0:7 ~ test_crate[cdd0]::returnstring).2) (expr `String::from("hello")`)
+On line: 33
+
+On line: 34
+Move(s->none)
+********************************************************************
+computing body permissions "returnstringtup"
+Body_range from CharPos(659) to CharPos(773).
+
+Statement: HirId(DefId(0:8 ~ test_crate[cdd0]::returnstringtup).8) (local `let s1=String::from("hello");`)
+on line: 37
+Move(String::from()->s1)
+
+Function Call: HirId(DefId(0:8 ~ test_crate[cdd0]::returnstringtup).2) (expr `String::from("hello")`)
+On line: 37
+
+Statement: HirId(DefId(0:8 ~ test_crate[cdd0]::returnstringtup).17) (local `let s2=String::from("hello");`)
+on line: 38
+Move(String::from()->s2)
+
+Function Call: HirId(DefId(0:8 ~ test_crate[cdd0]::returnstringtup).11) (expr `String::from("hello")`)
+On line: 38
+
+On line: 39
+Move(s1->none)
+
+On line: 39
+Move(s2->none)
+********************************************************************
+computing body permissions "foo"
+Body_range from CharPos(774) to CharPos(836).
+
+On line: 42
+Move(s2->none)

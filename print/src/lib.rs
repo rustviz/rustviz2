@@ -99,8 +99,8 @@ use rustc_utils::{
   source_map::range::{CharRange},
   mir::{borrowck_facts},
 };
-use crate::parser::ExprVisitor;
-pub mod parser;
+use crate::visitor::ExprVisitor;
+pub mod visitor;
 pub struct PrintAllItemsPlugin;
 
 #[derive(Parser, Serialize, Deserialize)]
@@ -258,7 +258,7 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
         //};
       };
      };
-     // The visitor will walk through the hir and analysis it, see parser.rs.
+     // The visitor will walk through the hir and analysis it, see visitor.rs.
      let mut visitor = ExprVisitor { 
       tcx, 
       mir_body:body, 

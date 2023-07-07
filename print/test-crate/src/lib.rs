@@ -6,7 +6,8 @@ fn main() {
   let s2 =String::from("hello");
   let mut s3 =String::from("hello");
   let s4 =String::from("hello");
-  let s1;
+  println!("{}",s);
+  let s1; 
   s1=s;
   let s1r=&s1;
   let s3rr=&mut s3;
