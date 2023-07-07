@@ -1,9 +1,10 @@
 // Some headers
+use std::panic;
 use rustc_middle::{
   mir::{Body},
   ty::{TyCtxt,Ty},
 };
-use rustc_hir::{StmtKind, Stmt, Local, Expr, ExprKind, UnOp, QPath, Path, def::Res, PatKind};
+use rustc_hir::{StmtKind, Stmt, Local, Expr, ExprKind, UnOp, QPath, Path, def::Res, PatKind, Mutability};
 use std::{collections::HashMap};
 use rustc_ast::walk_list;
 use rustc_span::Span;
@@ -31,6 +32,7 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
 }
 
+// These are helper functions used the visitor
 impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   fn expr_to_line(&self,expr:&Expr)->usize{
     self.tcx.sess.source_map().lookup_char_pos(expr.span.lo()).line
@@ -42,16 +44,37 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     let long_name = self.tcx.hir().node_to_string(id);
     extract_var_name(&long_name)
   }
-  fn is_return_type_copyable(&self,fn_expr:&Expr)->bool{
-    let mut flag = false;
+  fn return_type_of(&self,fn_expr:&Expr)->Option<Ty<'tcx>>{
     let type_check = self.tcx.typeck(fn_expr.hir_id.owner);
     let type_of_path = type_check.expr_ty(fn_expr);
-    let fn_sig = type_of_path.fn_sig(self.tcx).skip_binder().output().walk(); 
-    if let Some(return_type)= fn_sig.last(){
-      let return_type=return_type.expect_ty();
-      flag = return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(fn_expr.hir_id.owner));
+    let mut fn_sig = type_of_path.fn_sig(self.tcx).skip_binder().output().walk();
+    if let Some(return_type)= fn_sig.next(){
+      Some(return_type.expect_ty())
     }
-    flag
+    else {
+      None
+    }
+  }
+  fn is_return_type_ref(&self,fn_expr:&Expr)->bool{
+    if let Some(return_type)=self.return_type_of(fn_expr){
+      return_type.is_ref()
+    }
+    else{
+      false
+    }
+  }
+  fn is_return_type_copyable(&self,fn_expr:&Expr)->bool{
+    if let Some(return_type)=self.return_type_of(fn_expr){
+      if return_type.walk().fold(false,|flag,item|{flag||item.expect_ty().is_ref()}) {
+        false
+      }
+      else{
+        return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(fn_expr.hir_id.owner))
+      }
+    }
+    else{
+      false
+    }
   }
   fn match_rhs(&self,lhs_var:String,rhs:&Expr){
     match rhs.kind {
@@ -62,16 +85,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             if boundary.expected.drop {
               let name = self.hirid_to_var_name(p.segments[0].hir_id);
               if let Some(name) = name {
-                if lhs_var !="" {
-                  println!("Move({}->{})", name, lhs_var);
-                }
+                println!("Move({}->{})", name, lhs_var);
               }
             } else {
               let name = self.hirid_to_var_name(p.segments[0].hir_id);
               if let Some(name) = name {
-                if lhs_var !="" {
-                  println!("Copy({}->{})", name, lhs_var);
-                }
+                println!("Copy({}->{})", name, lhs_var);
               }
             }
           }
@@ -79,7 +98,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Call(fn_expr, _) => {
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id);
         if let Some(fn_name) = fn_name {
-          if lhs_var !="" {
+          if !self.is_return_type_ref(fn_expr){
             if self.is_return_type_copyable(fn_expr) {
               println!("Copy({}()->{})", fn_name, lhs_var);
             }
@@ -90,8 +109,23 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         }
       },
       ExprKind::Lit(_) => {
-        if lhs_var !="" {
-          println!("Bind({})", lhs_var);
+        println!("Bind({})", lhs_var);
+      }
+      ExprKind::AddrOf(_,mutability,expr) => {
+        match expr.kind{
+          ExprKind::Path(QPath::Resolved(_,p))=>{
+            if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
+              match mutability{
+                Mutability::Not=>{
+                  println!("StaticBorrow({}->{})",name,lhs_var);
+                }
+                Mutability::Mut=>{
+                  println!("MutableBorrow({}->{})",name,lhs_var);
+                }
+              }
+            }
+          }
+          _=>{}
         }
       }
       _=>{}
@@ -99,6 +133,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
 }
 
+// these are the visitor trait itself
 // the visitor will walk through the hir
 // the approach we are using is simple here. when visiting an expression or a statement,
 // match it with a pattern and do analysis accordingly. The difference between expressions 
@@ -134,6 +169,25 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                           println!("PassByStaticReference({}->{}())", name, fn_name);
                         }
                       }
+                    }
+                  }
+                }
+                ExprKind::AddrOf(_,mutability,expr)=>{
+                  if let Some(fn_name) = self.hirid_to_var_name(fn_expr.hir_id){
+                    match expr.kind{
+                      ExprKind::Path(QPath::Resolved(_,p))=>{
+                        if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
+                          match mutability{
+                            Mutability::Not=>{
+                              println!("PassByStaticReference({}->{}())",name,fn_name);
+                            }
+                            Mutability::Mut=>{
+                              println!("PassByMutableReference({}->{}())",name,fn_name);
+                            }
+                          }
+                        }
+                      }
+                      _=>{}
                     }
                   }
                 }
