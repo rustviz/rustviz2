@@ -1,5 +1,4 @@
 // Some headers
-use std::panic;
 use rustc_middle::{
   mir::{Body},
   ty::{TyCtxt,Ty},
@@ -11,6 +10,29 @@ use rustc_span::Span;
 use aquascope::analysis::{
   boundaries::PermissionsBoundary};
 use rustc_hir::{intravisit::{self, Visitor},hir_id::HirId};
+use std::cmp::{Eq, PartialEq};
+use std::hash::{Hash, Hasher};
+
+#[derive(Eq, PartialEq)]
+pub struct AccessPoint {
+  mutability: Mutability,
+  name:String,
+} 
+impl Hash for AccessPoint {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+      self.name.hash(state);
+  }
+}
+
+#[derive(Eq, PartialEq,Hash)]
+pub enum AccessPointUsage{
+  Owner(AccessPoint),
+  MutRef(AccessPoint),
+  StaticRef(AccessPoint),
+  Struct(Vec<AccessPoint>),
+  Function(String),
+}
+
 
 // A small helper function
 fn extract_var_name(input_string: &str ) -> Option<String> {
@@ -30,6 +52,8 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub tcx: TyCtxt<'tcx>,
   pub mir_body: &'a Body<'tcx>,
   pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
+  pub access_points: HashMap<AccessPointUsage,bool>,
+  pub mutability_map: HashMap<String,Mutability>,
 }
 
 // These are helper functions used the visitor
@@ -76,7 +100,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       false
     }
   }
-  fn match_rhs(&self,lhs_var:String,rhs:&Expr){
+  fn match_rhs(&mut self,lhs:AccessPoint,rhs:&Expr){
+    let lhs_var=&lhs.name;
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let bytepos=p.span.lo();
@@ -93,6 +118,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 println!("Copy({}->{})", name, lhs_var);
               }
             }
+            self.access_points.insert(AccessPointUsage::Owner(lhs),false);
           }
       },
       ExprKind::Call(fn_expr, _) => {
@@ -105,11 +131,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             else {
               println!("Move({}()->{})", fn_name, lhs_var);
             }
+            self.access_points.insert(AccessPointUsage::Owner(lhs),false);
+            self.access_points.insert(AccessPointUsage::Function(fn_name),false);
           }
         }
       },
       ExprKind::Lit(_) => {
         println!("Bind({})", lhs_var);
+        self.access_points.insert(AccessPointUsage::Owner(lhs),false);
       }
       ExprKind::AddrOf(_,mutability,expr) => {
         match expr.kind{
@@ -118,9 +147,11 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               match mutability{
                 Mutability::Not=>{
                   println!("StaticBorrow({}->{})",name,lhs_var);
+                  self.access_points.insert(AccessPointUsage::StaticRef(lhs),false);
                 }
                 Mutability::Mut=>{
                   println!("MutableBorrow({}->{})",name,lhs_var);
+                  self.access_points.insert(AccessPointUsage::MutRef(lhs),false);
                 }
               }
             }
@@ -129,6 +160,43 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         }
       }
       _=>{}
+    }
+  }
+  pub fn print_definitions(&self){
+    println!();
+    println!("/*--- BEGIN Variable Definitions ---");
+    for (point,_) in &self.access_points {
+      match point {
+        AccessPointUsage::Owner(p)=>{
+          println!("Owner {:?} {};",p.mutability,p.name);
+        }
+        AccessPointUsage::StaticRef(p)=>{
+          println!("StaticRef {:?} {};",p.mutability,p.name);
+        }
+        AccessPointUsage::MutRef(p)=>{
+          println!("MutRef {:?} {};",p.mutability,p.name);
+        }
+        AccessPointUsage::Function(name)=>{
+          println!("Function {}();",name);
+        }
+        _=>{}
+      }
+    }
+    println!("--- END Variable Definitions ---*/");
+  }
+  pub fn print_out_of_scope(&self){
+    println!();
+    for (point,gos) in &self.access_points {
+      if !gos{
+        match point {
+          AccessPointUsage::Owner(p)|
+          AccessPointUsage::StaticRef(p)|
+          AccessPointUsage::MutRef(p)=>{
+            println!("GoOutOfScope({})",p.name);
+          }
+          _=>{}
+        }
+      }
     }
   }
 }
@@ -168,6 +236,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                         else if expected.read{
                           println!("PassByStaticReference({}->{}())", name, fn_name);
                         }
+                        self.access_points.insert(AccessPointUsage::Function(fn_name),false);
                       }
                     }
                   }
@@ -185,6 +254,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                               println!("PassByMutableReference({}->{}())",name,fn_name);
                             }
                           }
+                          self.access_points.insert(AccessPointUsage::Function(fn_name),false);
                         }
                       }
                       _=>{}
@@ -235,7 +305,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               },
               _=>{}
             }
-            self.match_rhs(lhs_var, rhs);
+            if let Some(mutability)=self.mutability_map.get(&lhs_var){
+              self.match_rhs(AccessPoint { mutability:*mutability, name: lhs_var }, rhs);
+            }
             self.visit_expr(lhs);
             match rhs.kind {
               ExprKind::Path(_) => {},
@@ -299,11 +371,22 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         println!();
         println!("Statement: {}", self.tcx.hir().node_to_string(local.hir_id));
         println!("on line: {:#?}", self.span_to_line(&local.span));
-        let mut lhs_var : String= "".to_string();
         match local.pat.kind {
           PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) => {
-            lhs_var = ident.to_string();
-            
+            let lhs_var = ident.to_string();
+            self.mutability_map.insert(lhs_var.clone(), binding_annotation.1);
+            match local.init {
+              | Some(expr) => {
+                  self.match_rhs(AccessPoint { mutability: binding_annotation.1, name: lhs_var}, expr);
+                  match expr.kind {
+                    ExprKind::Path(_) => {},
+                    _=>{
+                      self.visit_expr(expr);
+                    }
+                  }
+              },
+              | _ => {},
+              };
           }
           PatKind::Path(QPath::Resolved(_,p)) => {
             println!("lhs path: {:?}", self.tcx.def_path_str(p.res.def_id()));
@@ -312,18 +395,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             println!("lhs is not listed");
           }
         }
-          match local.init {
-          | Some(expr) => {
-              self.match_rhs(lhs_var, expr);
-              match expr.kind {
-                ExprKind::Path(_) => {},
-                _=>{
-                  self.visit_expr(expr);
-                }
-              }
-          },
-          | _ => {},
-          };
         
         
         //walk_list!(self, visit_expr, &local.init);

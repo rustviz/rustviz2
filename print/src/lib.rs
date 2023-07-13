@@ -99,7 +99,7 @@ use rustc_utils::{
   source_map::range::{CharRange},
   mir::{borrowck_facts},
 };
-use crate::visitor::ExprVisitor;
+use crate::visitor::{ExprVisitor};
 pub mod visitor;
 pub struct PrintAllItemsPlugin;
 
@@ -253,7 +253,7 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
         //println!("Table from {:?}-{:?} to {:?}-{:?}.",
         //from.start,from.end,to.start,to.end);
         //for (x,diff) in state{
-        //  println!("{} with permission diff {:?} ",
+        // println!("{} with permission diff {:?} ",
         //  x,diff);
         //};
       };
@@ -263,8 +263,12 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
       tcx, 
       mir_body:body, 
       boundary_map,
+      access_points:HashMap::new(),
+      mutability_map:HashMap::new(),
     };
     visitor.visit_body(hir_body);
+    visitor.print_definitions();
+    visitor.print_out_of_scope();
     },
     _ =>{println!("Analysis Error.");}
   }

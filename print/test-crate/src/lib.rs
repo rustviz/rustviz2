@@ -26,7 +26,7 @@ fn returnone()->usize{
 fn returnonetup()->(usize,usize){
   (1,1)
 }
-fn takestring_returnone(s0:String,s1:&String,s2:String,s3:&mut String)->usize{
+fn takestring_returnone(s0:String,s1:&String,s3:&mut String)->usize{
   1
 }
 fn returnstring()->String{
@@ -38,6 +38,6 @@ fn returnstringtup()->(String,String){
   let s2=String::from("hello");
   (s1,s2)
 }
-fn foo(s1: & String,s2:String)->(& String,String){
+fn foo(s1:&String,s2:String)->(&String,String){
   (s1,s2)
 }
