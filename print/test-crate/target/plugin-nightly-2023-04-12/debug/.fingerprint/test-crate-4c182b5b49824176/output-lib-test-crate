@@ -1,27 +1,267 @@
 fn main() -> () {
     let mut _0: ();                      // return place in scope 0 at src/lib.rs:1:11: 1:11
+    let _5: &'_#36r mut std::string::String; // in scope 0 at src/lib.rs:6:3: 6:11
+    let mut _6: &'_#37r mut std::string::String; // in scope 0 at src/lib.rs:6:7: 6:10
+    let _8: ();                          // in scope 0 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:136:23: 138:6
+    let _9: ();                          // in scope 0 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:9: 137:62
+    let mut _10: std::fmt::Arguments<'_#39r>; // in scope 0 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+    let mut _11: &'_#40r [&'_#41r str];  // in scope 0 at src/lib.rs:8:12: 8:16
+    let mut _12: &'_#42r [&'_#43r str; 2]; // in scope 0 at src/lib.rs:8:12: 8:16
+    let _13: &'_#44r [&'_#45r str; 2];   // in scope 0 at src/lib.rs:8:12: 8:16
+    let _14: [&'_#46r str; 2];           // in scope 0 at src/lib.rs:8:12: 8:16
+    let mut _15: &'_#47r [core::fmt::ArgumentV1<'_#48r>]; // in scope 0 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+    let mut _16: &'_#49r [core::fmt::ArgumentV1<'_#50r>; 1]; // in scope 0 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+    let _17: &'_#51r [core::fmt::ArgumentV1<'_#52r>; 1]; // in scope 0 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+    let _18: [core::fmt::ArgumentV1<'_#53r>; 1]; // in scope 0 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+    let mut _19: core::fmt::ArgumentV1<'_#54r>; // in scope 0 at src/lib.rs:8:13: 8:15
+    let mut _20: &'_#55r &'_#56r mut std::string::String; // in scope 0 at src/lib.rs:8:17: 8:20
+    let _21: &'_#57r &'_#58r mut std::string::String; // in scope 0 at src/lib.rs:8:17: 8:20
     scope 1 {
+        scope 2 {
+            debug s => _1;               // in scope 2 at src/lib.rs:2:7: 2:12
+            scope 7 {
+                debug s1 => _2;          // in scope 7 at src/lib.rs:3:7: 3:13
+                scope 12 {
+                    debug sr => _3;      // in scope 12 at src/lib.rs:4:7: 4:9
+                    scope 16 {
+                        debug s1r => _4; // in scope 16 at src/lib.rs:5:7: 5:10
+                        scope 20 {
+                            scope 21 {
+                            }
+                            scope 22 {
+                            }
+                        }
+                        scope 23 {
+                            debug sr1 => _7; // in scope 23 at src/lib.rs:7:7: 7:10
+                            scope 26 {
+                                scope 27 {
+                                    scope 28 {
+                                    }
+                                    scope 29 {
+                                        scope 30 {
+                                        }
+                                        scope 31 {
+                                            let mut _22: &'_#59r [&'_#60r str; 2]; // in scope 31 at src/lib.rs:8:12: 8:16
+                                            scope 32 {
+                                                scope 33 {
+                                                }
+                                                scope 34 {
+                                                }
+                                            }
+                                        }
+                                        scope 35 {
+                                            scope 36 {
+                                                scope 37 {
+                                                    scope 38 {
+                                                    }
+                                                    scope 39 {
+                                                        scope 40 {
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        scope 24 {
+                            let _7: &'_#38r mut std::string::String; // in scope 24 at src/lib.rs:7:7: 7:10
+                            scope 25 {
+                            }
+                        }
+                    }
+                    scope 17 {
+                        let _4: &'_#35r mut std::string::String; // in scope 17 at src/lib.rs:5:7: 5:10
+                        scope 18 {
+                            scope 19 {
+                            }
+                        }
+                    }
+                }
+                scope 13 {
+                    let _3: &'_#34r mut std::string::String; // in scope 13 at src/lib.rs:4:7: 4:9
+                    scope 14 {
+                        scope 15 {
+                        }
+                    }
+                }
+            }
+            scope 8 {
+                let mut _2: std::string::String; // in scope 8 at src/lib.rs:3:7: 3:13
+                scope 9 {
+                    scope 10 {
+                    }
+                    scope 11 {
+                    }
+                }
+            }
+        }
+        scope 3 {
+            let mut _1: std::string::String; // in scope 3 at src/lib.rs:2:7: 2:12
+            scope 4 {
+                scope 5 {
+                }
+                scope 6 {
+                }
+            }
+        }
     }
 
     bb0: {
-        _0 = const ();                   // scope 1 at src/lib.rs:1:11: 2:2
-        return;                          // scope 0 at src/lib.rs:2:2: 2:2
+        StorageLive(_1);                 // scope 3 at src/lib.rs:2:7: 2:12
+        _1 = <std::string::String as std::convert::From<&'_#11r str>>::from(const "hello") -> [return: bb1, unwind: bb11]; // scope 4 at src/lib.rs:2:15: 2:36
+                                         // mir::Constant
+                                         // + span: src/lib.rs:2:15: 2:27
+                                         // + user_ty: UserType(0)
+                                         // + literal: Const { ty: fn(&'_#11r str) -> std::string::String {<std::string::String as std::convert::From<&'_#11r str>>::from}, val: Value(<ZST>) }
+                                         // mir::Constant
+                                         // + span: src/lib.rs:2:28: 2:35
+                                         // + literal: Const { ty: &'_#12r str, val: Value(Slice(..)) }
+    }
+
+    bb1: {
+        FakeRead(ForLet(None), _1);      // scope 3 at src/lib.rs:2:7: 2:12
+        StorageLive(_2);                 // scope 8 at src/lib.rs:3:7: 3:13
+        _2 = <std::string::String as std::convert::From<&'_#13r str>>::from(const "hello") -> [return: bb2, unwind: bb10]; // scope 9 at src/lib.rs:3:15: 3:36
+                                         // mir::Constant
+                                         // + span: src/lib.rs:3:15: 3:27
+                                         // + user_ty: UserType(1)
+                                         // + literal: Const { ty: fn(&'_#13r str) -> std::string::String {<std::string::String as std::convert::From<&'_#13r str>>::from}, val: Value(<ZST>) }
+                                         // mir::Constant
+                                         // + span: src/lib.rs:3:28: 3:35
+                                         // + literal: Const { ty: &'_#14r str, val: Value(Slice(..)) }
+    }
+
+    bb2: {
+        FakeRead(ForLet(None), _2);      // scope 8 at src/lib.rs:3:7: 3:13
+        StorageLive(_3);                 // scope 13 at src/lib.rs:4:7: 4:9
+        _3 = &'_#15r mut _1;             // scope 14 at src/lib.rs:4:12: 4:18
+        FakeRead(ForLet(None), _3);      // scope 13 at src/lib.rs:4:7: 4:9
+        StorageLive(_4);                 // scope 17 at src/lib.rs:5:7: 5:10
+        _4 = &'_#16r mut _2;             // scope 18 at src/lib.rs:5:12: 5:19
+        FakeRead(ForLet(None), _4);      // scope 17 at src/lib.rs:5:7: 5:10
+        StorageLive(_5);                 // scope 20 at src/lib.rs:6:3: 6:11
+        StorageLive(_6);                 // scope 22 at src/lib.rs:6:7: 6:10
+        _6 = &'_#17r mut (*_4);          // scope 22 at src/lib.rs:6:7: 6:10
+        _5 = foo(move _6) -> [return: bb3, unwind: bb9]; // scope 20 at src/lib.rs:6:3: 6:11
+                                         // mir::Constant
+                                         // + span: src/lib.rs:6:3: 6:6
+                                         // + literal: Const { ty: for<'a> fn(&'a mut std::string::String) -> &'a mut std::string::String {foo}, val: Value(<ZST>) }
+    }
+
+    bb3: {
+        StorageDead(_6);                 // scope 20 at src/lib.rs:6:10: 6:11
+        StorageDead(_5);                 // scope 16 at src/lib.rs:6:11: 6:12
+        StorageLive(_7);                 // scope 24 at src/lib.rs:7:7: 7:10
+        _7 = move _3;                    // scope 25 at src/lib.rs:7:12: 7:14
+        FakeRead(ForLet(None), _7);      // scope 24 at src/lib.rs:7:7: 7:10
+        StorageLive(_8);                 // scope 26 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:136:23: 138:6
+        StorageLive(_9);                 // scope 27 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:9: 137:62
+        StorageLive(_10);                // scope 29 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+        StorageLive(_11);                // scope 31 at src/lib.rs:8:12: 8:16
+        StorageLive(_12);                // scope 31 at src/lib.rs:8:12: 8:16
+        StorageLive(_13);                // scope 31 at src/lib.rs:8:12: 8:16
+        _22 = const _;                   // scope 31 at src/lib.rs:8:12: 8:16
+                                         // mir::Constant
+                                         // + span: src/lib.rs:8:12: 8:16
+                                         // + literal: Const { ty: &'_#18r [&'_#19r str; 2], val: Unevaluated(main, [], Some(promoted[0])) }
+        _13 = &'_#20r (*_22);            // scope 31 at src/lib.rs:8:12: 8:16
+        _12 = &'_#21r (*_13);            // scope 31 at src/lib.rs:8:12: 8:16
+        _11 = move _12 as &'_#22r [&'_#23r str] (Pointer(Unsize)); // scope 31 at src/lib.rs:8:12: 8:16
+        StorageDead(_12);                // scope 31 at src/lib.rs:8:15: 8:16
+        StorageLive(_15);                // scope 35 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+        StorageLive(_16);                // scope 35 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+        StorageLive(_17);                // scope 35 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+        StorageLive(_18);                // scope 36 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+        StorageLive(_19);                // scope 37 at src/lib.rs:8:13: 8:15
+        StorageLive(_20);                // scope 39 at src/lib.rs:8:17: 8:20
+        StorageLive(_21);                // scope 39 at src/lib.rs:8:17: 8:20
+        _21 = &'_#24r _7;                // scope 39 at src/lib.rs:8:17: 8:20
+        _20 = &'_#25r (*_21);            // scope 39 at src/lib.rs:8:17: 8:20
+        _19 = core::fmt::ArgumentV1::<'_#26r>::new_display::<&'_#27r mut std::string::String>(move _20) -> [return: bb4, unwind: bb9]; // scope 37 at src/lib.rs:8:13: 8:15
+                                         // mir::Constant
+                                         // + span: src/lib.rs:8:13: 8:15
+                                         // + user_ty: UserType(3)
+                                         // + literal: Const { ty: for<'b> fn(&'b &'_#27r mut std::string::String) -> core::fmt::ArgumentV1<'b> {core::fmt::ArgumentV1::<'_#26r>::new_display::<&'_#27r mut std::string::String>}, val: Value(<ZST>) }
+    }
+
+    bb4: {
+        StorageDead(_20);                // scope 37 at src/lib.rs:8:14: 8:15
+        _18 = [move _19];                // scope 36 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+        StorageDead(_19);                // scope 36 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:60: 137:61
+        _17 = &'_#29r _18;               // scope 35 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+        _16 = &'_#30r (*_17);            // scope 35 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+        _15 = move _16 as &'_#31r [core::fmt::ArgumentV1<'_#32r>] (Pointer(Unsize)); // scope 35 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+        StorageDead(_16);                // scope 35 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:60: 137:61
+        _10 = std::fmt::Arguments::<'_#33r>::new_v1(move _11, move _15) -> [return: bb5, unwind: bb9]; // scope 29 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+                                         // mir::Constant
+                                         // + span: /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:28: 137:61
+                                         // + user_ty: UserType(2)
+                                         // + literal: Const { ty: fn(&'_#33r [&'static str], &'_#33r [core::fmt::ArgumentV1<'_#33r>]) -> std::fmt::Arguments<'_#33r> {std::fmt::Arguments::<'_#33r>::new_v1}, val: Value(<ZST>) }
+    }
+
+    bb5: {
+        StorageDead(_15);                // scope 29 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:60: 137:61
+        StorageDead(_11);                // scope 29 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:60: 137:61
+        _9 = std::io::_print(move _10) -> [return: bb6, unwind: bb9]; // scope 27 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:9: 137:62
+                                         // mir::Constant
+                                         // + span: /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:9: 137:27
+                                         // + literal: Const { ty: for<'a> fn(std::fmt::Arguments<'a>) {std::io::_print}, val: Value(<ZST>) }
+    }
+
+    bb6: {
+        StorageDead(_10);                // scope 27 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:61: 137:62
+        StorageDead(_21);                // scope 26 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:62: 137:63
+        StorageDead(_18);                // scope 26 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:62: 137:63
+        StorageDead(_17);                // scope 26 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:62: 137:63
+        StorageDead(_13);                // scope 26 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:62: 137:63
+        StorageDead(_9);                 // scope 26 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:137:62: 137:63
+        _8 = const ();                   // scope 26 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:136:23: 138:6
+        StorageDead(_8);                 // scope 23 at /rustc/9df3a39fb30575d808e70800f9fad5362aac57a2/library/std/src/macros.rs:138:5: 138:6
+        _0 = const ();                   // scope 1 at src/lib.rs:1:11: 9:2
+        StorageDead(_7);                 // scope 16 at src/lib.rs:9:1: 9:2
+        StorageDead(_4);                 // scope 12 at src/lib.rs:9:1: 9:2
+        StorageDead(_3);                 // scope 7 at src/lib.rs:9:1: 9:2
+        drop(_2) -> [return: bb7, unwind: bb10]; // scope 2 at src/lib.rs:9:1: 9:2
+    }
+
+    bb7: {
+        StorageDead(_2);                 // scope 2 at src/lib.rs:9:1: 9:2
+        drop(_1) -> [return: bb8, unwind: bb11]; // scope 1 at src/lib.rs:9:1: 9:2
+    }
+
+    bb8: {
+        StorageDead(_1);                 // scope 1 at src/lib.rs:9:1: 9:2
+        return;                          // scope 0 at src/lib.rs:9:2: 9:2
+    }
+
+    bb9 (cleanup): {
+        drop(_2) -> [return: bb10, unwind terminate]; // scope 2 at src/lib.rs:9:1: 9:2
+    }
+
+    bb10 (cleanup): {
+        drop(_1) -> [return: bb11, unwind terminate]; // scope 1 at src/lib.rs:9:1: 9:2
+    }
+
+    bb11 (cleanup): {
+        resume;                          // scope 0 at src/lib.rs:1:1: 9:2
     }
 }
 fn returnone() -> usize {
-    let mut _0: usize;                   // return place in scope 0 at src/lib.rs:3:17: 3:22
+    let mut _0: usize;                   // return place in scope 0 at src/lib.rs:10:17: 10:22
     scope 1 {
         scope 2 {
         }
     }
 
     bb0: {
-        _0 = const 1_usize;              // scope 2 at src/lib.rs:4:3: 4:4
-        return;                          // scope 0 at src/lib.rs:5:2: 5:2
+        _0 = const 1_usize;              // scope 2 at src/lib.rs:11:3: 11:4
+        return;                          // scope 0 at src/lib.rs:12:2: 12:2
     }
 }
 fn returnonetup() -> (usize, usize) {
-    let mut _0: (usize, usize);          // return place in scope 0 at src/lib.rs:6:20: 6:33
+    let mut _0: (usize, usize);          // return place in scope 0 at src/lib.rs:13:20: 13:33
     scope 1 {
         scope 2 {
             scope 3 {
@@ -32,15 +272,15 @@ fn returnonetup() -> (usize, usize) {
     }
 
     bb0: {
-        _0 = (const 1_usize, const 1_usize); // scope 2 at src/lib.rs:7:3: 7:8
-        return;                          // scope 0 at src/lib.rs:8:2: 8:2
+        _0 = (const 1_usize, const 1_usize); // scope 2 at src/lib.rs:14:3: 14:8
+        return;                          // scope 0 at src/lib.rs:15:2: 15:2
     }
 }
 fn takestring_returnone(_1: std::string::String, _2: &'_#4r std::string::String, _3: &'_#5r mut std::string::String) -> usize {
-    debug s0 => _1;                      // in scope 0 at src/lib.rs:9:25: 9:31
-    debug s1 => _2;                      // in scope 0 at src/lib.rs:9:39: 9:41
-    debug s3 => _3;                      // in scope 0 at src/lib.rs:9:50: 9:52
-    let mut _0: usize;                   // return place in scope 0 at src/lib.rs:9:67: 9:72
+    debug s0 => _1;                      // in scope 0 at src/lib.rs:16:25: 16:31
+    debug s1 => _2;                      // in scope 0 at src/lib.rs:16:39: 16:41
+    debug s3 => _3;                      // in scope 0 at src/lib.rs:16:50: 16:52
+    let mut _0: usize;                   // return place in scope 0 at src/lib.rs:16:67: 16:72
     scope 1 {
     }
     scope 2 {
@@ -53,28 +293,28 @@ fn takestring_returnone(_1: std::string::String, _2: &'_#4r std::string::String,
     }
 
     bb0: {
-        _0 = const 1_usize;              // scope 5 at src/lib.rs:10:3: 10:4
-        drop(_1) -> [return: bb1, unwind: bb2]; // scope 0 at src/lib.rs:11:1: 11:2
+        _0 = const 1_usize;              // scope 5 at src/lib.rs:17:3: 17:4
+        drop(_1) -> [return: bb1, unwind: bb2]; // scope 0 at src/lib.rs:18:1: 18:2
     }
 
     bb1: {
-        return;                          // scope 0 at src/lib.rs:11:2: 11:2
+        return;                          // scope 0 at src/lib.rs:18:2: 18:2
     }
 
     bb2 (cleanup): {
-        resume;                          // scope 0 at src/lib.rs:9:1: 11:2
+        resume;                          // scope 0 at src/lib.rs:16:1: 18:2
     }
 }
 fn returnstring() -> std::string::String {
-    let mut _0: std::string::String;     // return place in scope 0 at src/lib.rs:12:20: 12:26
+    let mut _0: std::string::String;     // return place in scope 0 at src/lib.rs:19:20: 19:26
     scope 1 {
         scope 2 {
-            debug s => _1;               // in scope 2 at src/lib.rs:13:7: 13:8
+            debug s => _1;               // in scope 2 at src/lib.rs:20:7: 20:8
             scope 7 {
             }
         }
         scope 3 {
-            let _1: std::string::String; // in scope 3 at src/lib.rs:13:7: 13:8
+            let _1: std::string::String; // in scope 3 at src/lib.rs:20:7: 20:8
             scope 4 {
                 scope 5 {
                 }
@@ -85,41 +325,41 @@ fn returnstring() -> std::string::String {
     }
 
     bb0: {
-        StorageLive(_1);                 // scope 3 at src/lib.rs:13:7: 13:8
-        _1 = <std::string::String as std::convert::From<&'_#2r str>>::from(const "hello") -> [return: bb1, unwind: bb3]; // scope 4 at src/lib.rs:13:9: 13:30
+        StorageLive(_1);                 // scope 3 at src/lib.rs:20:7: 20:8
+        _1 = <std::string::String as std::convert::From<&'_#2r str>>::from(const "hello") -> [return: bb1, unwind: bb3]; // scope 4 at src/lib.rs:20:9: 20:30
                                          // mir::Constant
-                                         // + span: src/lib.rs:13:9: 13:21
+                                         // + span: src/lib.rs:20:9: 20:21
                                          // + user_ty: UserType(0)
                                          // + literal: Const { ty: fn(&'_#2r str) -> std::string::String {<std::string::String as std::convert::From<&'_#2r str>>::from}, val: Value(<ZST>) }
                                          // mir::Constant
-                                         // + span: src/lib.rs:13:22: 13:29
+                                         // + span: src/lib.rs:20:22: 20:29
                                          // + literal: Const { ty: &'_#3r str, val: Value(Slice(..)) }
     }
 
     bb1: {
-        FakeRead(ForLet(None), _1);      // scope 3 at src/lib.rs:13:7: 13:8
-        _0 = move _1;                    // scope 7 at src/lib.rs:14:3: 14:4
-        drop(_1) -> [return: bb2, unwind: bb3]; // scope 1 at src/lib.rs:15:1: 15:2
+        FakeRead(ForLet(None), _1);      // scope 3 at src/lib.rs:20:7: 20:8
+        _0 = move _1;                    // scope 7 at src/lib.rs:21:3: 21:4
+        drop(_1) -> [return: bb2, unwind: bb3]; // scope 1 at src/lib.rs:22:1: 22:2
     }
 
     bb2: {
-        StorageDead(_1);                 // scope 1 at src/lib.rs:15:1: 15:2
-        return;                          // scope 0 at src/lib.rs:15:2: 15:2
+        StorageDead(_1);                 // scope 1 at src/lib.rs:22:1: 22:2
+        return;                          // scope 0 at src/lib.rs:22:2: 22:2
     }
 
     bb3 (cleanup): {
-        resume;                          // scope 0 at src/lib.rs:12:1: 15:2
+        resume;                          // scope 0 at src/lib.rs:19:1: 22:2
     }
 }
 fn returnstringtup() -> (std::string::String, std::string::String) {
-    let mut _0: (std::string::String, std::string::String); // return place in scope 0 at src/lib.rs:16:23: 16:38
-    let mut _3: std::string::String;     // in scope 0 at src/lib.rs:19:4: 19:6
-    let mut _4: std::string::String;     // in scope 0 at src/lib.rs:19:7: 19:9
+    let mut _0: (std::string::String, std::string::String); // return place in scope 0 at src/lib.rs:23:23: 23:38
+    let mut _3: std::string::String;     // in scope 0 at src/lib.rs:26:4: 26:6
+    let mut _4: std::string::String;     // in scope 0 at src/lib.rs:26:7: 26:9
     scope 1 {
         scope 2 {
-            debug s1 => _1;              // in scope 2 at src/lib.rs:17:7: 17:9
+            debug s1 => _1;              // in scope 2 at src/lib.rs:24:7: 24:9
             scope 7 {
-                debug s2 => _2;          // in scope 7 at src/lib.rs:18:7: 18:9
+                debug s2 => _2;          // in scope 7 at src/lib.rs:25:7: 25:9
                 scope 12 {
                     scope 13 {
                     }
@@ -128,7 +368,7 @@ fn returnstringtup() -> (std::string::String, std::string::String) {
                 }
             }
             scope 8 {
-                let _2: std::string::String; // in scope 8 at src/lib.rs:18:7: 18:9
+                let _2: std::string::String; // in scope 8 at src/lib.rs:25:7: 25:9
                 scope 9 {
                     scope 10 {
                     }
@@ -138,7 +378,7 @@ fn returnstringtup() -> (std::string::String, std::string::String) {
             }
         }
         scope 3 {
-            let _1: std::string::String; // in scope 3 at src/lib.rs:17:7: 17:9
+            let _1: std::string::String; // in scope 3 at src/lib.rs:24:7: 24:9
             scope 4 {
                 scope 5 {
                 }
@@ -149,119 +389,92 @@ fn returnstringtup() -> (std::string::String, std::string::String) {
     }
 
     bb0: {
-        StorageLive(_1);                 // scope 3 at src/lib.rs:17:7: 17:9
-        _1 = <std::string::String as std::convert::From<&'_#2r str>>::from(const "hello") -> [return: bb1, unwind: bb10]; // scope 4 at src/lib.rs:17:10: 17:31
+        StorageLive(_1);                 // scope 3 at src/lib.rs:24:7: 24:9
+        _1 = <std::string::String as std::convert::From<&'_#2r str>>::from(const "hello") -> [return: bb1, unwind: bb10]; // scope 4 at src/lib.rs:24:10: 24:31
                                          // mir::Constant
-                                         // + span: src/lib.rs:17:10: 17:22
+                                         // + span: src/lib.rs:24:10: 24:22
                                          // + user_ty: UserType(0)
                                          // + literal: Const { ty: fn(&'_#2r str) -> std::string::String {<std::string::String as std::convert::From<&'_#2r str>>::from}, val: Value(<ZST>) }
                                          // mir::Constant
-                                         // + span: src/lib.rs:17:23: 17:30
+                                         // + span: src/lib.rs:24:23: 24:30
                                          // + literal: Const { ty: &'_#3r str, val: Value(Slice(..)) }
     }
 
     bb1: {
-        FakeRead(ForLet(None), _1);      // scope 3 at src/lib.rs:17:7: 17:9
-        StorageLive(_2);                 // scope 8 at src/lib.rs:18:7: 18:9
-        _2 = <std::string::String as std::convert::From<&'_#4r str>>::from(const "hello") -> [return: bb2, unwind: bb9]; // scope 9 at src/lib.rs:18:10: 18:31
+        FakeRead(ForLet(None), _1);      // scope 3 at src/lib.rs:24:7: 24:9
+        StorageLive(_2);                 // scope 8 at src/lib.rs:25:7: 25:9
+        _2 = <std::string::String as std::convert::From<&'_#4r str>>::from(const "hello") -> [return: bb2, unwind: bb9]; // scope 9 at src/lib.rs:25:10: 25:31
                                          // mir::Constant
-                                         // + span: src/lib.rs:18:10: 18:22
+                                         // + span: src/lib.rs:25:10: 25:22
                                          // + user_ty: UserType(1)
                                          // + literal: Const { ty: fn(&'_#4r str) -> std::string::String {<std::string::String as std::convert::From<&'_#4r str>>::from}, val: Value(<ZST>) }
                                          // mir::Constant
-                                         // + span: src/lib.rs:18:23: 18:30
+                                         // + span: src/lib.rs:25:23: 25:30
                                          // + literal: Const { ty: &'_#5r str, val: Value(Slice(..)) }
     }
 
     bb2: {
-        FakeRead(ForLet(None), _2);      // scope 8 at src/lib.rs:18:7: 18:9
-        StorageLive(_3);                 // scope 13 at src/lib.rs:19:4: 19:6
-        _3 = move _1;                    // scope 13 at src/lib.rs:19:4: 19:6
-        StorageLive(_4);                 // scope 14 at src/lib.rs:19:7: 19:9
-        _4 = move _2;                    // scope 14 at src/lib.rs:19:7: 19:9
-        _0 = (move _3, move _4);         // scope 12 at src/lib.rs:19:3: 19:10
-        drop(_4) -> [return: bb3, unwind: bb7]; // scope 12 at src/lib.rs:19:9: 19:10
+        FakeRead(ForLet(None), _2);      // scope 8 at src/lib.rs:25:7: 25:9
+        StorageLive(_3);                 // scope 13 at src/lib.rs:26:4: 26:6
+        _3 = move _1;                    // scope 13 at src/lib.rs:26:4: 26:6
+        StorageLive(_4);                 // scope 14 at src/lib.rs:26:7: 26:9
+        _4 = move _2;                    // scope 14 at src/lib.rs:26:7: 26:9
+        _0 = (move _3, move _4);         // scope 12 at src/lib.rs:26:3: 26:10
+        drop(_4) -> [return: bb3, unwind: bb7]; // scope 12 at src/lib.rs:26:9: 26:10
     }
 
     bb3: {
-        StorageDead(_4);                 // scope 12 at src/lib.rs:19:9: 19:10
-        drop(_3) -> [return: bb4, unwind: bb8]; // scope 12 at src/lib.rs:19:9: 19:10
+        StorageDead(_4);                 // scope 12 at src/lib.rs:26:9: 26:10
+        drop(_3) -> [return: bb4, unwind: bb8]; // scope 12 at src/lib.rs:26:9: 26:10
     }
 
     bb4: {
-        StorageDead(_3);                 // scope 12 at src/lib.rs:19:9: 19:10
-        drop(_2) -> [return: bb5, unwind: bb9]; // scope 2 at src/lib.rs:20:1: 20:2
+        StorageDead(_3);                 // scope 12 at src/lib.rs:26:9: 26:10
+        drop(_2) -> [return: bb5, unwind: bb9]; // scope 2 at src/lib.rs:27:1: 27:2
     }
 
     bb5: {
-        StorageDead(_2);                 // scope 2 at src/lib.rs:20:1: 20:2
-        drop(_1) -> [return: bb6, unwind: bb10]; // scope 1 at src/lib.rs:20:1: 20:2
+        StorageDead(_2);                 // scope 2 at src/lib.rs:27:1: 27:2
+        drop(_1) -> [return: bb6, unwind: bb10]; // scope 1 at src/lib.rs:27:1: 27:2
     }
 
     bb6: {
-        StorageDead(_1);                 // scope 1 at src/lib.rs:20:1: 20:2
-        return;                          // scope 0 at src/lib.rs:20:2: 20:2
+        StorageDead(_1);                 // scope 1 at src/lib.rs:27:1: 27:2
+        return;                          // scope 0 at src/lib.rs:27:2: 27:2
     }
 
     bb7 (cleanup): {
-        drop(_3) -> [return: bb8, unwind terminate]; // scope 12 at src/lib.rs:19:9: 19:10
+        drop(_3) -> [return: bb8, unwind terminate]; // scope 12 at src/lib.rs:26:9: 26:10
     }
 
     bb8 (cleanup): {
-        drop(_2) -> [return: bb9, unwind terminate]; // scope 2 at src/lib.rs:20:1: 20:2
+        drop(_2) -> [return: bb9, unwind terminate]; // scope 2 at src/lib.rs:27:1: 27:2
     }
 
     bb9 (cleanup): {
-        drop(_1) -> [return: bb10, unwind terminate]; // scope 1 at src/lib.rs:20:1: 20:2
+        drop(_1) -> [return: bb10, unwind terminate]; // scope 1 at src/lib.rs:27:1: 27:2
     }
 
     bb10 (cleanup): {
-        resume;                          // scope 0 at src/lib.rs:16:1: 20:2
+        resume;                          // scope 0 at src/lib.rs:23:1: 27:2
     }
 }
-fn foo(_1: &'_#5r std::string::String, _2: std::string::String) -> (&'_#4r std::string::String, std::string::String) {
-    debug s1 => _1;                      // in scope 0 at src/lib.rs:21:8: 21:10
-    debug s2 => _2;                      // in scope 0 at src/lib.rs:21:19: 21:21
-    let mut _0: (&'_#4r std::string::String, std::string::String); // return place in scope 0 at src/lib.rs:21:31: 21:47
-    let mut _3: &'_#6r std::string::String; // in scope 0 at src/lib.rs:22:4: 22:6
-    let mut _4: std::string::String;     // in scope 0 at src/lib.rs:22:7: 22:9
+fn foo(_1: &'_#7r mut std::string::String) -> &'_#6r mut std::string::String {
+    debug s1 => _1;                      // in scope 0 at src/lib.rs:28:8: 28:10
+    let mut _0: &'_#6r mut std::string::String; // return place in scope 0 at src/lib.rs:28:26: 28:37
+    let mut _2: &'_#8r mut std::string::String; // in scope 0 at src/lib.rs:29:3: 29:5
     scope 1 {
     }
     scope 2 {
-    }
-    scope 3 {
-        scope 4 {
-            scope 5 {
-            }
-            scope 6 {
-            }
+        scope 3 {
         }
     }
 
     bb0: {
-        StorageLive(_3);                 // scope 5 at src/lib.rs:22:4: 22:6
-        _3 = _1;                         // scope 5 at src/lib.rs:22:4: 22:6
-        StorageLive(_4);                 // scope 6 at src/lib.rs:22:7: 22:9
-        _4 = move _2;                    // scope 6 at src/lib.rs:22:7: 22:9
-        _0 = (move _3, move _4);         // scope 4 at src/lib.rs:22:3: 22:10
-        drop(_4) -> [return: bb1, unwind: bb3]; // scope 4 at src/lib.rs:22:9: 22:10
-    }
-
-    bb1: {
-        StorageDead(_4);                 // scope 4 at src/lib.rs:22:9: 22:10
-        StorageDead(_3);                 // scope 4 at src/lib.rs:22:9: 22:10
-        drop(_2) -> [return: bb2, unwind: bb4]; // scope 0 at src/lib.rs:23:1: 23:2
-    }
-
-    bb2: {
-        return;                          // scope 0 at src/lib.rs:23:2: 23:2
-    }
-
-    bb3 (cleanup): {
-        drop(_2) -> [return: bb4, unwind terminate]; // scope 0 at src/lib.rs:23:1: 23:2
-    }
-
-    bb4 (cleanup): {
-        resume;                          // scope 0 at src/lib.rs:21:1: 23:2
+        StorageLive(_2);                 // scope 2 at src/lib.rs:29:3: 29:5
+        _2 = &'_#3r mut (*_1);           // scope 3 at src/lib.rs:29:3: 29:5
+        _0 = &'_#4r mut (*_2);           // scope 2 at src/lib.rs:29:3: 29:5
+        StorageDead(_2);                 // scope 2 at src/lib.rs:30:1: 30:2
+        return;                          // scope 0 at src/lib.rs:30:2: 30:2
     }
 }

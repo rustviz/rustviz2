@@ -1,4 +1,11 @@
 fn main() {
+  let mut s = String::from("hello");
+  let mut s1= String::from("hello");
+  let sr = &mut s;
+  let s1r= &mut s1;
+  foo(s1r);
+  let sr1= sr;
+  println!("{}",sr1);
 } 
 fn returnone()->usize{
   1
@@ -18,6 +25,6 @@ fn returnstringtup()->(String,String){
   let s2=String::from("hello");
   (s1,s2)
 }
-fn foo(s1:&String,s2:String)->(&String,String){
-  (s1,s2)
+fn foo(s1:&mut String)->(&mut String){
+  s1
 }

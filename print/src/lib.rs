@@ -265,10 +265,12 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
       boundary_map,
       access_points:HashMap::new(),
       mutability_map:HashMap::new(),
+      lifetime_map:HashMap::new(),
     };
     visitor.visit_body(hir_body);
     visitor.print_definitions();
     visitor.print_out_of_scope();
+    visitor.print_lifetimes();
     },
     _ =>{println!("Analysis Error.");}
   }

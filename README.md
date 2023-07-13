@@ -8,3 +8,7 @@
 * Note:
   * modify print_all-items() in print/src/lib.rs
   * modify test file in print/test-crate/src/lib.rs
+
+* Issues:
+  * haven't implemented functions that return ref.
+  * haven't implemented macros.

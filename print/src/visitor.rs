@@ -15,15 +15,10 @@ use rustc_hir::{intravisit::{self, Visitor},hir_id::HirId};
 use std::cmp::{Eq, PartialEq};
 use std::hash::{Hash, Hasher};
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Hash)]
 pub struct AccessPoint {
   mutability: Mutability,
   name:String,
-} 
-impl Hash for AccessPoint {
-  fn hash<H: Hasher>(&self, state: &mut H) {
-      self.name.hash(state);
-  }
 }
 
 #[derive(Eq, PartialEq,Hash)]
@@ -33,6 +28,12 @@ pub enum AccessPointUsage{
   StaticRef(AccessPoint),
   Struct(Vec<AccessPoint>),
   Function(String),
+}
+
+#[derive(Eq, PartialEq,Hash)]
+pub enum Reference{
+  Static(String),
+  Mut(String),
 }
 
 
@@ -54,22 +55,27 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub tcx: TyCtxt<'tcx>,
   pub mir_body: &'a Body<'tcx>,
   pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
-  pub access_points: HashMap<AccessPointUsage,bool>,
   pub mutability_map: HashMap<String,Mutability>,
+  pub lifetime_map: HashMap<Reference,usize>,
+  pub access_points: HashMap<AccessPointUsage,bool>,
 }
 
 // These are helper functions used the visitor
 impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
+
   fn expr_to_line(&self,expr:&Expr)->usize{
     self.tcx.sess.source_map().lookup_char_pos(expr.span.lo()).line
   }
+
   fn span_to_line(&self,span:&Span)->usize{
     self.tcx.sess.source_map().lookup_char_pos(span.lo()).line
   }
+
   fn hirid_to_var_name(&self,id:HirId)->Option<String>{
     let long_name = self.tcx.hir().node_to_string(id);
     extract_var_name(&long_name)
   }
+
   fn return_type_of(&self,fn_expr:&Expr)->Option<Ty<'tcx>>{
     let type_check = self.tcx.typeck(fn_expr.hir_id.owner);
     let type_of_path = type_check.expr_ty(fn_expr);
@@ -81,6 +87,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       None
     }
   }
+
   fn is_return_type_ref(&self,fn_expr:&Expr)->bool{
     if let Some(return_type)=self.return_type_of(fn_expr){
       return_type.is_ref()
@@ -89,6 +96,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       false
     }
   }
+
   fn is_return_type_copyable(&self,fn_expr:&Expr)->bool{
     if let Some(return_type)=self.return_type_of(fn_expr){
       if return_type.walk().fold(false,|flag,item|{flag||item.expect_ty().is_ref()}) {
@@ -102,26 +110,57 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       false
     }
   }
+
+  fn update_lifetime(&mut self, reference:Reference, line:usize){
+    if self.lifetime_map.contains_key(&reference){
+      if let Some(old_line)=self.lifetime_map.get(&reference){
+        if *old_line<line {
+          self.lifetime_map.insert(reference, line);
+        }
+      }
+    }
+    else{
+      self.lifetime_map.insert(reference, line);
+    }
+  }
+
   fn match_rhs(&mut self,lhs:AccessPoint,rhs:&Expr){
-    let lhs_var=&lhs.name;
+    let lhs_var=lhs.name.clone();
+    let line_num = self.expr_to_line(rhs);
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let bytepos=p.span.lo();
-          let boundary=self.boundary_map.get(&bytepos);
+        let name = self.hirid_to_var_name(p.segments[0].hir_id);
+        let boundary=self.boundary_map.get(&bytepos);
+        if let Some(name)=name {
           if let Some(boundary) = boundary {
-            if boundary.expected.drop {
-              let name = self.hirid_to_var_name(p.segments[0].hir_id);
-              if let Some(name) = name {
+            if let Some(rhs_mut)=self.mutability_map.get(&name){
+              let rhs = AccessPoint{mutability:*rhs_mut,name:name.clone()};
+              if boundary.expected.drop {   
                 println!("Move({}->{})", name, lhs_var);
+                if self.access_points.contains_key(&AccessPointUsage::Owner(rhs)){
+                  self.access_points.insert(AccessPointUsage::Owner(lhs),false);
+                }
+                else {
+                  self.access_points.insert(AccessPointUsage::MutRef(lhs),false);
+                  self.update_lifetime(Reference::Mut(name), line_num);
+                  self.update_lifetime(Reference::Mut(lhs_var), line_num);
+                }
               }
-            } else {
-              let name = self.hirid_to_var_name(p.segments[0].hir_id);
-              if let Some(name) = name {
+              else {
                 println!("Copy({}->{})", name, lhs_var);
+                if self.access_points.contains_key(&AccessPointUsage::Owner(rhs)){
+                  self.access_points.insert(AccessPointUsage::Owner(lhs),false);
+                }
+                else {
+                  self.access_points.insert(AccessPointUsage::StaticRef(lhs),false);
+                  self.update_lifetime(Reference::Static(name), line_num);
+                  self.update_lifetime(Reference::Static(lhs_var), line_num);
+                }
               }
             }
-            self.access_points.insert(AccessPointUsage::Owner(lhs),false);
           }
+        }   
       },
       ExprKind::Call(fn_expr, _) => {
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id);
@@ -149,10 +188,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               match mutability{
                 Mutability::Not=>{
                   println!("StaticBorrow({}->{})",name,lhs_var);
+                  self.update_lifetime(Reference::Static(lhs_var.clone()), line_num);
                   self.access_points.insert(AccessPointUsage::StaticRef(lhs),false);
                 }
                 Mutability::Mut=>{
                   println!("MutableBorrow({}->{})",name,lhs_var);
+                  self.update_lifetime(Reference::Mut(lhs_var.clone()), line_num);
                   self.access_points.insert(AccessPointUsage::MutRef(lhs),false);
                 }
               }
@@ -164,6 +205,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       _=>{}
     }
   }
+
   pub fn print_definitions(&self){
     println!();
     println!("/*--- BEGIN Variable Definitions ---");
@@ -186,6 +228,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
     println!("--- END Variable Definitions ---*/");
   }
+
   pub fn print_out_of_scope(&self){
     println!();
     for (point,gos) in &self.access_points {
@@ -197,6 +240,20 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             println!("GoOutOfScope({})",p.name);
           }
           _=>{}
+        }
+      }
+    }
+  }
+
+  pub fn print_lifetimes(&self){
+    println!();
+    for (reference,line_num) in &self.lifetime_map{
+      match reference{
+        Reference::Mut(name)=>{
+          println!("MutableDie({}) at line {}",name,line_num);
+        }
+        Reference::Static(name)=>{
+          println!("StaticDie({}) at line {}",name,line_num);
         }
       }
     }
@@ -213,6 +270,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 // See StmtKind at : https://doc.rust-lang.org/stable/nightly-rustc/rustc_hir/hir/enum.StmtKind.html
 impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
   fn visit_param(&mut self, param: &'tcx Param<'tcx>){
+    let line_num=self.span_to_line(&param.span);
     let ty = self.tcx.typeck(param.hir_id.owner).pat_ty(param.pat);
     match param.pat.kind {
       PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) =>{
@@ -223,9 +281,11 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           if let Some(mutref)=ty.ref_mutability(){
             match mutref {
               Mutability::Not=>{
+                self.update_lifetime(Reference::Static(name.clone()), line_num);
                 self.access_points.insert(AccessPointUsage::StaticRef(AccessPoint { mutability, name}), false);
               }
               Mutability::Mut=>{
+                self.update_lifetime(Reference::Mut(name.clone()), line_num);
                 self.access_points.insert(AccessPointUsage::MutRef(AccessPoint { mutability, name}), false);
               }
             }
@@ -243,9 +303,10 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       let hirid = expr.hir_id;
         match expr.kind {
           ExprKind::Call(fn_expr, args) => {
+            let line_num = self.expr_to_line(expr);
             println!();
             println!("Function Call: {}", self.tcx.hir().node_to_string(hirid));
-            println!("On line: {}", self.expr_to_line(expr));
+            println!("On line: {}", line_num);
             for arg in args.iter(){
               match arg.kind {
                 ExprKind::Path(QPath::Resolved(_,p))=>{
@@ -259,11 +320,13 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                         if expected.drop{
                           println!("Move({}->{}())", name, fn_name);
                         }
-                        else if expected.write{
+                        else if expected.write{                          
                           println!("PassByMutableReference({}->{}())", name, fn_name);
+                          self.update_lifetime(Reference::Mut(name), line_num);
                         }
                         else if expected.read{
                           println!("PassByStaticReference({}->{}())", name, fn_name);
+                          self.update_lifetime(Reference::Static(name), line_num);
                         }
                         self.access_points.insert(AccessPointUsage::Function(fn_name),false);
                       }
