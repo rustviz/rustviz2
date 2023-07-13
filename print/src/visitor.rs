@@ -3,7 +3,9 @@ use rustc_middle::{
   mir::{Body},
   ty::{TyCtxt,Ty},
 };
-use rustc_hir::{StmtKind, Stmt, Local, Expr, ExprKind, UnOp, QPath, Path, def::Res, PatKind, Mutability};
+use rustc_hir::{StmtKind, Stmt, Local, Expr, ExprKind, UnOp, Param,
+  QPath, Path, def::Res, PatKind, Mutability};
+use rustc_utils::mir::mutability;
 use std::{collections::HashMap};
 use rustc_ast::walk_list;
 use rustc_span::Span;
@@ -210,6 +212,33 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 // See ExprKind at : https://doc.rust-lang.org/stable/nightly-rustc/rustc_hir/hir/enum.ExprKind.html
 // See StmtKind at : https://doc.rust-lang.org/stable/nightly-rustc/rustc_hir/hir/enum.StmtKind.html
 impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
+  fn visit_param(&mut self, param: &'tcx Param<'tcx>){
+    let ty = self.tcx.typeck(param.hir_id.owner).pat_ty(param.pat);
+    match param.pat.kind {
+      PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) =>{
+        let name = ident.to_string();
+        let mutability = binding_annotation.1;
+        if ty.is_ref() {
+          println!("InitRefParam({})",name);
+          if let Some(mutref)=ty.ref_mutability(){
+            match mutref {
+              Mutability::Not=>{
+                self.access_points.insert(AccessPointUsage::StaticRef(AccessPoint { mutability, name}), false);
+              }
+              Mutability::Mut=>{
+                self.access_points.insert(AccessPointUsage::MutRef(AccessPoint { mutability, name}), false);
+              }
+            }
+          }
+        }
+        else{
+          println!("InitOwnerParam({})",name);
+          self.access_points.insert(AccessPointUsage::Owner(AccessPoint { mutability, name}), false);
+        }
+      }
+      _=>{}
+    }
+  }
   fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
       let hirid = expr.hir_id;
         match expr.kind {
