@@ -1,155 +1,191 @@
 ********************************************************************
 computing body permissions "main"
-Body_range from CharPos(0) to CharPos(435).
+Body_range from CharPos(0) to CharPos(277).
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).5) (local `let z = returnonetup();`)
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).8) (local `let mut s = String::from("hello");`)
 on line: 2
-Copy(returnonetup()->z)
-
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).2) (expr `returnonetup()`)
-On line: 2
-
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).11) (local `let ss = returnstringtup();`)
-on line: 3
-Move(returnstringtup()->ss)
-
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).8) (expr `returnstringtup()`)
-On line: 3
-
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).20) (local `let mut s =String::from("hello");`)
-on line: 4
 Move(String::from()->s)
 
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).14) (expr `String::from("hello")`)
-On line: 4
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).2) (expr `String::from("hello")`)
+On line: 2
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).29) (local `let s0 =String::from("hello");`)
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).17) (local `let mut s1= String::from("hello");`)
+on line: 3
+Move(String::from()->s1)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).11) (expr `String::from("hello")`)
+On line: 3
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).23) (local `let sr = &mut s;`)
+on line: 4
+MutableBorrow(s->sr)
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).29) (local `let s1r= &mut s1;`)
 on line: 5
-Move(String::from()->s0)
+MutableBorrow(s1->s1r)
 
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).23) (expr `String::from("hello")`)
-On line: 5
-
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).38) (local `let s2 =String::from("hello");`)
-on line: 6
-Move(String::from()->s2)
-
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).32) (expr `String::from("hello")`)
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).31) (expr `foo(s1r)`)
 On line: 6
+PassByMutableReference(s1r->foo())
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).47) (local `let mut s3 =String::from("hello");`)
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).40) (local `let sr1= sr;`)
 on line: 7
-Move(String::from()->s3)
+Move(sr->sr1)
 
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).41) (expr `String::from("hello")`)
-On line: 7
-
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).56) (local `let s4 =String::from("hello");`)
-on line: 8
-Move(String::from()->s4)
-
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).50) (expr `String::from("hello")`)
-On line: 8
-
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).59) (expr `$crate::io::_print($crate::format_args_nl!($($arg)*))`)
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).43) (expr `$crate::io::_print($crate::format_args_nl!($($arg)*))`)
 On line: 137
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).85) (local `let s1;`)
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).59) (expr `{}`)
+On line: 8
+PassByStaticReference(sr1->println())
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).75) (local `let s2=String::from("hello");`)
+on line: 9
+Move(String::from()->s2)
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).69) (expr `String::from("hello")`)
+On line: 9
+
+Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).84) (local `let s3=String::from("hello");`)
 on line: 10
+Move(String::from()->s3)
 
-Assign Expression: HirId(DefId(0:3 ~ test_crate[cdd0]::main).87) (expr `s1=s`)
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).78) (expr `String::from("hello")`)
+On line: 10
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).87) (expr `$crate::io::_print($crate::format_args_nl!($($arg)*))`)
+On line: 137
+
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).104) (expr `{:?}`)
 On line: 11
-Move(s->s1)
+PassByStaticReference(s2->println())
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).97) (local `let s1r=&s1;`)
-on line: 12
-StaticBorrow(s1->s1r)
+Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).111) (expr `{}`)
+On line: 11
+PassByStaticReference(s3->println())
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).103) (local `let s3rr=&mut s3;`)
-on line: 13
-MutableBorrow(s3->s3rr)
+/*--- BEGIN Variable Definitions ---
+Owner Not s3;
+Owner Mut s1;
+MutRef Not sr1;
+Owner Mut s;
+Function foo();
+Owner Not s2;
+Function String::from();
+MutRef Not sr;
+Function println();
+MutRef Not s1r;
+--- END Variable Definitions ---*/
 
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).114) (local `let s3r=foo(&s4,s0);`)
-on line: 14
-Move(foo()->s3r)
+GoOutOfScope(s3)
+GoOutOfScope(s1)
+GoOutOfScope(sr1)
+GoOutOfScope(s)
+GoOutOfScope(s2)
+GoOutOfScope(sr)
+GoOutOfScope(s1r)
 
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).106) (expr `foo(&s4,s0)`)
-On line: 14
-PassByStaticReference(s4->foo())
-Move(s0->foo())
-
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).118) (local `let a=1;`)
-on line: 16
-Bind(a)
-
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).121) (local `let b;`)
-on line: 17
-
-Assign Expression: HirId(DefId(0:3 ~ test_crate[cdd0]::main).123) (expr `b=a`)
-On line: 18
-Copy(a->b)
-
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).130) (local `let c;`)
-on line: 19
-
-Assign Expression: HirId(DefId(0:3 ~ test_crate[cdd0]::main).132) (expr `c = returnstring()`)
-On line: 20
-Move(returnstring()->c)
-
-Function Call: HirId(DefId(0:3 ~ test_crate[cdd0]::main).135) (expr `returnstring()`)
-On line: 20
-
-Statement: HirId(DefId(0:3 ~ test_crate[cdd0]::main).142) (local `let d=c;`)
-on line: 21
-Move(c->d)
+MutableDie(s1r) at line 6
+MutableDie(sr1) at line 8
+MutableDie(sr) at line 7
 ********************************************************************
 computing body permissions "returnone"
-Body_range from CharPos(437) to CharPos(465).
+Body_range from CharPos(279) to CharPos(308).
+
+/*--- BEGIN Variable Definitions ---
+--- END Variable Definitions ---*/
+
+
 ********************************************************************
 computing body permissions "returnonetup"
-Body_range from CharPos(466) to CharPos(509).
+Body_range from CharPos(310) to CharPos(353).
+
+/*--- BEGIN Variable Definitions ---
+--- END Variable Definitions ---*/
+
+
 ********************************************************************
 computing body permissions "takestring_returnone"
-Body_range from CharPos(510) to CharPos(594).
+Body_range from CharPos(354) to CharPos(432).
+InitOwnerParam(s0)
+InitRefParam(s1)
+InitRefParam(s3)
+
+/*--- BEGIN Variable Definitions ---
+Owner Mut s0;
+MutRef Not s3;
+StaticRef Not s1;
+--- END Variable Definitions ---*/
+
+GoOutOfScope(s0)
+GoOutOfScope(s3)
+GoOutOfScope(s1)
+
+StaticDie(s1) at line 19
+MutableDie(s3) at line 19
 ********************************************************************
 computing body permissions "returnstring"
-Body_range from CharPos(595) to CharPos(658).
+Body_range from CharPos(433) to CharPos(496).
 
 Statement: HirId(DefId(0:7 ~ test_crate[cdd0]::returnstring).8) (local `let s=String::from("hello");`)
-on line: 33
+on line: 23
 Move(String::from()->s)
 
 Function Call: HirId(DefId(0:7 ~ test_crate[cdd0]::returnstring).2) (expr `String::from("hello")`)
-On line: 33
+On line: 23
 
-On line: 34
+On line: 24
 Move(s->none)
+
+/*--- BEGIN Variable Definitions ---
+Owner Not s;
+Function String::from();
+--- END Variable Definitions ---*/
+
+GoOutOfScope(s)
+
 ********************************************************************
 computing body permissions "returnstringtup"
-Body_range from CharPos(659) to CharPos(773).
+Body_range from CharPos(497) to CharPos(611).
 
 Statement: HirId(DefId(0:8 ~ test_crate[cdd0]::returnstringtup).8) (local `let s1=String::from("hello");`)
-on line: 37
+on line: 27
 Move(String::from()->s1)
 
 Function Call: HirId(DefId(0:8 ~ test_crate[cdd0]::returnstringtup).2) (expr `String::from("hello")`)
-On line: 37
+On line: 27
 
 Statement: HirId(DefId(0:8 ~ test_crate[cdd0]::returnstringtup).17) (local `let s2=String::from("hello");`)
-on line: 38
+on line: 28
 Move(String::from()->s2)
 
 Function Call: HirId(DefId(0:8 ~ test_crate[cdd0]::returnstringtup).11) (expr `String::from("hello")`)
-On line: 38
+On line: 28
 
-On line: 39
+On line: 29
 Move(s1->none)
 
-On line: 39
+On line: 29
 Move(s2->none)
+
+/*--- BEGIN Variable Definitions ---
+Owner Not s2;
+Function String::from();
+Owner Not s1;
+--- END Variable Definitions ---*/
+
+GoOutOfScope(s2)
+GoOutOfScope(s1)
+
 ********************************************************************
 computing body permissions "foo"
-Body_range from CharPos(774) to CharPos(836).
+Body_range from CharPos(612) to CharPos(657).
+InitRefParam(s1)
 
-On line: 42
-Move(s2->none)
+/*--- BEGIN Variable Definitions ---
+MutRef Not s1;
+--- END Variable Definitions ---*/
+
+GoOutOfScope(s1)
+
+MutableDie(s1) at line 31

@@ -307,6 +307,21 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             println!();
             println!("Function Call: {}", self.tcx.hir().node_to_string(hirid));
             println!("On line: {}", line_num);
+            // deal with println!
+            let fn_name = self.hirid_to_var_name(fn_expr.hir_id);
+            if let Some(fn_name) = fn_name {
+              if fn_name.contains("crate::io::_print"){
+                // args[0] is the format string: crate::format_args_nl!($($arg)*)
+                match args[0].kind {
+                  ExprKind::Call(format_expr, format_args)=>{
+                    for a in format_args {
+                      self.visit_expr(a);
+                    }
+                  }
+                  _=>{} 
+                }
+              }
+            }
             for arg in args.iter(){
               match arg.kind {
                 ExprKind::Path(QPath::Resolved(_,p))=>{
@@ -316,7 +331,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                     let expected=boundary.expected;
                     let name = self.hirid_to_var_name(p.segments[0].hir_id);
                     if let Some(name) = name {
-                      if let Some(fn_name) = self.hirid_to_var_name(fn_expr.hir_id) {
+                      if let Some(mut fn_name) = self.hirid_to_var_name(fn_expr.hir_id) {
                         if expected.drop{
                           println!("Move({}->{}())", name, fn_name);
                         }
@@ -334,10 +349,21 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                   }
                 }
                 ExprKind::AddrOf(_,mutability,expr)=>{
-                  if let Some(fn_name) = self.hirid_to_var_name(fn_expr.hir_id){
+                  if let Some(mut fn_name) = self.hirid_to_var_name(fn_expr.hir_id){
+                    
                     match expr.kind{
                       ExprKind::Path(QPath::Resolved(_,p))=>{
                         if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
+                          if fn_name.contains("{") {
+                            fn_name = "println".to_string();
+                            let mut_reference=Reference::Mut(name.clone());
+                            let sta_reference=Reference::Static(name.clone());
+                            if self.lifetime_map.contains_key(&mut_reference) {
+                              self.update_lifetime(mut_reference, line_num);
+                            } else if self.lifetime_map.contains_key(&sta_reference) {
+                              self.update_lifetime(sta_reference, line_num);
+                            }
+                          }
                           match mutability{
                             Mutability::Not=>{
                               println!("PassByStaticReference({}->{}())",name,fn_name);
