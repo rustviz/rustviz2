@@ -5,10 +5,5 @@
   * cd test-crate
   * touch src/lib.rs
   * cargo print-all-items > ../../output
-* Note:
-  * modify print_all-items() in print/src/lib.rs
-  * modify test file in print/test-crate/src/lib.rs
-
 * Issues:
-  * haven't implemented functions that return ref.
-  * haven't implemented macros.
+  * Our primary goal is to support the basic examples in the rustviz tutorial. However, as there are much more possible syntax that will appear in a snippet of rust code, you might find some of them interesting which haven't been analyzed. Feel free to bring up new issues. 
