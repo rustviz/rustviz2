@@ -354,7 +354,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                     match expr.kind{
                       ExprKind::Path(QPath::Resolved(_,p))=>{
                         if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
-                          if fn_name.contains("{") {
+                          if fn_name.contains("{") { // println
                             fn_name = "println".to_string();
                             let mut_reference=Reference::Mut(name.clone());
                             let sta_reference=Reference::Static(name.clone());
