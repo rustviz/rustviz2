@@ -1,157 +1,188 @@
 ********************************************************************
 computing body permissions "main"
-Body_range from CharPos(0) to CharPos(175).
+Body_range from CharPos(0) to CharPos(346).
 
-Statement: HirId(DefId(0:3 ~ test_crate[75bf]::main).8) (local `let mut s = String::from("hello");`)
-on line: 2
+On line: 2
 Move(String::from()->s)
 
-Function Call: HirId(DefId(0:3 ~ test_crate[75bf]::main).2) (expr `String::from("hello")`)
-On line: 2
 
-Statement: HirId(DefId(0:3 ~ test_crate[75bf]::main).17) (local `let mut s1= String::from("hello");`)
-on line: 3
+On line: 3
 Move(String::from()->s1)
 
-Function Call: HirId(DefId(0:3 ~ test_crate[75bf]::main).11) (expr `String::from("hello")`)
-On line: 3
 
-Statement: HirId(DefId(0:3 ~ test_crate[75bf]::main).23) (local `let sr = &mut s;`)
-on line: 4
+On line: 4
 MutableBorrow(s->sr)
 
-Statement: HirId(DefId(0:3 ~ test_crate[75bf]::main).29) (local `let s1r= &mut s1;`)
-on line: 5
+On line: 5
 MutableBorrow(s1->s1r)
 
-Function Call: HirId(DefId(0:3 ~ test_crate[75bf]::main).31) (expr `foo(s1r)`)
+On line: 6
+Move(foo()->ssr)
+
 On line: 6
 PassByMutableReference(s1r->foo())
 
-Statement: HirId(DefId(0:3 ~ test_crate[75bf]::main).40) (local `let sr1= sr;`)
-on line: 7
+
+On line: 8
 Move(sr->sr1)
 
-Function Call: HirId(DefId(0:3 ~ test_crate[75bf]::main).43) (expr `$crate::io::_print($crate::format_args_nl!($($arg)*))`)
-On line: 137
 
-/*--- BEGIN Variable Definitions ---
-Function foo();
-MutRef Not s1r;
-Owner Mut s;
-Function String::from();
-Owner Mut s1;
-MutRef Not sr;
-MutRef Not sr1;
---- END Variable Definitions ---*/
+On line: 9
+PassByStaticReference(sr1->println())
 
-GoOutOfScope(s1r)
-GoOutOfScope(s)
-GoOutOfScope(s1)
+
+On line: 11
+Move(String::from()->s2)
+
+
+On line: 12
+Move(String::from()->s3)
+
+
+
+On line: 13
+PassByStaticReference(s2->println())
+
+On line: 13
+PassByStaticReference(s3->println())
+
+
+On line 17
 GoOutOfScope(sr)
+
+On line 17
+GoOutOfScope(s1r)
+
+On line 15
 GoOutOfScope(sr1)
 
-MutableDie(sr1) at line 7
-MutableDie(s1r) at line 6
-MutableDie(sr) at line 7
+On line 14
+GoOutOfScope(s2)
+
+On line 17
+GoOutOfScope(s)
+
+On line 14
+GoOutOfScope(s3)
+
+On line 17
+GoOutOfScope(s1)
+
+On line 17
+GoOutOfScope(ssr)
+
+On line 9
+MutableDie(sr1->s)
+On line 6
+MutableDie(ssr->*ssr)
+On line 8
+MutableDie(sr->s)
+On line 6
+MutableDie(s1r->s1)
+
+/*--- BEGIN Variable Definitions ---
+Owner Not a;
+Function String::from();
+MutRef Not sr;
+MutRef Not s1r;
+MutRef Not sr1;
+Owner Not s2;
+Owner Mut s;
+Function println();
+Function foo();
+Owner Not b;
+Owner Not s3;
+Owner Mut s1;
+MutRef Not ssr;
+--- END Variable Definitions ---*/
 ********************************************************************
 computing body permissions "returnone"
-Body_range from CharPos(177) to CharPos(205).
+Body_range from CharPos(348) to CharPos(377).
+
+
 
 /*--- BEGIN Variable Definitions ---
 --- END Variable Definitions ---*/
-
-
 ********************************************************************
 computing body permissions "returnonetup"
-Body_range from CharPos(206) to CharPos(249).
+Body_range from CharPos(378) to CharPos(421).
+
+
 
 /*--- BEGIN Variable Definitions ---
 --- END Variable Definitions ---*/
-
-
 ********************************************************************
 computing body permissions "takestring_returnone"
-Body_range from CharPos(250) to CharPos(328).
+Body_range from CharPos(422) to CharPos(500).
 InitOwnerParam(s0)
 InitRefParam(s1)
 InitRefParam(s3)
 
+
+
 /*--- BEGIN Variable Definitions ---
-MutRef Not s3;
 Owner Mut s0;
+MutRef Not s3;
 StaticRef Not s1;
 --- END Variable Definitions ---*/
-
-GoOutOfScope(s3)
-GoOutOfScope(s0)
-GoOutOfScope(s1)
-
-StaticDie(s1) at line 16
-MutableDie(s3) at line 16
 ********************************************************************
 computing body permissions "returnstring"
-Body_range from CharPos(329) to CharPos(392).
+Body_range from CharPos(501) to CharPos(564).
 
-Statement: HirId(DefId(0:7 ~ test_crate[75bf]::returnstring).8) (local `let s=String::from("hello");`)
-on line: 20
+On line: 28
 Move(String::from()->s)
 
-Function Call: HirId(DefId(0:7 ~ test_crate[75bf]::returnstring).2) (expr `String::from("hello")`)
-On line: 20
 
-On line: 21
+On line: 29
 Move(s->none)
 
-/*--- BEGIN Variable Definitions ---
-Function String::from();
-Owner Not s;
---- END Variable Definitions ---*/
 
+On line 30
 GoOutOfScope(s)
 
-********************************************************************
-computing body permissions "returnstringtup"
-Body_range from CharPos(393) to CharPos(507).
-
-Statement: HirId(DefId(0:8 ~ test_crate[75bf]::returnstringtup).8) (local `let s1=String::from("hello");`)
-on line: 24
-Move(String::from()->s1)
-
-Function Call: HirId(DefId(0:8 ~ test_crate[75bf]::returnstringtup).2) (expr `String::from("hello")`)
-On line: 24
-
-Statement: HirId(DefId(0:8 ~ test_crate[75bf]::returnstringtup).17) (local `let s2=String::from("hello");`)
-on line: 25
-Move(String::from()->s2)
-
-Function Call: HirId(DefId(0:8 ~ test_crate[75bf]::returnstringtup).11) (expr `String::from("hello")`)
-On line: 25
-
-On line: 26
-Move(s1->none)
-
-On line: 26
-Move(s2->none)
 
 /*--- BEGIN Variable Definitions ---
-Owner Not s1;
+Owner Not s;
 Function String::from();
-Owner Not s2;
 --- END Variable Definitions ---*/
+********************************************************************
+computing body permissions "returnstringtup"
+Body_range from CharPos(565) to CharPos(679).
 
+On line: 32
+Move(String::from()->s1)
+
+
+On line: 33
+Move(String::from()->s2)
+
+
+On line: 34
+Move(s1->none)
+
+On line: 34
+Move(s2->none)
+
+
+On line 35
 GoOutOfScope(s1)
+
+On line 35
 GoOutOfScope(s2)
 
+
+/*--- BEGIN Variable Definitions ---
+Function String::from();
+Owner Not s1;
+Owner Not s2;
+--- END Variable Definitions ---*/
 ********************************************************************
 computing body permissions "foo"
-Body_range from CharPos(508) to CharPos(553).
+Body_range from CharPos(680) to CharPos(725).
 InitRefParam(s1)
+
+
 
 /*--- BEGIN Variable Definitions ---
 MutRef Not s1;
 --- END Variable Definitions ---*/
-
-GoOutOfScope(s1)
-
-MutableDie(s1) at line 28

@@ -3,7 +3,7 @@ fn main() {
   let mut s1= String::from("hello");
   let sr = &mut s;
   let s1r= &mut s1;
-  foo(s1r);
+  let ssr= foo(s1r);
   let a = {
     let sr1= sr;
     println!("{}",sr1);

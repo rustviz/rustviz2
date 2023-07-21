@@ -59,6 +59,7 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
   pub mutability_map: HashMap<String,Mutability>,
   pub lifetime_map: HashMap<Reference,usize>,
+  pub borrow_map: HashMap<String, Option<String>>,
   pub access_points: HashMap<AccessPointUsage, usize>,
   pub current_scope: usize,
 }
@@ -145,6 +146,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 }
                 else {
                   self.access_points.insert(AccessPointUsage::MutRef(lhs),self.current_scope);
+                  if let Some(owner)=self.borrow_map.get(&name){
+                    if let Some(owner)=owner{
+                      self.borrow_map.insert(lhs_var.clone(),Some(owner.clone()));
+                    }
+                    else {
+                      self.borrow_map.insert(lhs_var.clone(),None);
+                    }
+                  }
                   self.update_lifetime(Reference::Mut(name), line_num);
                   self.update_lifetime(Reference::Mut(lhs_var), line_num);
                 }
@@ -156,6 +165,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 }
                 else {
                   self.access_points.insert(AccessPointUsage::StaticRef(lhs),self.current_scope);
+                  if let Some(owner)=self.borrow_map.get(&name){
+                    if let Some(owner)=owner{
+                      self.borrow_map.insert(lhs_var.clone(),Some(owner.clone()));
+                    }
+                    else {
+                      self.borrow_map.insert(lhs_var.clone(),None);
+                    }
+                  }
                   self.update_lifetime(Reference::Static(name), line_num);
                   self.update_lifetime(Reference::Static(lhs_var), line_num);
                 }
@@ -175,8 +192,27 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               println!("On line: {}\nMove({}()->{})", line_num, fn_name, lhs_var);
             }
             self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
-            self.access_points.insert(AccessPointUsage::Function(fn_name),self.current_scope);
           }
+          else {
+            if let Some(return_type)=self.return_type_of(fn_expr){
+              self.borrow_map.insert(lhs_var.clone(),None);
+              if let Some(mutability)=return_type.ref_mutability(){
+                match mutability{
+                  Mutability::Mut=>{
+                    println!("On line: {}\nMove({}()->{})", line_num, fn_name, lhs_var);
+                    self.access_points.insert(AccessPointUsage::MutRef(lhs),self.current_scope);
+                    self.update_lifetime(Reference::Mut(lhs_var), line_num);
+                  }
+                  Mutability::Not=>{
+                    println!("On line: {}\nCopy({}()->{})", line_num, fn_name, lhs_var);
+                    self.access_points.insert(AccessPointUsage::StaticRef(lhs),self.current_scope);
+                    self.update_lifetime(Reference::Static(lhs_var), line_num);
+                  }
+                }
+              }
+            }
+          }
+          self.access_points.insert(AccessPointUsage::Function(fn_name),self.current_scope);
         }
       },
       ExprKind::Lit(_) => {
@@ -187,6 +223,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         match expr.kind{
           ExprKind::Path(QPath::Resolved(_,p))=>{
             if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
+              self.borrow_map.insert(lhs_var.clone(),Some(name.clone()));
               match mutability{
                 Mutability::Not=>{
                   println!("On line: {}\nStaticBorrow({}->{})", line_num, name,lhs_var);
@@ -259,10 +296,24 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     for (reference,line_num) in &self.lifetime_map{
       match reference{
         Reference::Mut(name)=>{
-          println!("On line {}\nMutableDie({})", line_num, name);
+          if let Some(owner)=self.borrow_map.get(name){
+            if let Some(owner)=owner{
+              println!("On line {}\nMutableDie({}->{})", line_num, name,owner);
+            }
+            else {
+              println!("On line {}\nMutableDie({}->*{})", line_num, name,name);
+            }
+          }
         }
         Reference::Static(name)=>{
-          println!("On line {}\nStaticDie({})", line_num, name);
+          if let Some(owner)=self.borrow_map.get(name){
+            if let Some(owner)=owner{
+              println!("On line {}\nStaticDie({}->{})", line_num, name,owner);
+            }
+            else {
+              println!("On line {}\nStaticDie({}->*{})", line_num, name,name);
+            }
+          }
         }
       }
     }
