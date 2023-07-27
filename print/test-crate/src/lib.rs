@@ -16,9 +16,7 @@ fn returnone()->usize{
 fn returnonetup()->(usize,usize){
   (1,1)
 }
-fn takestring_returnone(mut s0:String,s1:&String,s3:&mut String)->usize{
-  1
-}
+
 fn returnstring()->String{
   let s=String::from("hello");
   s
