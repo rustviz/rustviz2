@@ -1,6 +1,6 @@
 ********************************************************************
 computing body permissions "main"
-Body_range from CharPos(0) to CharPos(337).
+Body_range from CharPos(0) to CharPos(346).
 
 On line: 2
 Move(String::from()->s)
@@ -15,6 +15,9 @@ MutableBorrow(s->sr)
 
 On line: 5
 MutableBorrow(s1->s1r)
+
+On line: 6
+Move(foo()->ssr)
 
 On line: 6
 PassByMutableReference(s1r->foo())
@@ -45,13 +48,10 @@ PassByStaticReference(s3->println())
 
 
 On line 17
-GoOutOfScope(s1r)
-
-On line 17
-GoOutOfScope(s1)
-
-On line 17
 GoOutOfScope(sr)
+
+On line 17
+GoOutOfScope(s1r)
 
 On line 15
 GoOutOfScope(sr1)
@@ -59,36 +59,45 @@ GoOutOfScope(sr1)
 On line 14
 GoOutOfScope(s2)
 
+On line 17
+GoOutOfScope(s)
+
 On line 14
 GoOutOfScope(s3)
 
 On line 17
-GoOutOfScope(s)
+GoOutOfScope(s1)
 
-On line 6
-MutableDie(s1r)
-On line 8
-MutableDie(sr)
+On line 17
+GoOutOfScope(ssr)
+
 On line 9
-MutableDie(sr1)
+MutableDie(sr1->s)
+On line 6
+MutableDie(ssr->*ssr)
+On line 8
+MutableDie(sr->s)
+On line 6
+MutableDie(s1r->s1)
 
 /*--- BEGIN Variable Definitions ---
-Function foo();
-Function println();
-MutRef Not s1r;
-Owner Not b;
+Owner Not a;
 Function String::from();
-Owner Mut s1;
 MutRef Not sr;
+MutRef Not s1r;
 MutRef Not sr1;
 Owner Not s2;
-Owner Not s3;
 Owner Mut s;
-Owner Not a;
+Function println();
+Function foo();
+Owner Not b;
+Owner Not s3;
+Owner Mut s1;
+MutRef Not ssr;
 --- END Variable Definitions ---*/
 ********************************************************************
 computing body permissions "returnone"
-Body_range from CharPos(339) to CharPos(368).
+Body_range from CharPos(348) to CharPos(377).
 
 
 
@@ -96,7 +105,7 @@ Body_range from CharPos(339) to CharPos(368).
 --- END Variable Definitions ---*/
 ********************************************************************
 computing body permissions "returnonetup"
-Body_range from CharPos(369) to CharPos(412).
+Body_range from CharPos(378) to CharPos(421).
 
 
 
@@ -104,25 +113,21 @@ Body_range from CharPos(369) to CharPos(412).
 --- END Variable Definitions ---*/
 ********************************************************************
 computing body permissions "takestring_returnone"
-Body_range from CharPos(413) to CharPos(491).
+Body_range from CharPos(422) to CharPos(500).
 InitOwnerParam(s0)
 InitRefParam(s1)
 InitRefParam(s3)
 
 
-On line 24
-StaticDie(s1)
-On line 24
-MutableDie(s3)
 
 /*--- BEGIN Variable Definitions ---
+Owner Mut s0;
 MutRef Not s3;
 StaticRef Not s1;
-Owner Mut s0;
 --- END Variable Definitions ---*/
 ********************************************************************
 computing body permissions "returnstring"
-Body_range from CharPos(492) to CharPos(555).
+Body_range from CharPos(501) to CharPos(564).
 
 On line: 28
 Move(String::from()->s)
@@ -142,7 +147,7 @@ Function String::from();
 --- END Variable Definitions ---*/
 ********************************************************************
 computing body permissions "returnstringtup"
-Body_range from CharPos(556) to CharPos(670).
+Body_range from CharPos(565) to CharPos(679).
 
 On line: 32
 Move(String::from()->s1)
@@ -160,25 +165,23 @@ Move(s2->none)
 
 
 On line 35
-GoOutOfScope(s2)
+GoOutOfScope(s1)
 
 On line 35
-GoOutOfScope(s1)
+GoOutOfScope(s2)
 
 
 /*--- BEGIN Variable Definitions ---
-Owner Not s2;
 Function String::from();
 Owner Not s1;
+Owner Not s2;
 --- END Variable Definitions ---*/
 ********************************************************************
 computing body permissions "foo"
-Body_range from CharPos(671) to CharPos(716).
+Body_range from CharPos(680) to CharPos(725).
 InitRefParam(s1)
 
 
-On line 36
-MutableDie(s1)
 
 /*--- BEGIN Variable Definitions ---
 MutRef Not s1;

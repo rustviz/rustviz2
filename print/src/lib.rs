@@ -266,16 +266,19 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
       lifetime_map:HashMap::new(),
       current_scope: 0,
       borrow_map:HashMap::new(),
+<<<<<<< HEAD
       analysis_result:Vec::new(),
+=======
+>>>>>>> refs/remotes/origin/main
     };
     visitor.visit_body(hir_body);
-    visitor.print_definitions();
     visitor.print_out_of_scope();
     for elem in &visitor.analysis_result{
       println!("{:?}",elem);
     }
     
     visitor.print_lifetimes();
+<<<<<<< HEAD
 
     let (contents, line_num, var_map) = rustviz::parse::parse_vars_to_map("../output");
     println!("varmap:{:?},contents:{:?},line_num:{:?}", var_map,contents,line_num);
@@ -293,6 +296,9 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
     let input = String::from("src/");
     let output = String::from("src/");
     rustviz::svg_generation::render_svg(&input, &output, &mut vd);
+=======
+    visitor.print_definitions();
+>>>>>>> refs/remotes/origin/main
     },
     _ =>{println!("Analysis Error.");}
   }
