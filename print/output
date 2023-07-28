@@ -1,9 +1,9 @@
 /* --- BEGIN Variable Definitions ---
+Function println();
+Owner Not s1;
 Function String::from();
-Function takes_ownership();
-Owner Not s;
 --- END Variable Definitions --- */
 
-!{Move(String::from()->s)}
-!{Move(s->takes_ownership())}
-!{GoOutOfScope(s)}
+!{Move(String::from()->s1)}
+!{PassByStaticReference(s1->println())}
+!{GoOutOfScope(s1)}

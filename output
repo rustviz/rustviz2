@@ -1,188 +1,33 @@
-********************************************************************
-computing body permissions "main"
-Body_range from CharPos(0) to CharPos(346).
-
-On line: 2
-Move(String::from()->s)
-
-
-On line: 3
-Move(String::from()->s1)
-
-
-On line: 4
-MutableBorrow(s->sr)
-
-On line: 5
-MutableBorrow(s1->s1r)
-
-On line: 6
-Move(foo()->ssr)
-
-On line: 6
-PassByMutableReference(s1r->foo())
-
-
-On line: 8
-Move(sr->sr1)
-
-
-On line: 9
-PassByStaticReference(sr1->println())
-
-
-On line: 11
-Move(String::from()->s2)
-
-
-On line: 12
-Move(String::from()->s3)
-
-
-
-On line: 13
-PassByStaticReference(s2->println())
-
-On line: 13
-PassByStaticReference(s3->println())
-
-
-On line 17
-GoOutOfScope(sr)
-
-On line 17
-GoOutOfScope(s1r)
-
-On line 15
-GoOutOfScope(sr1)
-
-On line 14
-GoOutOfScope(s2)
-
-On line 17
-GoOutOfScope(s)
-
-On line 14
-GoOutOfScope(s3)
-
-On line 17
-GoOutOfScope(s1)
-
-On line 17
-GoOutOfScope(ssr)
-
-On line 9
-MutableDie(sr1->s)
-On line 6
-MutableDie(ssr->*ssr)
-On line 8
-MutableDie(sr->s)
-On line 6
-MutableDie(s1r->s1)
-
-/*--- BEGIN Variable Definitions ---
-Owner Not a;
-Function String::from();
-MutRef Not sr;
-MutRef Not s1r;
-MutRef Not sr1;
-Owner Not s2;
-Owner Mut s;
-Function println();
-Function foo();
-Owner Not b;
-Owner Not s3;
-Owner Mut s1;
-MutRef Not ssr;
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "returnone"
-Body_range from CharPos(348) to CharPos(377).
-
-
-
-/*--- BEGIN Variable Definitions ---
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "returnonetup"
-Body_range from CharPos(378) to CharPos(421).
-
-
-
-/*--- BEGIN Variable Definitions ---
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "takestring_returnone"
-Body_range from CharPos(422) to CharPos(500).
-InitOwnerParam(s0)
-InitRefParam(s1)
-InitRefParam(s3)
-
-
-
-/*--- BEGIN Variable Definitions ---
-Owner Mut s0;
-MutRef Not s3;
-StaticRef Not s1;
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "returnstring"
-Body_range from CharPos(501) to CharPos(564).
-
-On line: 28
-Move(String::from()->s)
-
-
-On line: 29
-Move(s->none)
-
-
-On line 30
-GoOutOfScope(s)
-
-
-/*--- BEGIN Variable Definitions ---
-Owner Not s;
-Function String::from();
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "returnstringtup"
-Body_range from CharPos(565) to CharPos(679).
-
-On line: 32
-Move(String::from()->s1)
-
-
-On line: 33
-Move(String::from()->s2)
-
-
-On line: 34
-Move(s1->none)
-
-On line: 34
-Move(s2->none)
-
-
-On line 35
-GoOutOfScope(s1)
-
-On line 35
-GoOutOfScope(s2)
-
-
-/*--- BEGIN Variable Definitions ---
-Function String::from();
+/* --- BEGIN Variable Definitions ---
 Owner Not s1;
-Owner Not s2;
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "foo"
-Body_range from CharPos(680) to CharPos(725).
-InitRefParam(s1)
+Function String::from();
+Function println();
+--- END Variable Definitions --- */
 
+!{Move(String::from()->s1)}
+!{PassByStaticReference(s1->println())}
+!{GoOutOfScope(s1)}
+varmap:{"println()": Function(Function { name: "println()", hash: 1 }), "s1": Owner(Owner { name: "s1", hash: 2, is_mut: false }), "String::from()": Function(Function { name: "String::from()", hash: 3 })},contents:Lines { buf: BufReader { reader: File { fd: 9, path: "/mnt/f/FP/rustviz/print/output", read: true, write: false }, buffer: 89/8192 } },line_num:5
+line 1: Ok("")
+line 2: Ok("!{Move(String::from()->s1)}")
+line 3: Ok("!{PassByStaticReference(s1->println())}")
+line 4: Ok("!{GoOutOfScope(s1)}")
+print_event:[(2, "Move(String::from()->s1)"), (3, "PassByStaticReference(s1->println())"), (4, "GoOutOfScope(s1)")]
+vd:VisualizationData { timelines: {}, external_events: [], preprocess_external_events: [(2, Move { from: Some(Function(Function { name: "String::from()", hash: 3 })), to: Some(Owner(Owner { name: "s1", hash: 2, is_mut: false })) }), (3, PassByStaticReference { from: Some(Owner(Owner { name: "s1", hash: 2, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 1 })) }), (4, GoOutOfScope { ro: Owner(Owner { name: "s1", hash: 2, is_mut: false }) })], event_line_map: {} }
+successfully wrote to src/vis_code.svg
+successfully wrote to src/vis_timeline.svg
+/* --- BEGIN Variable Definitions ---
+Owner Not s;
+--- END Variable Definitions --- */
 
-
-/*--- BEGIN Variable Definitions ---
-MutRef Not s1;
---- END Variable Definitions ---*/
+!{InitOwnerParam(s)}
+!{Move(s->None)}
+varmap:{"println()": Function(Function { name: "println()", hash: 1 }), "s1": Owner(Owner { name: "s1", hash: 2, is_mut: false }), "String::from()": Function(Function { name: "String::from()", hash: 3 })},contents:Lines { buf: BufReader { reader: File { fd: 9, path: "/mnt/f/FP/rustviz/print/output", read: true, write: false }, buffer: 89/8192 } },line_num:5
+line 1: Ok("")
+line 2: Ok("!{Move(String::from()->s1)}")
+line 3: Ok("!{PassByStaticReference(s1->println())}")
+line 4: Ok("!{GoOutOfScope(s1)}")
+print_event:[(2, "Move(String::from()->s1)"), (3, "PassByStaticReference(s1->println())"), (4, "GoOutOfScope(s1)")]
+vd:VisualizationData { timelines: {}, external_events: [], preprocess_external_events: [(2, Move { from: Some(Function(Function { name: "String::from()", hash: 3 })), to: Some(Owner(Owner { name: "s1", hash: 2, is_mut: false })) }), (3, PassByStaticReference { from: Some(Owner(Owner { name: "s1", hash: 2, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 1 })) }), (4, GoOutOfScope { ro: Owner(Owner { name: "s1", hash: 2, is_mut: false }) })], event_line_map: {} }
+successfully wrote to src/vis_code.svg
+successfully wrote to src/vis_timeline.svg

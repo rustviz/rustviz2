@@ -265,7 +265,9 @@ fn print_all_items(tcx: TyCtxt, args: &PrintAllItemsPluginArgs) {
       mutability_map:HashMap::new(),
       lifetime_map:HashMap::new(),
       current_scope: 0,
+      pre_scope: 0,
       borrow_map:HashMap::new(),
+      block_return_target:None,
       analysis_result:Vec::new(),
     };
     visitor.visit_body(hir_body);

@@ -15,7 +15,7 @@ use rustc_hir::{intravisit::{self, Visitor},hir_id::HirId};
 use std::cmp::{Eq, PartialEq};
 use std::hash::{Hash, Hasher};
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Clone)]
 pub struct AccessPoint {
   mutability: Mutability,
   name:String,
@@ -62,6 +62,8 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub borrow_map: HashMap<String, Option<String>>,
   pub access_points: HashMap<AccessPointUsage, usize>,
   pub current_scope: usize,
+  pub pre_scope: usize,
+  pub block_return_target: Option<AccessPoint>,
   pub analysis_result : Vec<String>,
 }
 
@@ -128,7 +130,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  fn match_rhs(&mut self,lhs:AccessPoint,rhs:&Expr){
+  fn match_rhs(&mut self,lhs:AccessPoint,rhs:&'tcx Expr){
     let lhs_var=lhs.name.clone();
     let line_num = self.expr_to_line(rhs);
     match rhs.kind {
@@ -160,6 +162,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 }
               }
               else {
+                self.analysis_result.push(format!("!{{Copy({}->{})}}", name, lhs_var));
                 if self.access_points.contains_key(&AccessPointUsage::Owner(rhs)){
                   self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
                 }
@@ -241,8 +244,15 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           _=>{}
         }
       }
-      ExprKind::Block(_, _) => {
-        self.access_points.insert(AccessPointUsage::Block(lhs),self.current_scope);
+      ExprKind::Block(block, _) => {
+        let line = self.tcx.sess.source_map().lookup_char_pos(rhs.span.hi()).line;
+        self.pre_scope = self.current_scope;
+        let pre_target= self.block_return_target.clone();
+        self.current_scope = line;
+        self.block_return_target= Some(lhs);
+        self.visit_block(block);
+        self.current_scope = self.pre_scope;
+        self.block_return_target= pre_target;
       }
       _=>{}
     }
@@ -480,6 +490,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             self.visit_expr(lhs);
             match rhs.kind {
               ExprKind::Path(_) => {},
+              ExprKind::Block(..)=> {},
               _=>{
                 self.visit_expr(rhs);
               }
@@ -487,13 +498,14 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           }
     
           ExprKind::Block(block, _) => {
-            //println!("Block: {}", self.tcx.hir().node_to_string(hirid));
             let line = self.tcx.sess.source_map().lookup_char_pos(expr.span.hi()).line;
-            // println!("line: {:?}", line);
-            let pre_scope = self.current_scope;
+            self.pre_scope = self.current_scope;
+            let pre_target= self.block_return_target.clone();
             self.current_scope = line;
+            self.block_return_target= None;
             self.visit_block(block);
-            self.current_scope = pre_scope;
+            self.current_scope = self.pre_scope;
+            self.block_return_target= pre_target;
           }
     
           ExprKind::AssignOp(_, lhs, rhs) => {
@@ -514,15 +526,16 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               ..
             },
           )) if !span.from_expansion() => {
-            let bytepos=span.lo();
-            let boundary=self.boundary_map.get(&bytepos);
-            if let Some(boundary)=boundary{
-              if boundary.expected.drop {
-                let name = self.hirid_to_var_name(hirid);
-                if let Some(name) = name {
-                  println!("On line: {}", self.expr_to_line(expr));
-                  println!("Move({}->none)", name);
-                }
+            if let Some(target)=self.block_return_target.clone(){
+              let current_scope=self.current_scope;
+              self.current_scope=self.pre_scope;
+              self.match_rhs(target, expr);
+              self.current_scope=current_scope;
+            }
+            else{
+              let name = self.hirid_to_var_name(hirid);
+              if let Some(name) = name {
+                self.analysis_result.push(format!("!{{Move({}->None)}}",name));
               }
             }
           }
