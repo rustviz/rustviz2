@@ -487,7 +487,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             if let Some(mutability)=self.mutability_map.get(&lhs_var){
               self.match_rhs(AccessPoint { mutability:*mutability, name: lhs_var }, rhs);
             }
-            self.visit_expr(lhs);
+            //self.visit_expr(lhs);
             match rhs.kind {
               ExprKind::Path(_) => {},
               ExprKind::Block(..)=> {},
@@ -566,6 +566,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                   self.match_rhs(AccessPoint { mutability: binding_annotation.1, name: lhs_var}, expr);
                   match expr.kind {
                     ExprKind::Path(_) => {},
+                    ExprKind::Block(..)=>{},
                     _=>{
                       self.visit_expr(expr);
                     }
