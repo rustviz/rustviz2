@@ -1,0 +1,6 @@
+[book]
+authors = ["SenmiaoORZ"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Rustviz2"
