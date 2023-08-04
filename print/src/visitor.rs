@@ -259,6 +259,123 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         self.current_scope = self.pre_scope;
         self.block_return_target= pre_target;
       }
+      ExprKind::Binary(_, _, _) => {
+        println!("Bind({})", lhs_var);
+
+      },
+
+      ExprKind::Unary(option, _) => {
+        match option {
+
+          /* the '*' operator for dereferencing */
+          rustc_hir::UnOp::Deref => {
+            // TODO: to be implemeted
+            println!("Not implemented yet!");
+          }
+
+          /* the '!' operator for logical inversion */
+          rustc_hir::UnOp::Not => {
+            println!("Bind({})", lhs_var); 
+          }
+
+          /* the '-' operator for negation */
+          rustc_hir::UnOp::Neg => {
+            println!("Bind({})", lhs_var);
+          }
+
+          _ => {
+            // nothing else to do 
+          }
+        }
+      },
+
+      ExprKind::MethodCall(name_and_generic_args, fn_expr, args, span) => {
+        if let Some(func_name) = self.hirid_to_var_name(name_and_generic_args.hir_id) {
+          println!();
+          println!("Method Call: {} ()", func_name);
+        
+        
+          /* check generic args and print */
+          let generic_args = name_and_generic_args.args;
+          match generic_args {
+            Some(x) => println!("Generic args: {:?}", x.args),
+            None => println!("No Generic args"),
+          }
+          // println!("On line: {}", self.expr_to_line(expr));
+          
+          /* check args and print */
+          if (args.is_empty()) {
+            println!("No args");
+          } else {
+            print!("Args: ");
+            for arg in args.iter() {
+              let arg_name = self.hirid_to_var_name(arg.hir_id);
+              match arg_name {
+                Some(x) => print!("{}, ", x),
+                None => print!(""),
+              }
+            }
+            println!();
+          }
+
+
+          /* check the type of args and print */
+          for arg in args.iter(){
+            match arg.kind {
+              ExprKind::Path(QPath::Resolved(_,p))=>{
+                let bytepos=p.span.lo();
+                let boundary=self.boundary_map.get(&bytepos);
+                if let Some(boundary) = boundary {
+                  let expected=boundary.expected;
+                  let name = self.hirid_to_var_name(p.segments[0].hir_id);
+                  if let Some(name) = name {
+                    if let Some(fn_name) = self.hirid_to_var_name(fn_expr.hir_id) {
+                      if expected.drop{
+                        println!("Move({}->{}())", name, fn_name);
+                      }
+                      else if expected.write{
+                        println!("PassByMutableReference({}->{}())", name, fn_name);
+                      }
+                      else if expected.read{
+                        println!("PassByStaticReference({}->{}())", name, fn_name);
+                      }
+                      self.access_points.insert(AccessPointUsage::Function(fn_name), self.current_scope);
+                    }
+                  }
+                }
+              }
+              ExprKind::AddrOf(_,mutability,expr)=>{
+                if let Some(ex_name) = self.hirid_to_var_name(fn_expr.hir_id){
+                  match expr.kind{
+                    ExprKind::Path(QPath::Resolved(_,p))=>{
+                      if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
+                        match mutability{
+                          Mutability::Not=>{
+                            println!("PassByStaticReference({}->{}.{}())",name,ex_name,func_name);
+                          }
+                          Mutability::Mut=>{
+                            println!("PassByMutableReference({}->{}.{}())",name,ex_name,func_name);
+                          }
+                        }
+                        self.access_points.insert(AccessPointUsage::Function(ex_name), self.current_scope);
+                      }
+                    }
+                    _=>{}
+                  }
+                }
+              }
+              ExprKind::Lit(_) => {
+                if let Some(name) = self.hirid_to_var_name(arg.hir_id) {
+                  if let Some(ex_name) = self.hirid_to_var_name(fn_expr.hir_id) {
+                    println!("PassByLit({}->{}.{}())", name, ex_name, func_name);
+                  } 
+                }
+              }
+              _=>{}
+            }
+          }
+        }
+      }
       _=>{}
     }
   }
