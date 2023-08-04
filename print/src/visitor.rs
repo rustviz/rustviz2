@@ -1,19 +1,17 @@
 // Some headers
 use rustc_middle::{
-  mir::{Body},
+  mir::Body,
   ty::{TyCtxt,Ty},
 };
 use rustc_hir::{StmtKind, Stmt, Local, Expr, ExprKind, UnOp, Param,
   QPath, Path, def::Res, PatKind, Mutability};
-use rustc_utils::mir::mutability;
-use std::{collections::HashMap};
+use std::{collections::HashMap, clone};
 use rustc_ast::walk_list;
 use rustc_span::Span;
-use aquascope::analysis::{
-  boundaries::PermissionsBoundary};
+use aquascope::analysis::boundaries::PermissionsBoundary;
 use rustc_hir::{intravisit::{self, Visitor},hir_id::HirId};
 use std::cmp::{Eq, PartialEq};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub struct AccessPoint {
@@ -21,17 +19,16 @@ pub struct AccessPoint {
   name:String,
 }
 
-#[derive(Eq, PartialEq,Hash)]
+#[derive(Eq, PartialEq,Hash, Clone)]
 pub enum AccessPointUsage{
   Owner(AccessPoint),
   MutRef(AccessPoint),
   StaticRef(AccessPoint),
   Struct(Vec<AccessPoint>),
   Function(String),
-  Block(AccessPoint),//this is a temporary solution, we need to justifiy the type of block by the last line of it
 }
 
-#[derive(Eq, PartialEq,Hash)]
+#[derive(Eq, PartialEq,Hash, Clone)]
 pub enum Reference{
   Static(String),
   Mut(String),
@@ -64,7 +61,7 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub current_scope: usize,
   pub pre_scope: usize,
   pub block_return_target: Option<AccessPoint>,
-  pub analysis_result : Vec<String>,
+  pub analysis_result : HashMap<usize, Vec<String>>
 }
 
 // These are helper functions used the visitor
@@ -130,6 +127,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  fn add_event(&mut self, line_num: usize, event: String) {
+    self.analysis_result
+    .entry(line_num)
+    .or_insert(Vec::new())
+    .push(event);
+  }
+
   fn match_rhs(&mut self,lhs:AccessPoint,rhs:&'tcx Expr){
     let lhs_var=lhs.name.clone();
     let line_num = self.expr_to_line(rhs);
@@ -143,7 +147,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             if let Some(rhs_mut)=self.mutability_map.get(&name){
               let rhs = AccessPoint{mutability:*rhs_mut,name:name.clone()};
               if boundary.expected.drop {   
-                self.analysis_result.push(format!("!{{Move({}->{})}}", name, lhs_var));
+                //self.analysis_result[&line_num]=format!("!{{Move({}->{})}}", name, lhs_var);
+                 self.add_event(line_num, format!("Move({}->{})", name, lhs_var));
                 if self.access_points.contains_key(&AccessPointUsage::Owner(rhs)){
                   self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
                 }
@@ -162,7 +167,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 }
               }
               else {
-                self.analysis_result.push(format!("!{{Copy({}->{})}}", name, lhs_var));
+                self.add_event(line_num, format!("Copy({}->{})", name, lhs_var));
                 if self.access_points.contains_key(&AccessPointUsage::Owner(rhs)){
                   self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
                 }
@@ -189,10 +194,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         if let Some(fn_name) = fn_name {
           if !self.is_return_type_ref(fn_expr){
             if self.is_return_type_copyable(fn_expr) {
-              self.analysis_result.push(format!("!{{Copy({}()->{})}}", fn_name, lhs_var));
+              self.add_event(line_num, format!("Copy({}()->{})", fn_name, lhs_var));
             }
             else {
-              self.analysis_result.push(format!("!{{Move({}()->{})}}",fn_name, lhs_var));
+              self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
             }
             self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
           }
@@ -202,12 +207,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               if let Some(mutability)=return_type.ref_mutability(){
                 match mutability{
                   Mutability::Mut=>{
-                    self.analysis_result.push(format!("!{{Move({}()->{})}}", fn_name, lhs_var));
+                    self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
                     self.access_points.insert(AccessPointUsage::MutRef(lhs),self.current_scope);
                     self.update_lifetime(Reference::Mut(lhs_var), line_num);
                   }
                   Mutability::Not=>{
-                    self.analysis_result.push(format!("!{{Copy({}()->{})}}",fn_name, lhs_var));
+                    self.add_event(line_num, format!("Copy({}()->{})",fn_name, lhs_var));
                     self.access_points.insert(AccessPointUsage::StaticRef(lhs),self.current_scope);
                     self.update_lifetime(Reference::Static(lhs_var), line_num);
                   }
@@ -219,7 +224,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         }
       },
       ExprKind::Lit(_) => {
-        self.analysis_result.push(format!("!{{Bind({})}}", lhs_var));
+        self.add_event(line_num, format!("Bind({})", lhs_var));
         self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
       }
       ExprKind::AddrOf(_,mutability,expr) => {
@@ -229,12 +234,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               self.borrow_map.insert(lhs_var.clone(),Some(name.clone()));
               match mutability{
                 Mutability::Not=>{
-                  self.analysis_result.push(format!("!{{StaticBorrow({}->{})}}", name,lhs_var));
+                  self.add_event(line_num,format!("StaticBorrow({}->{})", name,lhs_var));
                   self.update_lifetime(Reference::Static(lhs_var.clone()), line_num);
                   self.access_points.insert(AccessPointUsage::StaticRef(lhs),self.current_scope);
                 }
                 Mutability::Mut=>{
-                  self.analysis_result.push(format!("!{{MutableBorrow({}->{})}}", name,lhs_var));
+                  self.add_event(line_num,format!("MutableBorrow({}->{})", name,lhs_var));
                   self.update_lifetime(Reference::Mut(lhs_var.clone()), line_num);
                   self.access_points.insert(AccessPointUsage::MutRef(lhs),self.current_scope);
                 }
@@ -258,39 +263,38 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn print_definitions(&mut self){
-    println!("/* --- BEGIN Variable Definitions ---");
+  pub fn print_definitions(&mut self) -> String {
+    let mut declarations = String::new();
+    
     for (point,_) in &self.access_points {
       match point {
-        AccessPointUsage::Owner(p)|
-        AccessPointUsage::Block(p)
-        =>{
-          println!("Owner {:?} {};",p.mutability,p.name);
+        AccessPointUsage::Owner(p)=>{
+          declarations.push_str(&format!("Owner {:?} {};\n",p.mutability,p.name));
         }
         AccessPointUsage::StaticRef(p)=>{
-          println!("StaticRef {:?} {};",p.mutability,p.name);
+          declarations.push_str(&format!("StaticRef {:?} {};\n",p.mutability,p.name));
         }
         AccessPointUsage::MutRef(p)=>{
-          println!("MutRef {:?} {};",p.mutability,p.name);
+          declarations.push_str(&format!("MutRef {:?} {};\n",p.mutability,p.name));
         }
         AccessPointUsage::Function(name)=>{
-          println!("Function {}();",name);
+          declarations.push_str(&format!("Function {}();\n",name));
         }
         _=>{}
       }
     }
-    println!("--- END Variable Definitions --- */");
-    println!("");
+    return declarations;
   }
 
   pub fn print_out_of_scope(&mut self){
-    for (point,gos) in &self.access_points {
+    let access = self.access_points.clone();
+    for (point,gos) in &access {
       if gos!=&0 {
         match point {
           AccessPointUsage::Owner(p)|
           AccessPointUsage::StaticRef(p)|
-          AccessPointUsage::MutRef(p)=>{
-            self.analysis_result.push(format!("!{{GoOutOfScope({})}}",p.name));
+          AccessPointUsage::MutRef(p)=>{ 
+            self.add_event(*gos,format!("GoOutOfScope({})",p.name));
           }
           _=>{}
         }
@@ -299,25 +303,27 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
 
   pub fn print_lifetimes(&mut self){
-    for (reference,line_num) in &self.lifetime_map{
+    let lifetime_map = self.lifetime_map.clone();
+    for (reference,line_num) in &lifetime_map{
+      let linenum: usize = *line_num;
       match reference{
         Reference::Mut(name)=>{
           if let Some(owner)=self.borrow_map.get(name){
             if let Some(owner)=owner{
-              self.analysis_result.push(format!("!{{MutableDie({}->{})}}", name,owner));
+              self.add_event(linenum,format!("MutableDie({}->{})", name,owner));
             }
             else {
-              self.analysis_result.push(format!("!{{MutableDie({}->*{})}}", name,name));
+              self.add_event(linenum,format!("MutableDie({}->*{})", name,name));
             }
           }
         }
         Reference::Static(name)=>{
           if let Some(owner)=self.borrow_map.get(name){
             if let Some(owner)=owner{
-              self.analysis_result.push(format!("!{{StaticDie({}->{})}}", name,owner));
+              self.add_event(linenum,format!("StaticDie({}->{})", name,owner));
             }
             else {
-              self.analysis_result.push(format!("!{{StaticDie({}->*{})}}", name,name));
+              self.add_event(linenum,format!("StaticDie({}->*{})", name,name));
             }
           }
         }
@@ -343,12 +349,14 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let name = ident.to_string();
         let mutability = binding_annotation.1;
         if ty.is_ref() {
-          self.analysis_result.push(format!("!{{InitRefParam({})}}",name));
+          self.add_event(line_num,format!("InitRefParam({})",name));
           if let Some(mutref)=ty.ref_mutability(){
             match mutref {
               Mutability::Not=>{
                 self.update_lifetime(Reference::Static(name.clone()), line_num);
+                let copy_name = name.clone();
                 self.access_points.insert(AccessPointUsage::StaticRef(AccessPoint { mutability, name}), self.current_scope);
+                println!("{}", copy_name);
               }
               Mutability::Mut=>{
                 self.update_lifetime(Reference::Mut(name.clone()), line_num);
@@ -358,8 +366,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           }
         }
         else{
-          self.analysis_result.push(format!("!{{InitOwnerParam({})}}",name));
+          self.add_event(line_num,format!("InitOwnerParam({})",name));
           self.access_points.insert(AccessPointUsage::Owner(AccessPoint { mutability, name}), self.current_scope);
+          //println!("Owner Not {};",name);
         }
       }
       _=>{}
@@ -393,16 +402,16 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                     let expected=boundary.expected;
                     let name = self.hirid_to_var_name(p.segments[0].hir_id);
                     if let Some(name) = name {
-                      if let Some(mut fn_name) = self.hirid_to_var_name(fn_expr.hir_id) {
+                      if let Some(fn_name) = self.hirid_to_var_name(fn_expr.hir_id) {
                         if expected.drop{
-                          self.analysis_result.push(format!("!{{Move({}->{}())}}", name, fn_name));
+                          self.add_event(line_num,format!("Move({}->{}())", name, fn_name));
                         }
                         else if expected.write{                          
-                          self.analysis_result.push(format!("!{{PassByMutableReference({}->{}())}}", name, fn_name));
+                          self.add_event(line_num,format!("PassByMutableReference({}->{}())", name, fn_name));
                           self.update_lifetime(Reference::Mut(name), line_num);
                         }
                         else if expected.read{
-                          self.analysis_result.push(format!("!{{PassByStaticReference({}->{}())}}", name, fn_name));
+                          self.add_event(line_num,format!("PassByStaticReference({}->{}())", name, fn_name));
                           self.update_lifetime(Reference::Static(name), line_num);
                         }
                         self.access_points.insert(AccessPointUsage::Function(fn_name),self.current_scope);
@@ -428,10 +437,10 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                           }
                           match mutability{
                             Mutability::Not=>{
-                              self.analysis_result.push(format!("!{{PassByStaticReference({}->{}())}}", name,fn_name));
+                              self.add_event(line_num,format!("PassByStaticReference({}->{}())", name,fn_name));
                             }
                             Mutability::Mut=>{
-                              self.analysis_result.push(format!("!{{PassByMutableReference({}->{}())}}", name,fn_name));
+                              self.add_event(line_num,format!("PassByMutableReference({}->{}())", name,fn_name));
                             }
                           }
                           self.access_points.insert(AccessPointUsage::Function(fn_name),self.current_scope);
@@ -534,8 +543,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             }
             else{
               let name = self.hirid_to_var_name(hirid);
+              let line_num = self.expr_to_line(expr);
               if let Some(name) = name {
-                self.analysis_result.push(format!("!{{Move({}->None)}}",name));
+                self.add_event(line_num,format!("Move({}->None)",name));
               }
             }
           }

@@ -1,185 +1,23 @@
-********************************************************************
-computing body permissions "main"
-Body_range from CharPos(0) to CharPos(337).
-
-On line: 2
-Move(String::from()->s)
-
-
-On line: 3
-Move(String::from()->s1)
-
-
-On line: 4
-MutableBorrow(s->sr)
-
-On line: 5
-MutableBorrow(s1->s1r)
-
-On line: 6
-PassByMutableReference(s1r->foo())
-
-
-On line: 8
-Move(sr->sr1)
-
-
-On line: 9
-PassByStaticReference(sr1->println())
-
-
-On line: 11
-Move(String::from()->s2)
-
-
-On line: 12
-Move(String::from()->s3)
-
-
-
-On line: 13
-PassByStaticReference(s2->println())
-
-On line: 13
-PassByStaticReference(s3->println())
-
-
-On line 17
-GoOutOfScope(s1r)
-
-On line 17
-GoOutOfScope(s1)
-
-On line 17
-GoOutOfScope(sr)
-
-On line 15
-GoOutOfScope(sr1)
-
-On line 14
-GoOutOfScope(s2)
-
-On line 14
-GoOutOfScope(s3)
-
-On line 17
-GoOutOfScope(s)
-
-On line 6
-MutableDie(s1r)
-On line 8
-MutableDie(sr)
-On line 9
-MutableDie(sr1)
-
-/*--- BEGIN Variable Definitions ---
-Function foo();
-Function println();
-MutRef Not s1r;
-Owner Not b;
+ [used for debug] 4:["Move(String::from()->s3)"]
+ [used for debug] 6:["GoOutOfScope(s3)"]
+ [used for debug] 2:["Move(String::from()->s1)"]
+ [used for debug] 8:["PassByStaticReference(s1->println())"]
+ [used for debug] 9:["PassByStaticReference(s2->println())"]
+ [used for debug] 10:["GoOutOfScope(s2)", "GoOutOfScope(s1)"]
+ [used for debug] 5:["Move(s3->s2)"]
+ [used for debug] 12:["Move(s->None)"]
+ [used for debug] 13:["GoOutOfScope(s)"]
+ [used for debug] 11:["InitOwnerParam(s)"]
+/* --- BEGIN Variable Definitions ---
 Function String::from();
-Owner Mut s1;
-MutRef Not sr;
-MutRef Not sr1;
-Owner Not s2;
 Owner Not s3;
-Owner Mut s;
-Owner Not a;
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "returnone"
-Body_range from CharPos(339) to CharPos(368).
-
-
-
-/*--- BEGIN Variable Definitions ---
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "returnonetup"
-Body_range from CharPos(369) to CharPos(412).
-
-
-
-/*--- BEGIN Variable Definitions ---
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "takestring_returnone"
-Body_range from CharPos(413) to CharPos(491).
-InitOwnerParam(s0)
-InitRefParam(s1)
-InitRefParam(s3)
-
-
-On line 24
-StaticDie(s1)
-On line 24
-MutableDie(s3)
-
-/*--- BEGIN Variable Definitions ---
-MutRef Not s3;
-StaticRef Not s1;
-Owner Mut s0;
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "returnstring"
-Body_range from CharPos(492) to CharPos(555).
-
-On line: 28
-Move(String::from()->s)
-
-
-On line: 29
-Move(s->none)
-
-
-On line 30
-GoOutOfScope(s)
-
-
-/*--- BEGIN Variable Definitions ---
-Owner Not s;
-Function String::from();
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "returnstringtup"
-Body_range from CharPos(556) to CharPos(670).
-
-On line: 32
-Move(String::from()->s1)
-
-
-On line: 33
-Move(String::from()->s2)
-
-
-On line: 34
-Move(s1->none)
-
-On line: 34
-Move(s2->none)
-
-
-On line 35
-GoOutOfScope(s2)
-
-On line 35
-GoOutOfScope(s1)
-
-
-/*--- BEGIN Variable Definitions ---
 Owner Not s2;
-Function String::from();
+Function println();
 Owner Not s1;
---- END Variable Definitions ---*/
-********************************************************************
-computing body permissions "foo"
-Body_range from CharPos(671) to CharPos(716).
-InitRefParam(s1)
-
-
-On line 36
-MutableDie(s1)
-
-/*--- BEGIN Variable Definitions ---
-MutRef Not s1;
---- END Variable Definitions ---*/
+Owner Not s;
+--- END Variable Definitions --- */
+varmap:{"s1": Owner(Owner { name: "s1", hash: 5, is_mut: false }), "println()": Function(Function { name: "println()", hash: 4 }), "String::from()": Function(Function { name: "String::from()", hash: 1 }), "s": Owner(Owner { name: "s", hash: 6, is_mut: false }), "s2": Owner(Owner { name: "s2", hash: 3, is_mut: false }), "s3": Owner(Owner { name: "s3", hash: 2, is_mut: false })}
+print_event:[(4, "Move(String::from()->s3)"), (6, "GoOutOfScope(s3)"), (2, "Move(String::from()->s1)"), (8, "PassByStaticReference(s1->println())"), (9, "PassByStaticReference(s2->println())"), (10, "GoOutOfScope(s2)"), (10, "GoOutOfScope(s1)"), (5, "Move(s3->s2)"), (12, "Move(s->None)"), (13, "GoOutOfScope(s)"), (11, "InitOwnerParam(s)")]
+vd:VisualizationData { timelines: {}, external_events: [], preprocess_external_events: [(4, Move { from: Some(Function(Function { name: "String::from()", hash: 1 })), to: Some(Owner(Owner { name: "s3", hash: 2, is_mut: false })) }), (6, GoOutOfScope { ro: Owner(Owner { name: "s3", hash: 2, is_mut: false }) }), (2, Move { from: Some(Function(Function { name: "String::from()", hash: 1 })), to: Some(Owner(Owner { name: "s1", hash: 5, is_mut: false })) }), (8, PassByStaticReference { from: Some(Owner(Owner { name: "s1", hash: 5, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 4 })) }), (9, PassByStaticReference { from: Some(Owner(Owner { name: "s2", hash: 3, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 4 })) }), (10, GoOutOfScope { ro: Owner(Owner { name: "s2", hash: 3, is_mut: false }) }), (10, GoOutOfScope { ro: Owner(Owner { name: "s1", hash: 5, is_mut: false }) }), (5, Move { from: Some(Owner(Owner { name: "s3", hash: 2, is_mut: false })), to: Some(Owner(Owner { name: "s2", hash: 3, is_mut: false })) }), (12, Move { from: Some(Owner(Owner { name: "s", hash: 6, is_mut: false })), to: None }), (13, GoOutOfScope { ro: Owner(Owner { name: "s", hash: 6, is_mut: false }) }), (11, Move { from: None, to: Some(Owner(Owner { name: "s", hash: 6, is_mut: false })) })], event_line_map: {5: [Move { from: Some(Owner(Owner { name: "s3", hash: 2, is_mut: false })), to: Some(Owner(Owner { name: "s2", hash: 3, is_mut: false })) }]} }
+successfully wrote to src/vis_code.svg
+successfully wrote to src/vis_timeline.svg

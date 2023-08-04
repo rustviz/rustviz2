@@ -7,3 +7,4 @@ Function String::from();
 !{Move(String::from()->s1)}
 !{PassByStaticReference(s1->println())}
 !{GoOutOfScope(s1)}
+ 

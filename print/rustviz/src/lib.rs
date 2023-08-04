@@ -35,11 +35,11 @@ fn main() {
     /* ******************************************
             --- Parse main.rs file ---
     ****************************************** */
-    let (contents, line_num, var_map) = parse::parse_vars_to_map(filename);
-    let events = parse::extract_events(contents, line_num);
+    //let (contents, line_num, var_map) = parse::parse_vars_to_map(filename);
+    //let events = parse::extract_events(contents, line_num);
     println!();
-    println!("var_map: {:?}", var_map);
-    println!("events: {:?}", events);
+    //println!("var_map: {:?}", var_map);
+    //println!("events: {:?}", events);
     /* ******************************************
             --- Build VisualizationData ---
     ****************************************** */
@@ -49,7 +49,7 @@ fn main() {
         preprocess_external_events: Vec::new(),
         event_line_map: BTreeMap::new()
     };
-    parse::add_events(&mut vd, var_map, events);
+    //parse::add_events(&mut vd, var_map, events);
     /* ******************************************
             --- Render SVG images ---
     ****************************************** */

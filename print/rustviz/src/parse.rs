@@ -14,44 +14,16 @@ use rustviz_lib::data::{
 // Effects: Parses variable definitions into HashMap with
 //          {key, value} pair = {name, ResourceAccessPoint}
 //          Returns std::io::Line iterator to file
-pub fn parse_vars_to_map<P>(fpath: P) -> (
-    Lines, u64, HashMap<String, ResourceAccessPoint>
-) where
-    P: AsRef<std::path::Path>,
-{
-    // read file
-    let mut fin_lines =  rustviz_lib::svg_frontend::utils::read_lines(fpath)
-        .expect("Unable to read file!");
-    // check for unchanged template
-    let mut line = fin_lines.next()
-        .expect("Oops, could not read. Empty file maybe?")
-        .expect("Unable to read first line!");
-    if line != "/* --- BEGIN Variable Definitions ---" {
-        eprintln!("Uh oh! Do not change the first line!");
-        exit(1);
-    }
-
-    // parse variables definitions to string
-    let mut vars_string = String::new();
-    let mut num_lines = 2; // tracks curr line num
-    while {
-        line = fin_lines.next()
-            .expect("Something went wrong! Do not remove BEGIN and END statements!")
-            .expect("Unable to read file!");
-        line != "--- END Variable Definitions --- */"
-    } {
-        num_lines += 1;
-        vars_string.push_str(&line); // get vars to string
-    }
-
+pub fn parse_vars_to_map(decla: String) -> HashMap<String, ResourceAccessPoint> {
+    
     // split string into individual variables
-    let vars: Vec<String> = vars_string.split(';')
+    let vars: Vec<String> = decla.split(';')
         .map(|s| s.trim().to_string()) // trim whitespace
         .filter(|s| !s.is_empty()) // remove empty strings
         .collect();
 
     // return Lines iterator
-    (fin_lines, num_lines, vec_to_map(vars))
+    return vec_to_map(vars);
 }
 
 // Requires: Well-formatted variable definitions in the form:
