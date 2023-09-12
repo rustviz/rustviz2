@@ -1,10 +1,18 @@
+ [used for debug] 4:["GoOutOfScope(s)"]
+ [used for debug] 3:["PassByStaticReference(s->println())"]
+ [used for debug] 2:["Move(String::from()->s)"]
 /* --- BEGIN Variable Definitions ---
-Function println();
-Owner Not s1;
 Function String::from();
+Owner Not s;
+Function println();
 --- END Variable Definitions --- */
-
-!{Move(String::from()->s1)}
-!{PassByStaticReference(s1->println())}
-!{GoOutOfScope(s1)}
- 
+varmap:{"println()": Function(Function { name: "println()", hash: 3 }), "String::from()": Function(Function { name: "String::from()", hash: 1 }), "s": Owner(Owner { name: "s", hash: 2, is_mut: false })}
+2:"Move(String::from()->s)"
+3:"PassByStaticReference(s->println())"
+4:"GoOutOfScope(s)"
+vd_timelines:{}
+vd_external_events:[]
+vd_preprocess_external_events:[(2, Move { from: Some(Function(Function { name: "String::from()", hash: 1 })), to: Some(Owner(Owner { name: "s", hash: 2, is_mut: false })) }), (3, PassByStaticReference { from: Some(Owner(Owner { name: "s", hash: 2, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 3 })) }), (4, GoOutOfScope { ro: Owner(Owner { name: "s", hash: 2, is_mut: false }) })]
+vd_event_line_map:{}
+successfully wrote to src/vis_code.svg
+successfully wrote to src/vis_timeline.svg
