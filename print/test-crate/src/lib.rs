@@ -6,4 +6,4 @@ fn main() {
     }; 
     println!("{}",s1);
     println!("{}",s2);
-  } 
+  }   

@@ -89,7 +89,7 @@ use serde::{Deserialize, Serialize};
 use rustc_utils::mir::borrowck_facts;
 pub mod visitor;
 pub mod print;
-use rustviz;
+
 
 pub struct PrintAllItemsPlugin;
 

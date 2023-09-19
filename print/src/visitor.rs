@@ -5,7 +5,7 @@ use rustc_middle::{
 };
 use rustc_hir::{StmtKind, Stmt, Local, Expr, ExprKind, UnOp, Param,
   QPath, Path, def::Res, PatKind, Mutability};
-use std::{collections::HashMap, clone};
+use std::collections::HashMap;
 use rustc_ast::walk_list;
 use rustc_span::Span;
 use aquascope::analysis::boundaries::PermissionsBoundary;
@@ -260,7 +260,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         self.block_return_target= pre_target;
       }
       ExprKind::Binary(_, _, _) => {
-        //println!("Bind({})", lhs_var);
+        println!("Bind({})", lhs_var);
 
       },
 
@@ -270,17 +270,17 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           /* the '*' operator for dereferencing */
           rustc_hir::UnOp::Deref => {
             // TODO: to be implemeted
-            //println!("Not implemented yet!");
+            println!("Not implemented yet!");
           }
 
           /* the '!' operator for logical inversion */
           rustc_hir::UnOp::Not => {
-            //println!("Bind({})", lhs_var); 
+            println!("Bind({})", lhs_var); 
           }
 
           /* the '-' operator for negation */
           rustc_hir::UnOp::Neg => {
-            //println!("Bind({})", lhs_var);
+            println!("Bind({})", lhs_var);
           }
 
           _ => {
@@ -289,22 +289,22 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         }
       },
 
-      ExprKind::MethodCall(name_and_generic_args, fn_expr, args, span) => {
+      ExprKind::MethodCall(name_and_generic_args, fn_expr, args, _span) => {
         if let Some(func_name) = self.hirid_to_var_name(name_and_generic_args.hir_id) {
-          //println!();
-          //println!("Method Call: {} ()", func_name);
+          println!();
+          println!("Method Call: {} ()", func_name);
         
         
           /* check generic args and print */
           let generic_args = name_and_generic_args.args;
           match generic_args {
-            Some(x) => (), //println!("Generic args: {:?}", x.args),
-            None => ()//println!("No Generic args"),
+            Some(x) => println!("Generic args: {:?}", x.args),
+            None => println!("No Generic args"),
           }
           // println!("On line: {}", self.expr_to_line(expr));
           
           /* check args and print */
-          if (args.is_empty()) {
+          if args.is_empty() {
             println!("No args");
           } else {
             print!("Args: ");
@@ -331,13 +331,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                   if let Some(name) = name {
                     if let Some(fn_name) = self.hirid_to_var_name(fn_expr.hir_id) {
                       if expected.drop{
-                        //println!("Move({}->{}())", name, fn_name);
+                        println!("Move({}->{}())", name, fn_name);
                       }
                       else if expected.write{
-                        //println!("PassByMutableReference({}->{}())", name, fn_name);
+                        println!("PassByMutableReference({}->{}())", name, fn_name);
                       }
                       else if expected.read{
-                        //println!("PassByStaticReference({}->{}())", name, fn_name);
+                        println!("PassByStaticReference({}->{}())", name, fn_name);
                       }
                       self.access_points.insert(AccessPointUsage::Function(fn_name), self.current_scope);
                     }
@@ -351,10 +351,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                       if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
                         match mutability{
                           Mutability::Not=>{
-                            //println!("PassByStaticReference({}->{}.{}())",name,ex_name,func_name);
+                            println!("PassByStaticReference({}->{}.{}())",name,ex_name,func_name);
                           }
                           Mutability::Mut=>{
-                            //println!("PassByMutableReference({}->{}.{}())",name,ex_name,func_name);
+                            println!("PassByMutableReference({}->{}.{}())",name,ex_name,func_name);
                           }
                         }
                         self.access_points.insert(AccessPointUsage::Function(ex_name), self.current_scope);
@@ -380,22 +380,22 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn print_definitions(&mut self) -> String {
-    let mut declarations = String::new();
+  pub fn print_definitions(&mut self) -> Vec<String> {
+    let mut declarations : Vec<String> = Vec::new();
     
     for (point,_) in &self.access_points {
       match point {
         AccessPointUsage::Owner(p)=>{
-          declarations.push_str(&format!("Owner {:?} {};\n",p.mutability,p.name));
+          declarations.push(format!("Owner {:?} {};",p.mutability,p.name));
         }
         AccessPointUsage::StaticRef(p)=>{
-          declarations.push_str(&format!("StaticRef {:?} {};\n",p.mutability,p.name));
+          declarations.push(format!("StaticRef {:?} {};",p.mutability,p.name));
         }
         AccessPointUsage::MutRef(p)=>{
-          declarations.push_str(&format!("MutRef {:?} {};\n",p.mutability,p.name));
+          declarations.push(format!("MutRef {:?} {};",p.mutability,p.name));
         }
         AccessPointUsage::Function(name)=>{
-          declarations.push_str(&format!("Function {}();\n",name));
+          declarations.push(format!("Function {}();",name));
         }
         _=>{}
       }
@@ -462,7 +462,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     let line_num=self.span_to_line(&param.span);
     let ty = self.tcx.typeck(param.hir_id.owner).pat_ty(param.pat);
     match param.pat.kind {
-      PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) =>{
+      PatKind::Binding(binding_annotation, _ann_hirid, ident, _op_pat) =>{
         let name = ident.to_string();
         let mutability = binding_annotation.1;
         if ty.is_ref() {
@@ -501,7 +501,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               if fn_name.contains("crate::io::_print"){
                 // args[0] is the format string: crate::format_args_nl!($($arg)*)
                 match args[0].kind {
-                  ExprKind::Call(format_expr, format_args)=>{
+                  ExprKind::Call(_format_expr, format_args)=>{
                     for a in format_args {
                       self.visit_expr(a);
                     }
@@ -685,7 +685,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         //println!("Statement: {}", self.tcx.hir().node_to_string(local.hir_id));
         //println!("on line: {:#?}", self.span_to_line(&local.span));
         match local.pat.kind {
-          PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) => {
+          PatKind::Binding(binding_annotation, _ann_hirid, ident, _op_pat) => {
             let lhs_var = ident.to_string();
             self.mutability_map.insert(lhs_var.clone(), binding_annotation.1);
             match local.init {

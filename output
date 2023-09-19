@@ -1,40 +1,23 @@
+4:["!{Move(String::from()->s3)}"]
+5:["!{Move(s3->s2)}"]
+2:["!{Move(String::from()->s1)}"]
+10:["!{GoOutOfScope(s1)}", "!{GoOutOfScope(s2)}"]
+9:["!{PassByStaticReference(s2->println())}"]
+6:["!{GoOutOfScope(s3)}"]
+8:["!{PassByStaticReference(s1->println())}"]
+s is moved out of scope
+11:["!{InitOwnerParam(s)}"]
+12:["!{Move(s->None)}"]
 /* --- BEGIN Variable Definitions ---
-Function String::from();
 Owner Not s1;
+Owner Not s2;
+Function String::from();
 Owner Not s3;
 Function println();
-Owner Not s2;
---- END Variable Definitions --- */
-
-!{Move(String::from()->s1)}
-!{Move(String::from()->s3)}
-!{Move(s3->s2)}
-!{PassByStaticReference(s1->println())}
-!{PassByStaticReference(s2->println())}
-!{GoOutOfScope(s1)}
-!{GoOutOfScope(s3)}
-!{GoOutOfScope(s2)}
-varmap:{"String::from()": Function(Function { name: "String::from()", hash: 3 }), "println()": Function(Function { name: "println()", hash: 1 }), "s1": Owner(Owner { name: "s1", hash: 2, is_mut: false })},contents:Lines { buf: BufReader { reader: File { fd: 9, path: "/mnt/f/FP/rustviz/print/output", read: true, write: false }, buffer: 89/8192 } },line_num:5
-line 1: Ok("")
-line 2: Ok("!{Move(String::from()->s1)}")
-line 3: Ok("!{PassByStaticReference(s1->println())}")
-line 4: Ok("!{GoOutOfScope(s1)}")
-print_event:[(2, "Move(String::from()->s1)"), (3, "PassByStaticReference(s1->println())"), (4, "GoOutOfScope(s1)")]
-vd:VisualizationData { timelines: {}, external_events: [], preprocess_external_events: [(2, Move { from: Some(Function(Function { name: "String::from()", hash: 3 })), to: Some(Owner(Owner { name: "s1", hash: 2, is_mut: false })) }), (3, PassByStaticReference { from: Some(Owner(Owner { name: "s1", hash: 2, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 1 })) }), (4, GoOutOfScope { ro: Owner(Owner { name: "s1", hash: 2, is_mut: false }) })], event_line_map: {} }
-successfully wrote to src/vis_code.svg
-successfully wrote to src/vis_timeline.svg
-/* --- BEGIN Variable Definitions ---
 Owner Not s;
 --- END Variable Definitions --- */
-
-!{InitOwnerParam(s)}
-!{Move(s->None)}
-varmap:{"println()": Function(Function { name: "println()", hash: 1 }), "String::from()": Function(Function { name: "String::from()", hash: 3 }), "s1": Owner(Owner { name: "s1", hash: 2, is_mut: false })},contents:Lines { buf: BufReader { reader: File { fd: 9, path: "/mnt/f/FP/rustviz/print/output", read: true, write: false }, buffer: 89/8192 } },line_num:5
-line 1: Ok("")
-line 2: Ok("!{Move(String::from()->s1)}")
-line 3: Ok("!{PassByStaticReference(s1->println())}")
-line 4: Ok("!{GoOutOfScope(s1)}")
-print_event:[(2, "Move(String::from()->s1)"), (3, "PassByStaticReference(s1->println())"), (4, "GoOutOfScope(s1)")]
-vd:VisualizationData { timelines: {}, external_events: [], preprocess_external_events: [(2, Move { from: Some(Function(Function { name: "String::from()", hash: 3 })), to: Some(Owner(Owner { name: "s1", hash: 2, is_mut: false })) }), (3, PassByStaticReference { from: Some(Owner(Owner { name: "s1", hash: 2, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 1 })) }), (4, GoOutOfScope { ro: Owner(Owner { name: "s1", hash: 2, is_mut: false }) })], event_line_map: {} }
+varmap:{"s": Owner(Owner { name: "s", hash: 6, is_mut: false }), "String::from()": Function(Function { name: "String::from()", hash: 3 }), "s2": Owner(Owner { name: "s2", hash: 2, is_mut: false }), "s3": Owner(Owner { name: "s3", hash: 4, is_mut: false }), "s1": Owner(Owner { name: "s1", hash: 1, is_mut: false }), "println()": Function(Function { name: "println()", hash: 5 })}
+print_event:[(4, "!{Move(String::from()->s3)}"), (5, "!{Move(s3->s2)}"), (2, "!{Move(String::from()->s1)}"), (10, "!{GoOutOfScope(s1)}"), (10, "!{GoOutOfScope(s2)}"), (9, "!{PassByStaticReference(s2->println())}"), (6, "!{GoOutOfScope(s3)}"), (8, "!{PassByStaticReference(s1->println())}"), (11, "!{InitOwnerParam(s)}"), (12, "!{Move(s->None)}")]
+vd:VisualizationData { timelines: {}, external_events: [], preprocess_external_events: [], event_line_map: {} }
 successfully wrote to src/vis_code.svg
 successfully wrote to src/vis_timeline.svg
