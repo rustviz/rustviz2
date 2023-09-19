@@ -14,7 +14,7 @@
   exact_size_is_empty,
   hash_drain_filter,
   drain_filter,
-  type_changing_struct_update
+  type_changing_struct_update,
 )]
 #![deny(
   clippy::all,

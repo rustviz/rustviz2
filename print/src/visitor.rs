@@ -260,7 +260,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         self.block_return_target= pre_target;
       }
       ExprKind::Binary(_, _, _) => {
-        println!("Bind({})", lhs_var);
+        //println!("Bind({})", lhs_var);
 
       },
 
@@ -270,17 +270,17 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           /* the '*' operator for dereferencing */
           rustc_hir::UnOp::Deref => {
             // TODO: to be implemeted
-            println!("Not implemented yet!");
+            //println!("Not implemented yet!");
           }
 
           /* the '!' operator for logical inversion */
           rustc_hir::UnOp::Not => {
-            println!("Bind({})", lhs_var); 
+            //println!("Bind({})", lhs_var); 
           }
 
           /* the '-' operator for negation */
           rustc_hir::UnOp::Neg => {
-            println!("Bind({})", lhs_var);
+            //println!("Bind({})", lhs_var);
           }
 
           _ => {
@@ -291,15 +291,15 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 
       ExprKind::MethodCall(name_and_generic_args, fn_expr, args, span) => {
         if let Some(func_name) = self.hirid_to_var_name(name_and_generic_args.hir_id) {
-          println!();
-          println!("Method Call: {} ()", func_name);
+          //println!();
+          //println!("Method Call: {} ()", func_name);
         
         
           /* check generic args and print */
           let generic_args = name_and_generic_args.args;
           match generic_args {
-            Some(x) => println!("Generic args: {:?}", x.args),
-            None => println!("No Generic args"),
+            Some(x) => (), //println!("Generic args: {:?}", x.args),
+            None => ()//println!("No Generic args"),
           }
           // println!("On line: {}", self.expr_to_line(expr));
           
@@ -331,13 +331,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                   if let Some(name) = name {
                     if let Some(fn_name) = self.hirid_to_var_name(fn_expr.hir_id) {
                       if expected.drop{
-                        println!("Move({}->{}())", name, fn_name);
+                        //println!("Move({}->{}())", name, fn_name);
                       }
                       else if expected.write{
-                        println!("PassByMutableReference({}->{}())", name, fn_name);
+                        //println!("PassByMutableReference({}->{}())", name, fn_name);
                       }
                       else if expected.read{
-                        println!("PassByStaticReference({}->{}())", name, fn_name);
+                        //println!("PassByStaticReference({}->{}())", name, fn_name);
                       }
                       self.access_points.insert(AccessPointUsage::Function(fn_name), self.current_scope);
                     }
@@ -351,10 +351,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                       if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
                         match mutability{
                           Mutability::Not=>{
-                            println!("PassByStaticReference({}->{}.{}())",name,ex_name,func_name);
+                            //println!("PassByStaticReference({}->{}.{}())",name,ex_name,func_name);
                           }
                           Mutability::Mut=>{
-                            println!("PassByMutableReference({}->{}.{}())",name,ex_name,func_name);
+                            //println!("PassByMutableReference({}->{}.{}())",name,ex_name,func_name);
                           }
                         }
                         self.access_points.insert(AccessPointUsage::Function(ex_name), self.current_scope);
