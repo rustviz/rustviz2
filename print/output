@@ -1,18 +1,22 @@
- [used for debug] 4:["GoOutOfScope(s)"]
- [used for debug] 3:["PassByStaticReference(s->println())"]
- [used for debug] 2:["Move(String::from()->s)"]
+ [used for debug] 2:["Move(String::from()->x)"]
+ [used for debug] 3:["Move(x->y)"]
+ [used for debug] 4:["PassByStaticReference(y->println())"]
+ [used for debug] 5:["GoOutOfScope(x)", "GoOutOfScope(y)"]
 /* --- BEGIN Variable Definitions ---
-Function String::from();
-Owner Not s;
 Function println();
+Owner Not x;
+Function String::from();
+Owner Not y;
 --- END Variable Definitions --- */
-varmap:{"println()": Function(Function { name: "println()", hash: 3 }), "String::from()": Function(Function { name: "String::from()", hash: 1 }), "s": Owner(Owner { name: "s", hash: 2, is_mut: false })}
-2:"Move(String::from()->s)"
-3:"PassByStaticReference(s->println())"
-4:"GoOutOfScope(s)"
+varmap:{"println()": Function(Function { name: "println()", hash: 1 }), "String::from()": Function(Function { name: "String::from()", hash: 3 }), "y": Owner(Owner { name: "y", hash: 4, is_mut: false }), "x": Owner(Owner { name: "x", hash: 2, is_mut: false })}
+2:"Move(String::from()->x)"
+3:"Move(x->y)"
+4:"PassByStaticReference(y->println())"
+5:"GoOutOfScope(x)"
+5:"GoOutOfScope(y)"
 vd_timelines:{}
 vd_external_events:[]
-vd_preprocess_external_events:[(2, Move { from: Some(Function(Function { name: "String::from()", hash: 1 })), to: Some(Owner(Owner { name: "s", hash: 2, is_mut: false })) }), (3, PassByStaticReference { from: Some(Owner(Owner { name: "s", hash: 2, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 3 })) }), (4, GoOutOfScope { ro: Owner(Owner { name: "s", hash: 2, is_mut: false }) })]
-vd_event_line_map:{}
+vd_preprocess_external_events:[(2, Move { from: Some(Function(Function { name: "String::from()", hash: 3 })), to: Some(Owner(Owner { name: "x", hash: 2, is_mut: false })) }), (3, Move { from: Some(Owner(Owner { name: "x", hash: 2, is_mut: false })), to: Some(Owner(Owner { name: "y", hash: 4, is_mut: false })) }), (4, PassByStaticReference { from: Some(Owner(Owner { name: "y", hash: 4, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 1 })) }), (5, GoOutOfScope { ro: Owner(Owner { name: "x", hash: 2, is_mut: false }) }), (5, GoOutOfScope { ro: Owner(Owner { name: "y", hash: 4, is_mut: false }) })]
+vd_event_line_map:{3: [Move { from: Some(Owner(Owner { name: "x", hash: 2, is_mut: false })), to: Some(Owner(Owner { name: "y", hash: 4, is_mut: false })) }]}
 successfully wrote to src/vis_code.svg
 successfully wrote to src/vis_timeline.svg
