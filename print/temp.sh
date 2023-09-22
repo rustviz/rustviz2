@@ -1,0 +1,5 @@
+cargo install --path .
+cd test-crate
+touch src/lib.rs
+cargo print-all-items > ../../output
+cd ..

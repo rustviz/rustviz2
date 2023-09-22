@@ -1,8 +1,8 @@
-fn add(a: i32, b: i32) -> i32 {
-  a + b
-}
-
-fn main() {
-  let sum = add(5, 3);
-  println!("Sum: {}", sum);
-}
+fn main() {  
+  let mut s1 = String::from("hello"); 
+  let s2 = String::from(", world"); 
+  String::push_str(&mut s1, &s2);  
+  let x = s1.push_str(&s2);
+  let p = String::from("3.14");
+  println!("{}", s1); 
+} 
