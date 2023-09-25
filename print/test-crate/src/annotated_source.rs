@@ -1,8 +1,10 @@
-fn add(a: i32, b: i32) -> i32 {
-  a + b
+fn main() {
+  let x = String::from("hello");
+  let y = &x;
+  let z = &x;
+  f(y, z);
 }
 
-fn main() {
-  let sum = add(5, 3);
-  println!("Sum: {}", sum);
+fn f(s1 : &String, s2 : &String) {
+  println!("{} and {}", s1, s2);
 }

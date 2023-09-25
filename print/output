@@ -1,29 +1,43 @@
- [used for debug] 2:["Move(a->None)", "Move(b->None)"]
- [used for debug] 3:["GoOutOfScope(a)", "GoOutOfScope(b)"]
- [used for debug] 1:["InitOwnerParam(a)", "InitOwnerParam(b)"]
- [used for debug] 6:["Copy(add()->sum)"]
- [used for debug] 7:["PassByStaticReference(sum->println())"]
- [used for debug] 8:["GoOutOfScope(sum)"]
+ [used for debug] 2:["Move(String::from()->x)"]
+ [used for debug] 3:["StaticBorrow(x->y)"]
+ [used for debug] 4:["StaticBorrow(x->z)"]
+ [used for debug] 5:["PassByStaticReference(y->f())", "PassByStaticReference(z->f())", "StaticDie(y->x)", "StaticDie(z->x)"]
+ [used for debug] 6:["GoOutOfScope(z)", "GoOutOfScope(y)", "GoOutOfScope(x)"]
+s1
+s2
+ [used for debug] 10:["GoOutOfScope(s2)", "GoOutOfScope(s1)"]
+ [used for debug] 8:["InitRefParam(s1)", "InitRefParam(s2)"]
+ [used for debug] 9:["PassByStaticReference(s1->println())", "PassByStaticReference(s2->println())"]
 /* --- BEGIN Variable Definitions ---
-Owner Not a;
-Owner Not b;
-Owner Not sum;
-Function add();
+Function f();
+Function String::from();
+StaticRef Not z;
+StaticRef Not y;
+Owner Not x;
 Function println();
+StaticRef Not s2;
+StaticRef Not s1;
 --- END Variable Definitions --- */
-varmap:{"println()": Function(Function { name: "println()", hash: 5 }), "add()": Function(Function { name: "add()", hash: 4 }), "b": Owner(Owner { name: "b", hash: 2, is_mut: false }), "sum": Owner(Owner { name: "sum", hash: 3, is_mut: false }), "a": Owner(Owner { name: "a", hash: 1, is_mut: false })}
-1:"InitOwnerParam(a)"
-1:"InitOwnerParam(b)"
-2:"Move(a->None)"
-2:"Move(b->None)"
-3:"GoOutOfScope(a)"
-3:"GoOutOfScope(b)"
-6:"Copy(add()->sum)"
-7:"PassByStaticReference(sum->println())"
-8:"GoOutOfScope(sum)"
+varmap:{"println()": Function(Function { name: "println()", hash: 6 }), "s2": StaticRef(StaticRef { name: "s2", hash: 7, is_mut: false }), "z": StaticRef(StaticRef { name: "z", hash: 3, is_mut: false }), "y": StaticRef(StaticRef { name: "y", hash: 4, is_mut: false }), "f()": Function(Function { name: "f()", hash: 1 }), "s1": StaticRef(StaticRef { name: "s1", hash: 8, is_mut: false }), "String::from()": Function(Function { name: "String::from()", hash: 2 }), "x": Owner(Owner { name: "x", hash: 5, is_mut: false })}
+2:"Move(String::from()->x)"
+3:"StaticBorrow(x->y)"
+4:"StaticBorrow(x->z)"
+5:"PassByStaticReference(y->f())"
+5:"PassByStaticReference(z->f())"
+5:"StaticDie(y->x)"
+5:"StaticDie(z->x)"
+6:"GoOutOfScope(z)"
+6:"GoOutOfScope(y)"
+6:"GoOutOfScope(x)"
+8:"InitRefParam(s1)"
+8:"InitRefParam(s2)"
+9:"PassByStaticReference(s1->println())"
+9:"PassByStaticReference(s2->println())"
+10:"GoOutOfScope(s2)"
+10:"GoOutOfScope(s1)"
 vd_timelines:{}
 vd_external_events:[]
-vd_preprocess_external_events:[(1, Move { from: None, to: Some(Owner(Owner { name: "a", hash: 1, is_mut: false })) }), (1, Move { from: None, to: Some(Owner(Owner { name: "b", hash: 2, is_mut: false })) }), (2, Move { from: Some(Owner(Owner { name: "a", hash: 1, is_mut: false })), to: None }), (2, Move { from: Some(Owner(Owner { name: "b", hash: 2, is_mut: false })), to: None }), (3, GoOutOfScope { ro: Owner(Owner { name: "a", hash: 1, is_mut: false }) }), (3, GoOutOfScope { ro: Owner(Owner { name: "b", hash: 2, is_mut: false }) }), (6, Copy { from: Some(Function(Function { name: "add()", hash: 4 })), to: Some(Owner(Owner { name: "sum", hash: 3, is_mut: false })) }), (7, PassByStaticReference { from: Some(Owner(Owner { name: "sum", hash: 3, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 5 })) }), (8, GoOutOfScope { ro: Owner(Owner { name: "sum", hash: 3, is_mut: false }) })]
-vd_event_line_map:{}
+vd_preprocess_external_events:[(2, Move { from: Some(Function(Function { name: "String::from()", hash: 2 })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }), (3, StaticBorrow { from: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })), to: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })) }), (4, StaticBorrow { from: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })), to: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })) }), (5, PassByStaticReference { from: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })), to: Some(Function(Function { name: "f()", hash: 1 })) }), (5, PassByStaticReference { from: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })), to: Some(Function(Function { name: "f()", hash: 1 })) }), (5, StaticDie { from: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }), (5, StaticDie { from: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }), (6, GoOutOfScope { ro: StaticRef(StaticRef { name: "z", hash: 3, is_mut: false }) }), (6, GoOutOfScope { ro: StaticRef(StaticRef { name: "y", hash: 4, is_mut: false }) }), (6, GoOutOfScope { ro: Owner(Owner { name: "x", hash: 5, is_mut: false }) }), (8, InitRefParam { param: StaticRef(StaticRef { name: "s1", hash: 8, is_mut: false }) }), (8, InitRefParam { param: StaticRef(StaticRef { name: "s2", hash: 7, is_mut: false }) }), (9, PassByStaticReference { from: Some(StaticRef(StaticRef { name: "s1", hash: 8, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 6 })) }), (9, PassByStaticReference { from: Some(StaticRef(StaticRef { name: "s2", hash: 7, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 6 })) }), (10, GoOutOfScope { ro: StaticRef(StaticRef { name: "s2", hash: 7, is_mut: false }) }), (10, GoOutOfScope { ro: StaticRef(StaticRef { name: "s1", hash: 8, is_mut: false }) })]
+vd_event_line_map:{3: [StaticBorrow { from: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })), to: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })) }], 4: [StaticBorrow { from: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })), to: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })) }], 5: [StaticDie { from: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }, StaticDie { from: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }]}
 successfully wrote to src/vis_code.svg
 successfully wrote to src/vis_timeline.svg

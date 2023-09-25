@@ -36,11 +36,14 @@ pub fn render_code_panel(
     let mut output = String::from("    <g id=\"code\">\n");
     let mut line_of_code = 1;
     for line in annotated_lines {
-        if let Ok(line_string) = line {
+        if let Ok(mut line_string) = line {
             let mut data = BTreeMap::new();
             data.insert("X_VAL".to_string(), x.to_string());
             data.insert("Y_VAL".to_string(), y.to_string());
             /* automatically add line numbers to code */
+            if line_string.contains("&"){
+                line_string = line_string.replace("&", "&amp; ");
+            }
             let fmt_line = format!(
                 "<tspan fill=\"#AAA\">{}  </tspan>{}",
                 line_of_code, line_string
