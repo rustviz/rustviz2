@@ -1,23 +1,19 @@
+"/home/hyy/code_pl/rustviz2/print/test-crate"
  [used for debug] 4:["Move(String::from()->s3)"]
- [used for debug] 6:["GoOutOfScope(s3)"]
  [used for debug] 2:["Move(String::from()->s1)"]
- [used for debug] 8:["PassByStaticReference(s1->println())"]
  [used for debug] 9:["PassByStaticReference(s2->println())"]
+ [used for debug] 8:["PassByStaticReference(s1->println())"]
+ [used for debug] 6:["GoOutOfScope(s3)"]
  [used for debug] 10:["GoOutOfScope(s2)", "GoOutOfScope(s1)"]
  [used for debug] 5:["Move(s3->s2)"]
+ [used for debug] 11:["InitOwnerParam(s)"]
  [used for debug] 12:["Move(s->None)"]
  [used for debug] 13:["GoOutOfScope(s)"]
- [used for debug] 11:["InitOwnerParam(s)"]
 /* --- BEGIN Variable Definitions ---
 Function String::from();
-Owner Not s3;
 Owner Not s2;
 Function println();
 Owner Not s1;
+Owner Not s3;
 Owner Not s;
 --- END Variable Definitions --- */
-varmap:{"s1": Owner(Owner { name: "s1", hash: 5, is_mut: false }), "println()": Function(Function { name: "println()", hash: 4 }), "String::from()": Function(Function { name: "String::from()", hash: 1 }), "s": Owner(Owner { name: "s", hash: 6, is_mut: false }), "s2": Owner(Owner { name: "s2", hash: 3, is_mut: false }), "s3": Owner(Owner { name: "s3", hash: 2, is_mut: false })}
-print_event:[(4, "Move(String::from()->s3)"), (6, "GoOutOfScope(s3)"), (2, "Move(String::from()->s1)"), (8, "PassByStaticReference(s1->println())"), (9, "PassByStaticReference(s2->println())"), (10, "GoOutOfScope(s2)"), (10, "GoOutOfScope(s1)"), (5, "Move(s3->s2)"), (12, "Move(s->None)"), (13, "GoOutOfScope(s)"), (11, "InitOwnerParam(s)")]
-vd:VisualizationData { timelines: {}, external_events: [], preprocess_external_events: [(4, Move { from: Some(Function(Function { name: "String::from()", hash: 1 })), to: Some(Owner(Owner { name: "s3", hash: 2, is_mut: false })) }), (6, GoOutOfScope { ro: Owner(Owner { name: "s3", hash: 2, is_mut: false }) }), (2, Move { from: Some(Function(Function { name: "String::from()", hash: 1 })), to: Some(Owner(Owner { name: "s1", hash: 5, is_mut: false })) }), (8, PassByStaticReference { from: Some(Owner(Owner { name: "s1", hash: 5, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 4 })) }), (9, PassByStaticReference { from: Some(Owner(Owner { name: "s2", hash: 3, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 4 })) }), (10, GoOutOfScope { ro: Owner(Owner { name: "s2", hash: 3, is_mut: false }) }), (10, GoOutOfScope { ro: Owner(Owner { name: "s1", hash: 5, is_mut: false }) }), (5, Move { from: Some(Owner(Owner { name: "s3", hash: 2, is_mut: false })), to: Some(Owner(Owner { name: "s2", hash: 3, is_mut: false })) }), (12, Move { from: Some(Owner(Owner { name: "s", hash: 6, is_mut: false })), to: None }), (13, GoOutOfScope { ro: Owner(Owner { name: "s", hash: 6, is_mut: false }) }), (11, Move { from: None, to: Some(Owner(Owner { name: "s", hash: 6, is_mut: false })) })], event_line_map: {5: [Move { from: Some(Owner(Owner { name: "s3", hash: 2, is_mut: false })), to: Some(Owner(Owner { name: "s2", hash: 3, is_mut: false })) }]} }
-successfully wrote to src/vis_code.svg
-successfully wrote to src/vis_timeline.svg

@@ -22,14 +22,11 @@ ts-rs = "6.2"
 regex = "1"
 fluid-let = "1.0"
 rustc_utils = {version = "0.6.0-nightly-2023-04-12", features = ["graphviz", "ts-rs", "serde", "test"]}
-rustviz = {path = "rustviz"}
 
 
 [dev-dependencies]
 insta = { version = "1.22.0", features = ["json", "yaml", "redactions"] }
-env_logger = "0.9.3"
 test-log = "0.2.11"
-
 
 [dependencies.rustc-plugin]
 git = "https://github.com/cognitive-engineering-lab/rustc-plugin"

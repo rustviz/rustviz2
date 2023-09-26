@@ -87,16 +87,16 @@ use clap::Parser;
 use rustc_plugin::{CrateFilter, RustcPlugin, RustcPluginArgs, Utf8Path};
 use serde::{Deserialize, Serialize};
 use rustc_utils::mir::borrowck_facts;
+use std::path::PathBuf;
 pub mod visitor;
 pub mod print;
-use rustviz;
 
 pub struct PrintAllItemsPlugin;
 
 #[derive(Parser, Serialize, Deserialize)]
 pub struct PrintAllItemsPluginArgs {
   #[arg(short, long)]//add '--allcaps' or '-a' in command line both works
-  allcaps: bool,//can set default value
+  pub allcaps: bool,//can set default value
 }
 
 impl RustcPlugin for PrintAllItemsPlugin {
@@ -152,7 +152,7 @@ impl rustc_driver::Callbacks for PrintAllItemsCallbacks {
       _compiler: &rustc_interface::interface::Compiler,
       queries: &'tcx rustc_interface::Queries<'tcx>, 
     ) -> rustc_driver::Compilation {
-      queries
+      queries 
         .global_ctxt()//return an option TyCtxt
         .unwrap()
         .enter(|tcx| print::print_all_items(tcx, &self.args));

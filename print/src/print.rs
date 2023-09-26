@@ -1,5 +1,5 @@
 use crate::rustc_span::Pos;
-use std::{collections::HashMap, collections::BTreeMap};
+use std::collections::HashMap;
 use rustc_span::source_map::SourceMap;
 use aquascope::analysis::{AquascopeAnalysis,
   boundaries::PermissionsBoundary};
@@ -11,8 +11,7 @@ use rustc_utils::{
   mir::borrowck_facts,
 };
 use crate::visitor::ExprVisitor;
-use rustviz;
-use crate::PrintAllItemsPluginArgs;
+use crate::{PrintAllItemsPluginArgs, print};
 
   
 //This is a small helper function
@@ -35,11 +34,13 @@ fn charrange_to_line(crange:CharRange,source_map:&SourceMap)->usize{
   line
 }
 
+
+
 // "The main function"
 pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
   // Generate a few things needed for later analysis. They
   // are basically things generated when compiling code.
-  let mut declarations: String = String::new();
+  let mut declarations: Vec<String> = Vec::new();
   let mut analysis_result: Vec<(u64, String)> = Vec::new();
   let hir = tcx.hir().clone();
   hir
@@ -116,48 +117,36 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
     visitor.print_out_of_scope();
     visitor.print_lifetimes();
     //declarations.push(visitor.print_definitions());
-    declarations.push_str(&visitor.print_definitions());
+    declarations.extend(visitor.print_definitions());
+    //push_str(&visitor.print_definitions());
     let ana_result = visitor.analysis_result.clone();
     for (line, elem) in ana_result{
       let newline = line as u64;
       let elem = elem;
-       println!(" [used for debug] {}:{:?}",newline,elem);
+       //println!(" [used for debug] {}:{:?}",newline,elem);
       for el in elem{
         analysis_result.push((newline,el));
       }
     }
+    // order the elemens in analysis_result
+    analysis_result.sort_by(|a,b|a.1.cmp(&b.1));
+    for (line, elem) in analysis_result.clone(){
+      let newline = line as u64;
+      let elem = elem;
+      println!(" [used for debug] {}:{:?}",newline,elem);
+    }
     
-
-    
-    },
+  }
     _ =>{println!("Analysis Error.");}
   }
 });
-
   // Print out the variable definitions.
+  declarations.sort();
   println!("/* --- BEGIN Variable Definitions ---");
-  declarations.pop();
-  println!("{}", declarations);
+  for declaration in declarations {
+    println!("{}", declaration);
+  }
   println!("--- END Variable Definitions --- */");
   // Print out the analysis result.
-  
-  let var_map = rustviz::parse::parse_vars_to_map(declarations);
-  println!("varmap:{:?}", var_map);
-  let print_event: Vec<(u64, String)> = analysis_result;
-
-  println!("print_event:{:?}", print_event);
-
-  let mut vd = rustviz::VisualizationData {
-    timelines: BTreeMap::new(),
-    external_events: Vec::new(),
-    preprocess_external_events: Vec::new(),
-    event_line_map: BTreeMap::new()
-  };
-  rustviz::parse::add_events(&mut vd, var_map, print_event);
-  println!("vd:{:?}", vd);
-  let input = String::from("src/");
-  let output = String::from("src/");
-  rustviz::svg_generation::render_svg(&input, &output, &mut vd);
-
 
 }

@@ -27,3 +27,14 @@
 | `GoOutOfScope(a)`              | Done: function ends <br />Todo: (nested) block               |
 | `InitRefParam(a)`              | Done: parameter whose type is not reference<br />In `fn visit_param` |
 | `InitOwnerParam(a)`            | ...                                                          |
+
+
+
+Note: 
+
+if failed to authenticate, run
+
+```
+eval `ssh-agent -s`
+ssh-add
+```

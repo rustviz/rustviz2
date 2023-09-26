@@ -1,7 +1,28 @@
-[libffi-sys 2.3.0] cargo:rustc-link-lib=dylib=ffi
-[miri 0.1.0] cargo:rerun-if-changed=build.rs
-[miri 0.1.0] cargo:rustc-env=TARGET=x86_64-unknown-linux-gnu
-[camino 1.1.4] cargo:rustc-cfg=path_buf_capacity
-[camino 1.1.4] cargo:rustc-cfg=shrink_to
-[camino 1.1.4] cargo:rustc-cfg=try_reserve_2
-[camino 1.1.4] cargo:rustc-cfg=path_buf_deref_mut
+
+running 2 tests
+test ir_mapper::body_graph::test::while_loop_shape ... ok
+test ir_mapper::body_graph::test::if_shape ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 1 test
+test tests::test_print_all_items ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
