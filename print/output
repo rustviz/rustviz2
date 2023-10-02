@@ -1,43 +1,41 @@
- [used for debug] 2:["Move(String::from()->x)"]
- [used for debug] 3:["StaticBorrow(x->y)"]
- [used for debug] 4:["StaticBorrow(x->z)"]
- [used for debug] 5:["PassByStaticReference(y->f())", "PassByStaticReference(z->f())", "StaticDie(y->x)", "StaticDie(z->x)"]
- [used for debug] 6:["GoOutOfScope(z)", "GoOutOfScope(y)", "GoOutOfScope(x)"]
-s1
-s2
- [used for debug] 10:["GoOutOfScope(s2)", "GoOutOfScope(s1)"]
- [used for debug] 8:["InitRefParam(s1)", "InitRefParam(s2)"]
- [used for debug] 9:["PassByStaticReference(s1->println())", "PassByStaticReference(s2->println())"]
+ [used for debug] 2:["Move(String::from()->string1)"]
+ [used for debug] 7:["GoOutOfScope(string1)", "GoOutOfScope(result)", "GoOutOfScope(string2)"]
+ [used for debug] 3:["Move(String::from()->string2)"]
+ [used for debug] 5:["Copy(longest()->result)", "PassByStaticReference(string1->longest())", "PassByStaticReference(string2->longest())"]
+ [used for debug] 6:["PassByStaticReference(result->println())", "StaticDie(result->*result)"]
+x
+y
+ [used for debug] 10:["PassByMutableReference(x->len())", "PassByMutableReference(y->len())"]
+ [used for debug] 11:["Move(x->None)"]
+ [used for debug] 15:["GoOutOfScope(y)", "GoOutOfScope(x)"]
+ [used for debug] 9:["InitRefParam(x)", "InitRefParam(y)"]
+ [used for debug] 13:["Move(y->None)"]
 /* --- BEGIN Variable Definitions ---
-Function f();
+Owner Not string1;
 Function String::from();
-StaticRef Not z;
-StaticRef Not y;
-Owner Not x;
+StaticRef Not result;
+Function longest();
+Owner Not string2;
 Function println();
-StaticRef Not s2;
-StaticRef Not s1;
+StaticRef Not y;
+StaticRef Not x;
 --- END Variable Definitions --- */
-varmap:{"println()": Function(Function { name: "println()", hash: 6 }), "s2": StaticRef(StaticRef { name: "s2", hash: 7, is_mut: false }), "z": StaticRef(StaticRef { name: "z", hash: 3, is_mut: false }), "y": StaticRef(StaticRef { name: "y", hash: 4, is_mut: false }), "f()": Function(Function { name: "f()", hash: 1 }), "s1": StaticRef(StaticRef { name: "s1", hash: 8, is_mut: false }), "String::from()": Function(Function { name: "String::from()", hash: 2 }), "x": Owner(Owner { name: "x", hash: 5, is_mut: false })}
-2:"Move(String::from()->x)"
-3:"StaticBorrow(x->y)"
-4:"StaticBorrow(x->z)"
-5:"PassByStaticReference(y->f())"
-5:"PassByStaticReference(z->f())"
-5:"StaticDie(y->x)"
-5:"StaticDie(z->x)"
-6:"GoOutOfScope(z)"
-6:"GoOutOfScope(y)"
-6:"GoOutOfScope(x)"
-8:"InitRefParam(s1)"
-8:"InitRefParam(s2)"
-9:"PassByStaticReference(s1->println())"
-9:"PassByStaticReference(s2->println())"
-10:"GoOutOfScope(s2)"
-10:"GoOutOfScope(s1)"
-vd_timelines:{}
-vd_external_events:[]
-vd_preprocess_external_events:[(2, Move { from: Some(Function(Function { name: "String::from()", hash: 2 })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }), (3, StaticBorrow { from: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })), to: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })) }), (4, StaticBorrow { from: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })), to: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })) }), (5, PassByStaticReference { from: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })), to: Some(Function(Function { name: "f()", hash: 1 })) }), (5, PassByStaticReference { from: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })), to: Some(Function(Function { name: "f()", hash: 1 })) }), (5, StaticDie { from: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }), (5, StaticDie { from: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }), (6, GoOutOfScope { ro: StaticRef(StaticRef { name: "z", hash: 3, is_mut: false }) }), (6, GoOutOfScope { ro: StaticRef(StaticRef { name: "y", hash: 4, is_mut: false }) }), (6, GoOutOfScope { ro: Owner(Owner { name: "x", hash: 5, is_mut: false }) }), (8, InitRefParam { param: StaticRef(StaticRef { name: "s1", hash: 8, is_mut: false }) }), (8, InitRefParam { param: StaticRef(StaticRef { name: "s2", hash: 7, is_mut: false }) }), (9, PassByStaticReference { from: Some(StaticRef(StaticRef { name: "s1", hash: 8, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 6 })) }), (9, PassByStaticReference { from: Some(StaticRef(StaticRef { name: "s2", hash: 7, is_mut: false })), to: Some(Function(Function { name: "println()", hash: 6 })) }), (10, GoOutOfScope { ro: StaticRef(StaticRef { name: "s2", hash: 7, is_mut: false }) }), (10, GoOutOfScope { ro: StaticRef(StaticRef { name: "s1", hash: 8, is_mut: false }) })]
-vd_event_line_map:{3: [StaticBorrow { from: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })), to: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })) }], 4: [StaticBorrow { from: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })), to: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })) }], 5: [StaticDie { from: Some(StaticRef(StaticRef { name: "y", hash: 4, is_mut: false })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }, StaticDie { from: Some(StaticRef(StaticRef { name: "z", hash: 3, is_mut: false })), to: Some(Owner(Owner { name: "x", hash: 5, is_mut: false })) }]}
-successfully wrote to src/vis_code.svg
-successfully wrote to src/vis_timeline.svg
+varmap:{"y": StaticRef(StaticRef { name: "y", hash: 7, is_mut: false }), "String::from()": Function(Function { name: "String::from()", hash: 2 }), "x": StaticRef(StaticRef { name: "x", hash: 8, is_mut: false }), "longest()": Function(Function { name: "longest()", hash: 4 }), "result": StaticRef(StaticRef { name: "result", hash: 3, is_mut: false }), "string2": Owner(Owner { name: "string2", hash: 5, is_mut: false }), "string1": Owner(Owner { name: "string1", hash: 1, is_mut: false }), "println()": Function(Function { name: "println()", hash: 6 })}
+2:"Move(String::from()->string1)"
+3:"Move(String::from()->string2)"
+5:"Copy(longest()->result)"
+5:"PassByStaticReference(string1->longest())"
+5:"PassByStaticReference(string2->longest())"
+6:"PassByStaticReference(result->println())"
+6:"StaticDie(result->*result)"
+7:"GoOutOfScope(string1)"
+7:"GoOutOfScope(result)"
+7:"GoOutOfScope(string2)"
+9:"InitRefParam(x)"
+9:"InitRefParam(y)"
+10:"PassByMutableReference(x->len())"
+10:"PassByMutableReference(y->len())"
+11:"Move(x->None)"
+13:"Move(y->None)"
+15:"GoOutOfScope(y)"
+15:"GoOutOfScope(x)"

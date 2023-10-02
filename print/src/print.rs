@@ -1,4 +1,4 @@
-use crate::rustc_span::Pos;
+use crate::{rustc_span::Pos, print};
 use std::{collections::HashMap, collections::BTreeMap};
 use rustc_span::source_map::SourceMap;
 use aquascope::analysis::{AquascopeAnalysis,
@@ -158,13 +158,12 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
     event_line_map: BTreeMap::new()
   };
   rustviz::parse::add_events(&mut vd, var_map, print_event);
+  
+  let input = String::from("src/");
+  let output = String::from("src/");
+  rustviz::svg_generation::render_svg(&input, &output, &mut vd);
   println!("vd_timelines:{:?}", vd.timelines);
   println!("vd_external_events:{:?}", vd.external_events);
   println!("vd_preprocess_external_events:{:?}", vd.preprocess_external_events);
   println!("vd_event_line_map:{:?}", vd.event_line_map);
-  let input = String::from("src/");
-  let output = String::from("src/");
-  rustviz::svg_generation::render_svg(&input, &output, &mut vd);
-
-
 }

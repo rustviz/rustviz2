@@ -1,4 +1,4 @@
-<svg height="490px" 
+<svg width = "500" height="310px" 
         xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 
     <desc>src/</desc>
@@ -164,16 +164,10 @@ object.code_panel {
 
     <g id="code">
         <text class="code" x="20" y="90"> <tspan fill="#AAA">1  </tspan>fn main() { </text>
-        <text class="code" x="20" y="120"> <tspan fill="#AAA">2  </tspan>  let x = String::from("hello"); </text>
-        <text class="code" x="20" y="150"> <tspan fill="#AAA">3  </tspan>  let y = &amp; x; </text>
-        <text class="code" x="20" y="180"> <tspan fill="#AAA">4  </tspan>  let z = &amp; x; </text>
-        <text class="code" x="20" y="210"> <tspan fill="#AAA">5  </tspan>  f(y, z); </text>
-        <text class="code" x="20" y="240"> <tspan fill="#AAA">6</tspan> </text>
-        <text class="code" x="20" y="270"> <tspan fill="#AAA">7  </tspan>} </text>
-        <text class="code" x="20" y="300"> <tspan fill="#AAA">8  </tspan> </text>
-        <text class="code" x="20" y="330"> <tspan fill="#AAA">9  </tspan>fn f(s1 : &amp; String, s2 : &amp; String) { </text>
-        <text class="code" x="20" y="360"> <tspan fill="#AAA">10  </tspan>  println!("{} and {}", s1, s2); </text>
-        <text class="code" x="20" y="390"> <tspan fill="#AAA">11  </tspan>} </text>
+        <text class="code" x="20" y="120"> <tspan fill="#AAA">2  </tspan>  let x = 1; </text>
+        <text class="code" x="20" y="150"> <tspan fill="#AAA">3  </tspan>  let y = 2; </text>
+        <text class="code" x="20" y="180"> <tspan fill="#AAA">4  </tspan>  println!("x = {} and y = {}", x, y); </text>
+        <text class="code" x="20" y="210"> <tspan fill="#AAA">5  </tspan>} </text>
     </g>
 
    
