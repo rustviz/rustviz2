@@ -1,0 +1,18 @@
+ [used for debug] 3:"GoOutOfScope(s)"
+ [used for debug] 1:"InitRefParam(s)"
+ [used for debug] 2:"PassByMutableReference(s->push_str())"
+ [used for debug] 12:"GoOutOfScope(greeting)"
+ [used for debug] 10:"GoOutOfScope(r1)"
+ [used for debug] 6:"Move(String::from()->greeting)"
+ [used for debug] 8:"MutableBorrow(greeting->r1)"
+ [used for debug] 9:"MutableDie(r1->greeting)"
+ [used for debug] 9:"PassByMutableReference(r1->add_exclamation())"
+ [used for debug] 11:"PassByStaticReference(greeting->println())"
+/* --- BEGIN Variable Definitions ---
+Function String::from();
+Function add_exclamation();
+Function println();
+MutRef Not r1;
+MutRef Not s;
+Owner Mut greeting;
+--- END Variable Definitions --- */

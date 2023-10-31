@@ -1,0 +1,13 @@
+ [used for debug] 3:"GoOutOfScope(a)"
+ [used for debug] 1:"InitOwnerParam(a)"
+ [used for debug] 2:"PassByStaticReference(a->println())"
+ [used for debug] 9:"GoOutOfScope(s)"
+ [used for debug] 6:"Move(String::from()->s)"
+ [used for debug] 7:"Move(s->takes_and_drops())"
+/* --- BEGIN Variable Definitions ---
+Function String::from();
+Function println();
+Function takes_and_drops();
+Owner Not a;
+Owner Not s;
+--- END Variable Definitions --- */

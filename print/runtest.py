@@ -11,10 +11,10 @@ for filename in os.listdir(folder_path):
         test_file_path = os.path.join(folder_path, filename)
         
         # Extract the number from the file name
-        test_name = filename[4:]
+        test_name = filename.split('.')[0].split('test')[1]
         
         # Define the corresponding "out+number" file path
-        out_file_path = os.path.join(folder_path, f'out{test_name}')
+        out_file_path = os.path.join(folder_path, f'out{test_name}.out')
         
         # Read the content from the test file
         with open(test_file_path, 'r') as test_file:
@@ -41,7 +41,7 @@ for filename in os.listdir(folder_path):
         print(actual_output)
         #print("expect: " + expected_output)
         
-        if actual_output == expected_output:
+        if actual_output.replace('\r\n', '\n') == expected_output.replace('\r\n', '\n'):
             print(f"Test {test_name}: PASSED")
         else:
             print(f"Test {test_name}: FAILED (Output doesn't match expected)")

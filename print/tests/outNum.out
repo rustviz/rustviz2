@@ -1,0 +1,26 @@
+ [used for debug] 6:"Bind(difference)"
+ [used for debug] 19:"Bind(f)"
+ [used for debug] 9:"Bind(product)"
+ [used for debug] 12:"Bind(quotient)"
+ [used for debug] 16:"Bind(remainder)"
+ [used for debug] 3:"Bind(sum)"
+ [used for debug] 17:"Bind(t)"
+ [used for debug] 13:"Bind(truncated)"
+ [used for debug] 20:"GoOutOfScope(difference)"
+ [used for debug] 20:"GoOutOfScope(f)"
+ [used for debug] 20:"GoOutOfScope(product)"
+ [used for debug] 20:"GoOutOfScope(quotient)"
+ [used for debug] 20:"GoOutOfScope(remainder)"
+ [used for debug] 20:"GoOutOfScope(sum)"
+ [used for debug] 20:"GoOutOfScope(t)"
+ [used for debug] 20:"GoOutOfScope(truncated)"
+/* --- BEGIN Variable Definitions ---
+Owner Not difference;
+Owner Not f;
+Owner Not product;
+Owner Not quotient;
+Owner Not remainder;
+Owner Not sum;
+Owner Not t;
+Owner Not truncated;
+--- END Variable Definitions --- */
