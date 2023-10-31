@@ -19,9 +19,15 @@
   
 * Issues:
   * Our primary goal is to support the basic examples in the rustviz tutorial. However, as there are much more possible syntax that will appear in a snippet of rust code, you might find some of them interesting which haven't been analyzed. Feel free to bring up new issues. 
-    * variable name shadowing waits to be design and implement
+    - [ ] variable name shadowing waits to be design and implement 
+    - [ ] if else / other logic relationship
+    - [ ] Mutable References (*x) 
+    - [ ] tuple
 
+to fix:
 
+- [ ] sequence to output the same operation - testShadow
+- [ ] move at plain line e.g., x*x
 
 Note: 
 
