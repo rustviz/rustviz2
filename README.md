@@ -9,6 +9,29 @@
 * Issues:
   * Our primary goal is to support the basic examples in the rustviz tutorial. However, as there are much more possible syntax that will appear in a snippet of rust code, you might find some of them interesting which haven't been analyzed. Feel free to bring up new issues. 
 
+## Installation
+```sh
+cargo install mdbook-aquascope --locked --version 0.3.0
+rustup toolchain install nightly-2023-08-25 -c rust-src rustc-dev llvm-tools-preview miri
+cargo +nightly-2023-08-25 install aquascope_front --git https://github.com/cognitive-engineering-lab/aquascope --tag v0.3.0 --locked
+cargo +nightly-2023-08-25 miri setup
+```
+If you run into an error like this:
+```sh
+error[E0658]: use of unstable library feature 'is_terminal'
+   --> /home/fanbao/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstream-0.6.4/src/stream.rs:119:9
+    |
+119 |         std::io::IsTerminal::is_terminal(self)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: see issue #98070 <https://github.com/rust-lang/rust/issues/98070> for more information
+    = help: add `#![feature(is_terminal)]` to the crate attributes to enable
+
+For more information about this error, try `rustc --explain E0658`.
+error: could not compile `anstream` (lib) due to 5 previous errors
+```
+go to the directory `/home/fanbao/.cargo/registry/src/index.crates.io-6f17d22bba15001f/anstream-0.6.4/src/`. find the main file, typically named lib.rs, and add `#![feature(is_terminal)]` at the top. 
+
 ## Progress
 
 
