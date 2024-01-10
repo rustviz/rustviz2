@@ -11,6 +11,7 @@ rustc_private = true
 
 
 [dependencies]
+rustviz_library = {path = "./rustviz-library/rustviz_library"}
 aquascope = {version = "0.1", path = "./aquascope"}
 env_logger = "0.10"
 clap = {version = "4", features = ["derive"]}
@@ -27,7 +28,6 @@ rustc_utils = {version = "0.6.0-nightly-2023-04-12", features = ["graphviz", "ts
 
 [dev-dependencies]
 insta = { version = "1.22.0", features = ["json", "yaml", "redactions"] }
-env_logger = "0.9.3"
 test-log = "0.2.11"
 
 

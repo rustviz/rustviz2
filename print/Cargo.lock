@@ -360,6 +360,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "handlebars"
+version = "3.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4498fc115fa7d34de968184e473529abb40eeb6be8bc5f7faba3d08c316cb3e3"
+dependencies = [
+ "log",
+ "pest",
+ "pest_derive",
+ "quick-error",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -693,7 +707,6 @@ dependencies = [
  "aquascope",
  "clap",
  "env_logger 0.10.0",
- "env_logger 0.9.3",
  "fluid-let",
  "insta",
  "itertools",
@@ -701,6 +714,7 @@ dependencies = [
  "regex",
  "rustc-plugin",
  "rustc_utils",
+ "rustviz_library",
  "serde",
  "test-log",
  "ts-rs",
@@ -714,6 +728,12 @@ checksum = "2b63bdb0cd06f1f4dedf69b254734f9b45af66e4a031e42a7480257d9898b435"
 dependencies = [
  "unicode-ident",
 ]
+
+[[package]]
+name = "quick-error"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
 
 [[package]]
 name = "quote"
@@ -839,6 +859,22 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "rustviz-svg"
+version = "0.1.0"
+dependencies = [
+ "handlebars",
+ "serde",
+]
+
+[[package]]
+name = "rustviz_library"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "rustviz-svg",
 ]
 
 [[package]]

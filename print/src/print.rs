@@ -1,5 +1,5 @@
 use crate::rustc_span::Pos;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use rustc_span::source_map::SourceMap;
 use aquascope::analysis::{AquascopeAnalysis,
   boundaries::PermissionsBoundary};
@@ -10,8 +10,10 @@ use rustc_utils::{
   source_map::range::CharRange,
   mir::borrowck_facts,
 };
-use crate::visitor::ExprVisitor;
+use crate::visitor::{ExprVisitor, AccessPointUsage};
 use crate::{PrintAllItemsPluginArgs, print};
+use crate::utils::RV1Helper;
+use std::{path::PathBuf, fs};
 
   
 //This is a small helper function
@@ -34,32 +36,50 @@ fn charrange_to_line(crange:CharRange,source_map:&SourceMap)->usize{
   line
 }
 
-
-
 // "The main function"
 pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
+
+  // TESTING HELPER STUFF
+  let mut testing_helper: RV1Helper = RV1Helper::new();
+  let mut line_map: BTreeMap<usize, String> = BTreeMap::new();
+  match testing_helper.initialize_line_map() {
+    Ok(l) => {
+      line_map = l;
+    }
+    Err(e) => {
+      eprintln!("{}", e);
+    }
+  }
+
   // Generate a few things needed for later analysis. They
   // are basically things generated when compiling code.
+  let mut access_point_map:HashMap<AccessPointUsage, usize> = HashMap::new();
+
   let mut declarations: Vec<String> = Vec::new();
   let mut analysis_result: Vec<(u64, String)> = Vec::new();
   let hir = tcx.hir().clone();
   hir
   .items()
-  .filter_map(|id| match hir.item(id).kind {
-    ItemKind::Fn(_, _, body) => Some(body),
+  .filter_map(|id| match &hir.item(id).kind {
+    ItemKind::Fn(fn_sig, generic, body) => {
+      // println!("HEADER : {:#?}", fn_sig.header);
+      // println!("GENERICS: {:#?}", generic);
+      // println!("FN DECLARATION : {:#?}", fn_sig.decl);
+      Some(body)
+    },
     _ => {
       None
     },
   })
   .for_each(|body_id| {
-    let hir_body = hir.body(body_id);
-    let def_id = tcx.hir().body_owner_def_id(body_id);
+    let hir_body = hir.body(*body_id);
+    let def_id = tcx.hir().body_owner_def_id(*body_id);
     let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, def_id);
     let body = &bwf.body;
     let span = tcx.def_span(def_id);
   // Our analysis begins here. Things are printed out.
   // run the AquascopeAnalysis and get the result
-  let result=AquascopeAnalysis::run(tcx,body_id);
+  let result=AquascopeAnalysis::run(tcx,*body_id);
   let source_map = tcx.sess.source_map();
   match result {
     Ok(output) =>{
@@ -112,12 +132,15 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
       borrow_map:HashMap::new(),
       block_return_target:None,
       analysis_result:HashMap::new(),
+      owner_names:Vec::<String>::new(),
+      event_line_map: & mut line_map
     };
     visitor.visit_body(hir_body);
     visitor.print_out_of_scope();
     visitor.print_lifetimes();
     //declarations.push(visitor.print_definitions());
     declarations.extend(visitor.print_definitions());
+    access_point_map.extend(visitor.access_points);
     //push_str(&visitor.print_definitions());
     let ana_result = visitor.analysis_result.clone();
     for (line, elem) in ana_result{
@@ -141,12 +164,19 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
   }
 });
   // Print out the variable definitions.
-  declarations.sort();
+  //declarations.sort();
   println!("/* --- BEGIN Variable Definitions ---");
-  for declaration in declarations {
+  for declaration in &declarations {
     println!("{}", declaration);
   }
   println!("--- END Variable Definitions --- */");
-  // Print out the analysis result.
+
+  // TESTING HELPER STUFF
+  match testing_helper.generate_vis(&mut line_map, &declarations, &access_point_map) {
+    Ok(_) => {}
+    Err(e) => {
+      eprintln!("{}", e);
+    }
+  }
 
 }

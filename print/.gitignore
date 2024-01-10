@@ -1,1 +1,3 @@
 /target
+/aquascope/target/
+/aquascope/Cargo.lock

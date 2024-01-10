@@ -4,19 +4,19 @@ use rustc_middle::{
   ty::{TyCtxt,Ty},
 };
 use rustc_hir::{StmtKind, Stmt, Local, Expr, ExprKind, UnOp, Param,
-  QPath, Path, def::Res, PatKind, Mutability};
-use std::{collections::HashMap, clone};
+  QPath, Path, def::Res, PatKind, Mutability, FnDecl, BodyId, Constness, Unsafety, IsAsync};
+use std::{collections::{HashMap, BTreeMap}, clone};
 use rustc_ast::walk_list;
 use rustc_span::Span;
 use aquascope::analysis::boundaries::PermissionsBoundary;
-use rustc_hir::{intravisit::{self, Visitor},hir_id::HirId};
+use rustc_hir::{intravisit::{self, Visitor, FnKind},hir_id::HirId, def_id::LocalDefId};
 use std::cmp::{Eq, PartialEq};
 use std::hash::Hash;
 
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub struct AccessPoint {
   mutability: Mutability,
-  name:String,
+  pub name:String,
 }
 
 #[derive(Eq, PartialEq,Hash, Clone)]
@@ -33,7 +33,6 @@ pub enum Reference{
   Static(String),
   Mut(String),
 }
-
 
 // A small helper function
 fn extract_var_name(input_string: &str ) -> Option<String> {
@@ -61,7 +60,9 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub current_scope: usize,
   pub pre_scope: usize,
   pub block_return_target: Option<AccessPoint>,
-  pub analysis_result : HashMap<usize, Vec<String>>
+  pub analysis_result : HashMap<usize, Vec<String>>,
+  pub owner_names: Vec<String>,
+  pub event_line_map: & 'a mut BTreeMap<usize, String>,
 }
 
 // These are helper functions used the visitor
@@ -131,7 +132,16 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     self.analysis_result
     .entry(line_num)
     .or_insert(Vec::new())
-    .push(event);
+    .push(event.clone());
+
+    if let Some(value) = self.event_line_map.get(&line_num) {
+      if value.contains("//") { // appending to same line
+        self.event_line_map.entry(line_num).and_modify(|ev| {ev.push_str(&(", ".to_owned() + &event));});
+      }
+      else { // first thing in a line
+        self.event_line_map.entry(line_num).and_modify(|ev| {ev.push_str(&("// !{ ".to_owned() + &event));});
+      }
+    }
   }
 
   fn match_args(&mut self, line_num: usize, arg: &Expr, mut fn_name:String) {
@@ -461,8 +471,18 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 // See ExprKind at : https://doc.rust-lang.org/stable/nightly-rustc/rustc_hir/hir/enum.ExprKind.html
 // See StmtKind at : https://doc.rust-lang.org/stable/nightly-rustc/rustc_hir/hir/enum.StmtKind.html
 impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
+  fn visit_fn(&mut self, fk: FnKind<'a>, fd: &'a FnDecl<'a>, b: BodyId, span: Span, id: LocalDefId) {
+    println!("VISITING FUNCTION");
+    println!("FNKIND : {:#?}", fd);
+    println!("FN DECLARATION : {:#?}", fd);
+    println!("BODY ID: {:#?}", b);
+    println!("SPAN: {:#?}", span);
+    println!("ID: {:#?}", id);
+  }
   fn visit_param(&mut self, param: &'tcx Param<'tcx>){
     let line_num=self.span_to_line(&param.span);
+    println!("Visiting parameter : {:#?}", param);
+    println!("Line num : {:#?}", line_num);
     let ty = self.tcx.typeck(param.hir_id.owner).pat_ty(param.pat);
     match param.pat.kind {
       PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) =>{
@@ -495,6 +515,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     }
   }
   fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
+      //println!("visiting expression {:#?}", expr);
       let hirid = expr.hir_id;
       let line_num = self.expr_to_line(expr);
         match expr.kind {
@@ -573,6 +594,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     
           ExprKind::Block(block, _) => {
             let line = self.tcx.sess.source_map().lookup_char_pos(expr.span.hi()).line;
+            println!("entering block line : {}", line);
             self.pre_scope = self.current_scope;
             let pre_target= self.block_return_target.clone();
             self.current_scope = line;
@@ -590,6 +612,14 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             if inner.is_syntactic_place_expr() && !inner.span.from_expansion() =>
           {
            let hir_id=inner.hir_id;
+          }
+
+          ExprKind::Ret(Some(res)) => {
+            println!("RETURN VALUE : {:#?}", res);
+          }
+
+          ExprKind::Ret(None) => {
+            println!("no value to return ig");
           }
           
           ExprKind::Path(QPath::Resolved(
@@ -621,6 +651,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         }
       }
       fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
+        // println!("visiting stmt: {:#?}", statement);
         match statement.kind {
           StmtKind::Local(ref local) => self.visit_local(local),
           StmtKind::Item(item) => self.visit_nested_item(item),
@@ -630,8 +661,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         }
       }
       fn visit_local(&mut self, local: &'tcx Local<'tcx>) {
-        //println!("Statement: {}", self.tcx.hir().node_to_string(local.hir_id));
-        //println!("on line: {:#?}", self.span_to_line(&local.span));
+
+        let expression = self.tcx.hir().node_to_string(local.hir_id);
+
         match local.pat.kind {
           PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) => {
             let lhs_var = ident.to_string();
