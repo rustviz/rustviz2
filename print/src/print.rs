@@ -11,9 +11,9 @@ use rustc_utils::{
   mir::borrowck_facts,
 };
 use crate::visitor::{ExprVisitor, AccessPointUsage};
-use crate::{PrintAllItemsPluginArgs, print};
+use crate::PrintAllItemsPluginArgs;
 use crate::utils::RV1Helper;
-use std::{path::PathBuf, fs};
+
 
   
 //This is a small helper function

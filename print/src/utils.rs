@@ -88,6 +88,10 @@ impl RV1Helper {
     }
 
     let annotated_source_str: String = generate_annotated_src_scuffed(self.source_str.clone(), access_points);
+    println!("MAIN :\n {}", main_str);
+    println!("SOURCE : \n{}", self.source_str);
+    println!("ANNOTATED : \n{}", annotated_source_str);
+
 
     // send stuff to RV1
     let rv = Rustviz::new(&annotated_source_str, &self.source_str, &main_str)?;
@@ -106,10 +110,6 @@ impl RV1Helper {
 
     fs::write(code_panel_path, rv.code_panel())?;
     fs::write(timeline_panel_path, rv.timeline_panel())?;
-    println!("MAIN :\n {}", main_str);
-    println!("SOURCE : \n{}", self.source_str);
-    println!("ANNOTATED : \n{}", annotated_source_str);
-
     Ok(())
   }
   

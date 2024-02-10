@@ -47,6 +47,31 @@ fn extract_var_name(input_string: &str ) -> Option<String> {
   }
 }
 
+// given an operator (add, sub, etc), returns string representation
+fn match_op(op: rustc_hir::BinOpKind) -> String {
+  use rustc_hir::BinOpKind::*;
+  match op {
+    Add => "+".to_owned(),
+    Sub => "-".to_owned(),
+    Mul => "*".to_owned(),
+    Div => "/".to_owned(),
+    Rem => "%".to_owned(),
+    And => "AND".to_owned(), //javascript doesn't like ampersands
+    Or => "||".to_owned(),
+    BitXor => "^".to_owned(),
+    BitAnd => "BITAND".to_owned(), //javascript doesn't like ampersands
+    BitOr => "|".to_owned(),
+    Shl => "<<".to_owned(),
+    Shr => ">>".to_owned(),
+    Eq => "==".to_owned(),
+    Lt => "<".to_owned(),
+    Le => "<=".to_owned(),
+    Ne => "!=".to_owned(),
+    Ge => ">=".to_owned(),
+    Gt => ">".to_owned()
+  }
+}
+
 
 // Implement the visitor 
 pub struct ExprVisitor<'a, 'tcx:'a> {
@@ -147,6 +172,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 
   fn match_args(&mut self, line_num: usize, arg: &Expr, mut fn_name:String) {
     match arg.kind {
+      // arg is variable
       ExprKind::Path(QPath::Resolved(_,p))=>{
         let bytepos=p.span.lo();
         let boundary=self.boundary_map.get(&bytepos);
@@ -169,12 +195,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
         }
       }
+      // arg is ref
       ExprKind::AddrOf(_,mutability,expr)=>{          
         match expr.kind{
           ExprKind::Path(QPath::Resolved(_,p))=>{
             if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
               if fn_name.contains("{") { // println
-                fn_name = "println".to_string();
+                fn_name = "println".to_string(); // this seems sus to me
                 let mut_reference=Reference::Mut(name.clone());
                 let sta_reference=Reference::Static(name.clone());
                 if self.lifetime_map.contains_key(&mut_reference) {
@@ -197,7 +224,99 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           _=>{}
         }
       }
+      ExprKind::Call(fn_expr, _) => { //functions can be parameters too
+        // NOTE, can't seem to use fn boundaries here?
+    
+        let callee = self.hirid_to_var_name(fn_expr.hir_id);
+        if let Some(callee_name) = callee {
+          if callee_name != "$crate::format_args_nl!($($arg)*)"{ // very scuffed, don't know why this gets here
+            println!("name {}", callee_name);
+            // if return type is not a reference
+            if !self.is_return_type_ref(fn_expr){
+              if self.is_return_type_copyable(fn_expr) {
+                self.add_event(line_num, format!("Copy({}()->{}())", callee_name, fn_name));
+              }
+              else {
+                self.add_event(line_num, format!("Move({}()->{}())", callee_name, fn_name));
+              }
+            }
+            else {
+            // return type is a reference
+              if let Some(return_type)=self.return_type_of(fn_expr){
+                if let Some(mutability)=return_type.ref_mutability(){
+                  match mutability{
+                    // if rhs is mutable ref then a move must occur
+                    Mutability::Mut=>{
+                      self.add_event(line_num, format!("Move({}()->{}())", callee_name, fn_name));
+                    }
+                    // Reference should be copied
+                    Mutability::Not=>{
+                      self.add_event(line_num, format!("Copy({}()->{}())", callee_name, fn_name));
+                    }
+                  }
+                }
+              }
+            }
+            // add callee if we haven't already
+            self.access_points.insert(AccessPointUsage::Function(callee_name),self.current_scope);
+          }
+        }
+        
+      }
       _=>{}
+    }
+  }
+
+
+  // given a path (variable) determines if a move occurs on the line
+  fn determine_move(&self, path: &'tcx Path) -> bool {
+    let bytepos: rustc_span::BytePos = path.span.lo();
+    if let Some(boundary) = self.boundary_map.get(&bytepos){
+      return boundary.expected.drop
+    }
+    false
+  }
+
+  // given an expression, determine if a move occured
+  fn determine_move_expr(&self, expr: &'tcx Expr) -> bool {
+    match expr.kind {
+      ExprKind::Path(QPath::Resolved(_,p)) => self.determine_move(p),
+      ExprKind::Call(fn_expr, _) => {
+        if !self.is_return_type_ref(fn_expr){
+          !self.is_return_type_copyable(fn_expr)
+        }
+        else {
+          if let Some(return_type)=self.return_type_of(fn_expr){
+            if let Some(mutability)=return_type.ref_mutability(){
+              match mutability{
+                // if rhs is mutable ref then a move must occur
+                Mutability::Mut=>{
+                  false
+                }
+                // Reference should be copied
+                Mutability::Not=>{
+                  true
+                }
+              }
+            }
+            else {
+              false
+            }
+          }
+          else {
+            false
+          }
+        }
+      }
+      ExprKind::Block(..) => {
+        // TODO: implement
+        false
+      }
+      ExprKind::MethodCall(..) => {
+        false         // TODO: implement
+      }
+      _ => { false } // TODO: implement, at least for expressions we care about
+
     }
   }
 
@@ -277,9 +396,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
         }   
       },
+      // fn_expr: resolves to function itself (Path)
+      // second arg, is a list of args to the function
       ExprKind::Call(fn_expr, _) => {
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id);
         if let Some(fn_name) = fn_name {
+          // if return type is not a reference
           if !self.is_return_type_ref(fn_expr){
             if self.is_return_type_copyable(fn_expr) {
               self.add_event(line_num, format!("Copy({}()->{})", fn_name, lhs_var));
@@ -290,15 +412,18 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
           }
           else {
+            // return type is a reference
             if let Some(return_type)=self.return_type_of(fn_expr){
               self.borrow_map.insert(lhs_var.clone(),None);
               if let Some(mutability)=return_type.ref_mutability(){
                 match mutability{
+                  // if rhs is mutable ref then a move must occur
                   Mutability::Mut=>{
                     self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
                     self.access_points.insert(AccessPointUsage::MutRef(lhs),self.current_scope);
                     self.update_lifetime(Reference::Mut(lhs_var), line_num);
                   }
+                  // Reference should be copied
                   Mutability::Not=>{
                     self.add_event(line_num, format!("Copy({}()->{})",fn_name, lhs_var));
                     self.access_points.insert(AccessPointUsage::StaticRef(lhs),self.current_scope);
@@ -311,11 +436,15 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           self.access_points.insert(AccessPointUsage::Function(fn_name),self.current_scope);
         }
       },
+      // Any type of literal on RHS implies a bind
       ExprKind::Lit(_) => {
         self.add_event(line_num, format!("Bind({})", lhs_var));
         self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
       }
+      // Some kind of reference operation,
+      // ex : &a or &mut a
       ExprKind::AddrOf(_,mutability,expr) => {
+        // only care about paths of expr
         match expr.kind{
           ExprKind::Path(QPath::Resolved(_,p))=>{
             if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
@@ -337,6 +466,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           _=>{}
         }
       }
+      // RHS is a block ie:
+      // let a = { if x < 3 then 3 else 2 };
+      // currently this isn't handled correctly
       ExprKind::Block(block, _) => {
         let line = self.tcx.sess.source_map().lookup_char_pos(rhs.span.hi()).line;
         self.pre_scope = self.current_scope;
@@ -347,9 +479,28 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         self.current_scope = self.pre_scope;
         self.block_return_target= pre_target;
       }
-      ExprKind::Binary(_, _, _) => {
+      // A binary operation (e.g., a + b, a * b).
+      ExprKind::Binary(binop, expra, exprb) => {
+        // a bind occurs lhs = a + b
         self.add_event(line_num, format!("Bind({})", lhs_var));
         self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
+        println!("Binary occuring");
+        // define operator as function
+        let new_lhs: AccessPointUsage = AccessPointUsage::Function("+".to_owned());
+        self.access_points.insert(new_lhs, self.current_scope);
+        // If a move occurs from one of the two operators then a move will occur from (a op b) -> LHS
+        let op_of_string: String = match_op(binop.node);
+        // treat expra and exprb as parameters to the (OP) function
+        self.match_args(line_num, expra, op_of_string.clone());
+        self.match_args(line_num, exprb, op_of_string.clone());
+
+        // if expra or exprb move, then move occurs from OP -> LHS
+        if self.determine_move_expr(expra){
+          self.add_event(line_num, format!("Move({}()->{})", op_of_string, lhs_var)); // move from op to lhs
+        }
+        else if self.determine_move_expr(expra){
+          self.add_event(line_num, format!("Move({}()->{})", op_of_string, lhs_var)); // move from op to lhs
+        }
       },
 
       ExprKind::Unary(option, _) => {
@@ -494,17 +645,17 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 // See StmtKind at : https://doc.rust-lang.org/stable/nightly-rustc/rustc_hir/hir/enum.StmtKind.html
 impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
   fn visit_fn(&mut self, fk: FnKind<'a>, fd: &'a FnDecl<'a>, b: BodyId, span: Span, id: LocalDefId) {
-    println!("VISITING FUNCTION");
-    println!("FNKIND : {:#?}", fd);
-    println!("FN DECLARATION : {:#?}", fd);
-    println!("BODY ID: {:#?}", b);
-    println!("SPAN: {:#?}", span);
-    println!("ID: {:#?}", id);
+    // println!("VISITING FUNCTION");
+    // println!("FNKIND : {:#?}", fd);
+    // println!("FN DECLARATION : {:#?}", fd);
+    // println!("BODY ID: {:#?}", b);
+    // println!("SPAN: {:#?}", span);
+    // println!("ID: {:#?}", id);
   }
   fn visit_param(&mut self, param: &'tcx Param<'tcx>){
     let line_num=self.span_to_line(&param.span);
-    println!("Visiting parameter : {:#?}", param);
-    println!("Line num : {:#?}", line_num);
+    // println!("Visiting parameter : {:#?}", param);
+    // println!("Line num : {:#?}", line_num);
     let ty = self.tcx.typeck(param.hir_id.owner).pat_ty(param.pat);
     match param.pat.kind {
       PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) =>{
@@ -574,8 +725,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             }
           }
           ExprKind::Binary(_, lhs, rhs) => {
-            self.visit_expr(lhs);
-            self.visit_expr(rhs);
+            // println!("Visiting higher-level binary");
+            // self.visit_expr(lhs);
+            // self.visit_expr(rhs);
           }
           ExprKind::Lit(_) => {
           }
@@ -616,7 +768,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     
           ExprKind::Block(block, _) => {
             let line = self.tcx.sess.source_map().lookup_char_pos(expr.span.hi()).line;
-            println!("entering block line : {}", line);
+            // println!("entering block line : {}", line);
             self.pre_scope = self.current_scope;
             let pre_target= self.block_return_target.clone();
             self.current_scope = line;
@@ -644,6 +796,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             println!("no value to return ig");
           }
           
+          // If Expr is some type of variable
           ExprKind::Path(QPath::Resolved(
             _,
             Path {
@@ -651,7 +804,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               res: Res::Local(_),
               ..
             },
-          )) if !span.from_expansion() => {
+          )) if !span.from_expansion() => { // Returns true if this span comes from any kind of macro, desugaring or inlining.
             if let Some(target)=self.block_return_target.clone(){
               let current_scope=self.current_scope;
               self.current_scope=self.pre_scope;
@@ -675,6 +828,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
         // println!("visiting stmt: {:#?}", statement);
         match statement.kind {
+          // locals are let statements: let <pat>:<ty> = <init>
           StmtKind::Local(ref local) => self.visit_local(local),
           StmtKind::Item(item) => self.visit_nested_item(item),
           StmtKind::Expr(ref expression) | StmtKind::Semi(ref expression) => {
@@ -683,20 +837,27 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         }
       }
       fn visit_local(&mut self, local: &'tcx Local<'tcx>) {
+        println!("visiting local");
 
         let expression = self.tcx.hir().node_to_string(local.hir_id);
 
         match local.pat.kind {
+          // A bind is occuring
+          // ann_hirid refers to the variable being bound
           PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) => {
-            let lhs_var = ident.to_string();
+            let lhs_var:String = ident.to_string();
             self.mutability_map.insert(lhs_var.clone(), binding_annotation.1);
-            match local.init {
+            match local.init { // init refers to RHS of let
               | Some(expr) => {
                   self.match_rhs(AccessPoint { mutability: binding_annotation.1, name: lhs_var}, expr);
                   match expr.kind {
                     ExprKind::Path(_) => {},
-                    ExprKind::Block(..)=>{},
+                    ExprKind::Block(..)=>{
+                      println!("RHS is a block");
+                    },
                     _=>{
+                      // if RHS is more than just a path (variable) we need to walk it to possibly append
+                      // additionaly events to the line
                       self.visit_expr(expr);
                     }
                   }
@@ -704,6 +865,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               | _ => {},
               };
           }
+          // I don't know when this is necessarily the case
           PatKind::Path(QPath::Resolved(_,p)) => {
             println!("lhs path: {:?}", self.tcx.def_path_str(p.res.def_id()));
           }
@@ -714,9 +876,11 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         
         
         //walk_list!(self, visit_expr, &local.init);
+        // this has to do with let = if ... else statements
         if let Some(els) = local.els {
         self.visit_block(els);
         }
+        // I think this just walks the type annotations
         walk_list!(self, visit_ty, &local.ty);
       }
       

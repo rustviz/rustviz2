@@ -97,7 +97,7 @@ pub struct PrintAllItemsPlugin;
 
 #[derive(Parser, Serialize, Deserialize)]
 pub struct PrintAllItemsPluginArgs {
-  #[arg(short, long)]//add '--allcaps' or '-a' in command line both works
+  //#[arg(short, long)]//add '--allcaps' or '-a' in command line both works
   allcaps: bool,//can set default value
 }
 

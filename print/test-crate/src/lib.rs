@@ -1,7 +1,10 @@
 fn main() {
-    let six = plus(5, 6);
+  let stra:String = String::from(" world");
+  let strc:String = owner() + &stra;
+  println!("{}", strc);
+
 }
 
-fn plus(x: i32, y: i32) -> i32 {
-    x + y
+fn owner() -> String{
+   String::from("hello")
 }
