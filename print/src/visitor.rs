@@ -53,7 +53,7 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub tcx: TyCtxt<'tcx>,
   pub mir_body: &'a Body<'tcx>,
   pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
-  pub mutability_map: HashMap<String,Mutability>,
+  pub mutability_map: HashMap<String,Mutability>, // map owner name to mutablility status
   pub lifetime_map: HashMap<Reference,usize>,
   pub borrow_map: HashMap<String, Option<String>>,
   pub access_points: HashMap<AccessPointUsage, usize>,
@@ -134,6 +134,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     .or_insert(Vec::new())
     .push(event.clone());
 
+    // stuff for testing utils
     if let Some(value) = self.event_line_map.get(&line_num) {
       if value.contains("//") { // appending to same line
         self.event_line_map.entry(line_num).and_modify(|ev| {ev.push_str(&(", ".to_owned() + &event));});
@@ -200,43 +201,63 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // match the Right-hand-side of an expression
   fn match_rhs(&mut self,lhs:AccessPoint,rhs:&'tcx Expr){
     let lhs_var=lhs.name.clone();
     let line_num = self.expr_to_line(rhs);
     match rhs.kind {
+      // A path is a name and/or identifier(s)
       ExprKind::Path(QPath::Resolved(_,p)) => {
+        // A resolved path to the location of it's definition
+        // p is a path as well
         let bytepos=p.span.lo();
+        // First thing in path.segments corresponds to a possible variable (owner)
         let name = self.hirid_to_var_name(p.segments[0].hir_id);
+        // Use aquascope analysis to give information about this path: is it mut, copyable, etc
         let boundary=self.boundary_map.get(&bytepos);
+        // hirid_to_var_name never returns None so idk why it returns option
         if let Some(name)=name {
+          // This if statement checks: Is something the path p actually happening here - see aquascope/analysis/boundaries/mod.rs for more info
           if let Some(boundary) = boundary {
+            // is it mutable
             if let Some(rhs_mut)=self.mutability_map.get(&name){
               let rhs = AccessPoint{mutability:*rhs_mut,name:name.clone()};
+              // use aqua analysis (pulls MIR info for us) to see if rhs is dropped
               if boundary.expected.drop {   
-                //self.analysis_result[&line_num]=format!("!{{Move({}->{})}}", name, lhs_var);
-                 self.add_event(line_num, format!("Move({}->{})", name, lhs_var));
+                // if it is dropped, that means a move occured
+                  self.add_event(line_num, format!("Move({}->{})", name, lhs_var));
+                // if RHS is already in our map then add LHS as owner as well (since move is occuring)
+                // TODO: LHS may already be in our map - for example take expr: x += y
                 if self.access_points.contains_key(&AccessPointUsage::Owner(rhs)){
                   self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
                 }
+                // I believe this accounting for the case
+                // let ref = &mut my_var, my_var already exists in the access_points map but only as an owner, not a mut ref
                 else {
                   self.access_points.insert(AccessPointUsage::MutRef(lhs),self.current_scope);
                   if let Some(owner)=self.borrow_map.get(&name){
+                    // lhs is borrowing from another owner (rhs)
                     if let Some(owner)=owner{
                       self.borrow_map.insert(lhs_var.clone(),Some(owner.clone()));
                     }
+                    // or it's borrowing from something we don't care about?
                     else {
                       self.borrow_map.insert(lhs_var.clone(),None);
                     }
                   }
+                  // can only have one live mutable ref at a time so lifetimes of each must be updated
                   self.update_lifetime(Reference::Mut(name), line_num);
                   self.update_lifetime(Reference::Mut(lhs_var), line_num);
                 }
               }
+              // Else a copy occurs (no drop)
               else {
                 self.add_event(line_num, format!("Copy({}->{})", name, lhs_var));
+                // Indicative of a let statement (let a = rhs)
                 if self.access_points.contains_key(&AccessPointUsage::Owner(rhs)){
                   self.access_points.insert(AccessPointUsage::Owner(lhs),self.current_scope);
                 }
+                // let a = &b 
                 else {
                   self.access_points.insert(AccessPointUsage::StaticRef(lhs),self.current_scope);
                   if let Some(owner)=self.borrow_map.get(&name){
@@ -247,6 +268,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                       self.borrow_map.insert(lhs_var.clone(),None);
                     }
                   }
+                  // lifetimes updated when as borrow occurs
                   self.update_lifetime(Reference::Static(name), line_num);
                   self.update_lifetime(Reference::Static(lhs_var), line_num);
                 }
