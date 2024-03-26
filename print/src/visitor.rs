@@ -35,7 +35,7 @@ pub enum Reference{
 }
 
 // A small helper function
-fn extract_var_name(input_string: &str ) -> Option<String> {
+pub fn extract_var_name(input_string: &str ) -> Option<String> {
   let start_index = input_string.find('`')? + 1;
   let end_index = input_string.rfind('`')?;
   let rough_string=input_string[start_index..end_index].to_owned();
@@ -468,8 +468,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       }
       // RHS is a block ie:
       // let a = { if x < 3 then 3 else 2 };
-      // currently this isn't handled correctly
       ExprKind::Block(block, _) => {
+        match block.expr {
+          Some(res_expr) => {
+            self.match_rhs(lhs.clone(), res_expr);
+          }
+          // don't know in which scenarios there is not a returned expression in a block
+          None => {}
+        }
         let line = self.tcx.sess.source_map().lookup_char_pos(rhs.span.hi()).line;
         self.pre_scope = self.current_scope;
         let pre_target= self.block_return_target.clone();
@@ -562,6 +568,19 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }      
         }      
       }
+      // Struct intializer list:
+      // ex let struc = {a: <expr>, b: <expr>, c: <expr>}
+      ExprKind::Struct(qpath, expr_fields, base) => {
+
+        // LHS must be a struct 
+        // A bind must occur for LHS?
+        // Insert Struct into access points -> with members
+        // how to handle public members? / Functions, etc
+        for field in expr_fields.iter() {
+          println!("Ident: {:#?}", field.ident);
+          self.match_rhs(lhs.clone(), field.expr);
+        }
+      }
       _=>{}
     }
   }
@@ -645,8 +664,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 // See StmtKind at : https://doc.rust-lang.org/stable/nightly-rustc/rustc_hir/hir/enum.StmtKind.html
 impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
   fn visit_fn(&mut self, fk: FnKind<'a>, fd: &'a FnDecl<'a>, b: BodyId, span: Span, id: LocalDefId) {
-    // println!("VISITING FUNCTION");
-    // println!("FNKIND : {:#?}", fd);
+    println!("VISITING FUNCTION");
+    println!("FNKIND : {:#?}", fd);
     // println!("FN DECLARATION : {:#?}", fd);
     // println!("BODY ID: {:#?}", b);
     // println!("SPAN: {:#?}", span);
@@ -768,7 +787,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     
           ExprKind::Block(block, _) => {
             let line = self.tcx.sess.source_map().lookup_char_pos(expr.span.hi()).line;
-            // println!("entering block line : {}", line);
+            println!("entering block line : {}", line);
+            
             self.pre_scope = self.current_scope;
             let pre_target= self.block_return_target.clone();
             self.current_scope = line;
@@ -853,7 +873,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                   match expr.kind {
                     ExprKind::Path(_) => {},
                     ExprKind::Block(..)=>{
-                      println!("RHS is a block");
+                      println!("RHS is a block yuh");
                     },
                     _=>{
                       // if RHS is more than just a path (variable) we need to walk it to possibly append
@@ -883,5 +903,16 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         // I think this just walks the type annotations
         walk_list!(self, visit_ty, &local.ty);
       }
-      
-}
+
+      // fn visit_ident (&mut self, ident: rustc_span::symbol::Ident){
+      //   println!("visiting Identifier, name: {:#?}", ident.name);
+      // }
+
+      // fn visit_name (&mut self, name: rustc_span::symbol::Symbol){
+      //   println!("visiting Symbol, symindex: {:#?}", name.as_str());
+      // }
+
+      // fn visit_pat (&mut self, pat:&'tcx rustc_hir::Pat<'tcx>){
+      //   println!("Visiting pattern : {:#?}", pat);
+      // }
+} 

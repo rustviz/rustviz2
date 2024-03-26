@@ -10,7 +10,7 @@ use rustc_utils::{
   source_map::range::CharRange,
   mir::borrowck_facts,
 };
-use crate::visitor::{ExprVisitor, AccessPointUsage};
+use crate::visitor::{ExprVisitor, AccessPointUsage, extract_var_name};
 use crate::PrintAllItemsPluginArgs;
 use crate::utils::RV1Helper;
 
@@ -34,6 +34,30 @@ fn charrange_to_line(crange:CharRange,source_map:&SourceMap)->usize{
   let bpos = rustc_span::BytePos(total_bytes as u32);
   let (line,_,_)=file.lookup_file_pos_with_col_display(bpos);
   line
+}
+
+// given an identifier returns the name of that item
+// expects the form of node_str to be:
+// HirId(DefId(0:6 ~ test_crate[f525]::name).0) (<item_str> name)
+fn item_name (item_str: &str, node_str: &str) -> String {
+  use regex::Regex;
+  // pattern starts with identifier, (struct, enum) followed by whitespace
+  // followed by any number of characters and terminates with )
+  let pattern = format!(r"{}\s+(\w+)\)", item_str);
+  let re = Regex::new(&pattern).unwrap();
+  if let Some(captures) = re.captures(node_str) {
+    if let Some(identifier) = captures.get(1) {
+        identifier.as_str().to_owned()
+    }
+    else {
+      println!("error, pattern not matched");
+      String::from("")
+    }
+  }
+  else {
+    println!("error, pattern not matched");
+    String::from("")
+  }
 }
 
 // "The main function"
@@ -61,11 +85,51 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
   hir
   .items()
   .filter_map(|id| match &hir.item(id).kind {
-    ItemKind::Fn(fn_sig, generic, body) => {
-      // println!("HEADER : {:#?}", fn_sig.header);
-      // println!("GENERICS: {:#?}", generic);
-      // println!("FN DECLARATION : {:#?}", fn_sig.decl);
+    ItemKind::Fn(_fn_sig, _generic, body) => {
       Some(body)
+    },
+    ItemKind::Struct(vardata, generics) => {
+      // var data contains 
+      // println!("Vardata of struct: {:#?}", vardata);
+      // println!("generics of struct: {:#?}", generics);
+      // Fields and constructor IDs of enum variants and structs.
+      match vardata {
+        // A struct variant E.g., Bar { .. } as in enum Foo { Bar { .. } }.
+        rustc_hir::VariantData::Struct(fields, _recovered) => {
+          if fields.len() > 0 {
+            let parent_id = hir.parent_id(fields[0].hir_id);
+            let parent_name = item_name("struct", &hir.node_to_string(parent_id));
+            println!("parent name, {}", parent_name);
+            for field in fields.iter(){
+              println!("field: {:#?}", field);
+              match extract_var_name(&hir.node_to_string(field.hir_id)){
+                Some(name) => {
+                  println!("field name: {}", name);
+                }
+                None => {}
+              }
+            }
+          }
+        }
+        // A tuple variant E.g., Bar(..) as in enum Foo { Bar(..) }.
+        rustc_hir::VariantData::Tuple(fields, _hir_id, _def_id) => {
+        
+        }
+        // A unit variant E.g., Bar = .. as in enum Foo { Bar = .. }.
+        rustc_hir::VariantData::Unit(_hir_id, _def_id) => {
+          // we may not have to do anything extra for these variants, will see later
+        }
+      }
+      None
+    },
+    ItemKind::Enum(enum_def, _generics) => {
+      let parent_id = hir.parent_id(enum_def.variants[0].hir_id);
+      let parent_name = item_name("enum", &hir.node_to_string(parent_id));
+      println!("parent name, {}", parent_name);
+      for variant in enum_def.variants.iter(){
+        println!("Ident: {:#?}", variant.ident);
+      }
+      None
     },
     _ => {
       None
