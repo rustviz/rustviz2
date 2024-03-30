@@ -99,12 +99,9 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
           if fields.len() > 0 {
             let parent_id = hir.parent_id(fields[0].hir_id);
             let parent_name = item_name("struct", &hir.node_to_string(parent_id));
-            println!("parent name, {}", parent_name);
             for field in fields.iter(){
-              println!("field: {:#?}", field);
               match extract_var_name(&hir.node_to_string(field.hir_id)){
                 Some(name) => {
-                  println!("field name: {}", name);
                 }
                 None => {}
               }
@@ -182,7 +179,7 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
      
      // The visitor will walk through the hir and analysis it, see visitor.rs.
      // use last line of the body as the current scope
-
+    //  println!("crange: {:#?}", _body_range);
      let pos = charrange_to_line(_body_range,source_map);
      let mut visitor = ExprVisitor { 
       tcx, 
@@ -192,9 +189,7 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
       mutability_map:HashMap::new(),
       lifetime_map:HashMap::new(),
       current_scope: pos,
-      pre_scope: 0,
       borrow_map:HashMap::new(),
-      block_return_target:None,
       analysis_result:HashMap::new(),
       owner_names:Vec::<String>::new(),
       event_line_map: & mut line_map
