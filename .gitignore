@@ -1,0 +1,6 @@
+print/target
+print/aquascope/target/
+print/aquascope/Cargo.lock
+print/test-book/
+print/test-crate/
+.vscode/
