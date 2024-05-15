@@ -1,5 +1,7 @@
 use anyhow::{Result, anyhow};
+use itertools::Itertools;
 use crate::visitor::AccessPointUsage;
+use core::num;
 use std::collections::{HashMap, BTreeMap};
 use std::{path::PathBuf, fs};
 use std::env::current_dir;
@@ -54,7 +56,7 @@ impl RV1Helper {
     return Ok(line_map);
   }
 
-  pub fn generate_vis(& mut self, line_map: & mut BTreeMap<usize, String>, owners: &Vec<String>, access_points: &HashMap<AccessPointUsage, usize>) -> Result<()> {
+  pub fn generate_vis(& mut self, line_map: & mut BTreeMap<usize, String>, owners: &Vec<String>, a_map: &BTreeMap<usize, Vec<String>>) -> Result<()> {
     let mut main_str = String::new();
 
     // add closing brace for event strings
@@ -87,7 +89,7 @@ impl RV1Helper {
       main_str.push_str(&(value.to_owned() + "\n"));
     }
 
-    let annotated_source_str: String = generate_annotated_src_scuffed(self.source_str.clone(), access_points);
+    let annotated_source_str: String = generate_annotated_src(a_map);
     println!("MAIN :\n {}", main_str);
     println!("SOURCE : \n{}", self.source_str);
     println!("ANNOTATED : \n{}", annotated_source_str);
@@ -116,6 +118,60 @@ impl RV1Helper {
 
 }
 
+fn union_strings (strings: &Vec<String>) -> String {
+  if strings.len() == 1 {
+    strings[0].clone()
+  }
+  else if strings.len() == 2 {
+    strings[1].clone()
+  }
+  else {
+    let mut res = String::new();
+    let i = 0;
+    let mut offsets: HashMap<String, usize> = HashMap::new();
+    for string in strings {
+      offsets.insert(string.clone(), 0);
+    }
+    for i in i..strings[0].len() {
+      let consistent_char = strings[0].chars().nth(i).unwrap();
+      for string in strings {
+        let mut j = offsets[string];
+        let mut char_at_i = string.chars().nth(j).unwrap();
+        if char_at_i != consistent_char {
+          assert_eq!(char_at_i, '<');
+          while char_at_i != '>' {
+            res.push(char_at_i);
+            j += 1;
+            char_at_i = string.chars().nth(j).unwrap();
+          } // loop until closing '>' since characters <..> could contain consistent_char
+          res.push(char_at_i); // add '>'
+          j += 1;
+        }
+        j += 1;
+        *offsets.get_mut(string).unwrap() = j;
+      }
+      res.push(consistent_char);
+    }
+    
+    for string in strings {
+      if offsets[string] != string.len() {
+        res.push_str(&string[offsets[string]..]);
+        break;
+      }
+    }
+    res
+  }
+}
+
+pub fn generate_annotated_src(annotated_line_map: &BTreeMap<usize, Vec<String>>) -> String {
+  let mut annotated_str = String::new();
+  for (_k, v) in annotated_line_map {
+    annotated_str.push_str(&union_strings(v));
+    annotated_str.push('\n');
+  }
+  annotated_str.replace("&", "&amp;")
+}
+
 
 // for now not a very viable solution
 pub fn generate_annotated_src_scuffed(source_str: String, access_points: &HashMap<AccessPointUsage, usize>) -> String {
@@ -139,7 +195,27 @@ pub fn generate_annotated_src_scuffed(source_str: String, access_points: &HashMa
         nombre = name.clone();
         fn_flag = true;
       }
-      _=>{ nombre = String::from(""); }
+      AccessPointUsage::Struct(p, fields)=>{
+        let field_names: Vec<String> = 
+          fields.iter().
+          map(|s| 
+            if let Some(dot_index) = s.name.find('.') {
+              s.name[dot_index + 1..].to_string()
+            } else {
+                println!("No dot found in the string.");
+              s.name.clone()
+            }).collect::<Vec<String>>();
+        for i in 0..fields.len() {
+          // replace identifier definitions in struct {<a>:i32, <b>:i32}
+          let replace_with: String = format!("<tspan data-hash=\"{}\">{}</tspan>", num_hashes, field_names[i]);
+          annotated_src_str = annotated_src_str.replace(&field_names[i], &replace_with);
+
+          num_hashes += 1;
+
+        }
+        // struct instance name
+        nombre = p.name.clone(); 
+      }
     }
 
     if fn_flag{

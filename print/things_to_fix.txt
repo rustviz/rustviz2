@@ -1,0 +1,8 @@
+1. binary expressions, especially those in return <exp>
+2. method calls
+3. nested function calls ex: println!("", func2())
+4. discrepancy between timeline annotations and code panel annotations
+  RV1 expects timeline owners to be ordered hash1, hash2...
+5. Need to order moves correctly (when giving then returning ownership on same line)
+6. Return exp 
+7. functions with multiple return expressions
