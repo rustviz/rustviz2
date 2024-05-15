@@ -1,6 +1,0 @@
-/target
-/aquascope/target/
-/aquascope/Cargo.lock
-test-book/
-test-crate/
-.vscode/
