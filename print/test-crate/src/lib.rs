@@ -1,10 +1,18 @@
-fn main() {
-  let stra:String = String::from(" world");
-  let strc:String = owner() + &stra;
-  println!("{}", strc);
-
+struct Rect {
+    w: u32,
+    h: u32,
 }
 
-fn owner() -> String{
-   String::from("hello")
+fn main() {
+    let r = Rect {
+        w: 30,
+        h: 50,
+    };
+
+    let y = r.w;
+    println!("{}", y);
+}
+
+fn area(rect: &Rect) -> u32 {
+    rect.w * rect.h
 }

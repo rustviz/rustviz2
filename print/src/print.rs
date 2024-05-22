@@ -4,14 +4,13 @@ use rustc_span::source_map::SourceMap;
 use aquascope::analysis::{AquascopeAnalysis,
   boundaries::PermissionsBoundary};
 use rustc_hir::intravisit::Visitor;
-use rustc_hir::{ItemKind, Mutability};
+use rustc_hir::{ItemKind};
 use rustc_middle::ty::TyCtxt;
-use rustc_utils::mir::mutability;
 use rustc_utils::{
   source_map::range::CharRange,
   mir::borrowck_facts,
 };
-use crate::visitor::{extract_var_name, AccessPoint, AccessPointUsage, ExprVisitor};
+use crate::expr_visitor::{AccessPointUsage, ExprVisitor};
 use crate::PrintAllItemsPluginArgs;
 use crate::utils::RV1Helper;
 
@@ -58,6 +57,34 @@ fn item_name (item_str: &str, node_str: &str) -> String {
   else {
     println!("error, pattern not matched");
     String::from("")
+  }
+}
+
+fn annotate_struct_field (
+  line_str: &str,
+  hash_map: & mut HashMap<String, usize>,
+  a_map: & mut BTreeMap<usize, Vec<String>>,
+  hashes: & mut usize,
+  field: & rustc_hir::FieldDef,
+  m: & TyCtxt
+) {
+  let name:String = field.ident.as_str().to_owned();
+  let hash = *hash_map.entry(name.clone()).or_insert_with(|| {
+    let current_hash = *hashes;
+    *hashes = (*hashes + 1) % 10;
+    current_hash
+  });
+
+  let line:usize = m.sess.source_map().lookup_char_pos(field.span.lo()).line;
+  let left: usize = m.sess.source_map().lookup_char_pos(field.span.lo()).col_display;
+  let right: usize = m.sess.source_map().lookup_char_pos(field.span.hi()).col_display;
+
+  let mut line_contents = line_str.to_string();
+  let replace_with = format!("<tspan data-hash=\"{}\">{}</tspan>", hash, name);
+  line_contents.replace_range(left..right, &replace_with);
+  let v = a_map.get_mut(&line).unwrap();
+  if !v.contains(&line_contents) {
+    v.push(line_contents);
   }
 }
 
@@ -130,6 +157,21 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
   
   for id in hir.items() {
     match &hir.item(id).kind {
+      ItemKind::Struct(vardata, generics) => {
+        match vardata {
+          // A struct variant E.g., Bar { .. } as in enum Foo { Bar { .. } }.
+          rustc_hir::VariantData::Struct(fields, _recovered) => {
+            if fields.len() > 0 {
+              for field in fields.iter(){
+                let line = tcx.sess.source_map().lookup_char_pos(field.span.lo()).line;
+                let line_str = &a_map[&line];
+                annotate_struct_field(line_str, & mut owner_to_hash, & mut a_line_map , & mut hash_num, &field, &tcx);
+              }
+            }
+          }
+          _ => {}
+        }
+      }
       ItemKind::Fn(fn_sig, _generic, body_id) => {
         let func_name:String = hir.name(hir.parent_id(body_id.hir_id)).as_str().to_owned();
         let line = tcx.sess.source_map().lookup_char_pos(fn_sig.span.lo()).line;
@@ -175,6 +217,7 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
               borrow_map: HashMap::new(),
               analysis_result: HashMap::new(),
               owners: Vec::new(),
+              name_to_access_point: HashMap::new(),
               event_line_map: & mut line_map,
               source_map: & a_map,
               annotated_lines: & mut a_line_map,
@@ -356,8 +399,8 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
   // }
   // println!("--- END Variable Definitions --- */");
 
-  println!("ANNOTATED LINE MAP");
-  println!("{:#?}", a_line_map);
+  // println!("ANNOTATED LINE MAP");
+  // println!("{:#?}", a_line_map);
 
   // TESTING HELPER STUFF
   match testing_helper.generate_vis(&mut line_map, &declarations, &a_line_map) {
