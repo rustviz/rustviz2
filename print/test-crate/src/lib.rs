@@ -9,8 +9,12 @@ fn main() {
         h: 50,
     };
 
-    let y = r.w;
-    println!("{}", y);
+    println!(
+        "The area of the rectangle is {} square pixels.",
+        area(&r)
+    );
+    
+    println!("The height of that is {}.", r.h);
 }
 
 fn area(rect: &Rect) -> u32 {

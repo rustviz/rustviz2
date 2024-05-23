@@ -92,7 +92,7 @@ pub mod print;
 pub mod utils;
 pub mod expr_visitor;
 pub mod expr_visitor_utils;
-
+pub mod annotated_source_gen;
 
 
 pub struct PrintAllItemsPlugin;

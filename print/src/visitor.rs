@@ -87,7 +87,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               }
               _ => {
                 let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
-                self.annotate_src(fn_name.clone(), fn_expr.span, true);
                 for arg in args.iter(){
                   self.match_args(line_num, &arg, fn_name.clone());
                 }
@@ -122,8 +121,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               }
               None => {}
             }
-  
-            self.annotate_src(rcvr_name.clone(), rcvr.span, false);
+
             for arg in args.iter(){
               self.match_args(line_num, &arg, fn_name.clone());
             }
@@ -143,7 +141,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             match lhs.kind {
               ExprKind::Path(QPath::Resolved(_,p)) => { // assigning to a mutable variable
                 let lhs_var = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-                self.annotate_src(lhs_var.clone(), p.segments[0].ident.span, false);
                 if let Some(mutability)=self.mutability_map.get(&lhs_var){
                   self.match_rhs(AccessPoint { mutability:*mutability, name: lhs_var, members: None }, rhs, false);
                 }
@@ -152,7 +149,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                 match deref_expr.kind {
                   ExprKind::Path(QPath::Resolved(_,p)) => {
                     let lhs_var = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-                    self.annotate_src(lhs_var.clone(), p.segments[0].ident.span, false);
                     self.update_lifetime(Reference::Mut(lhs_var.clone()), line_num);
                     if let Some(mutability)=self.mutability_map.get(&lhs_var){
                       self.match_rhs(AccessPoint { mutability:*mutability, name: lhs_var, members: None }, rhs, true);
@@ -179,7 +175,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               Some(expr) => {
                 // TODO: if function returns void then last expression can not have a semi-colon (and will be double annotated)
                 // TODO: update this to a better solution, for now LHS is just an access point with the name "None"
-                // this is a scuffed fix in order to adhere to rv1 visualization practices 
+                // this is a scuffed fix in order to adhere to rv1 visualization practices
+                self.annotate_expr(expr);
                 self.match_rhs(AccessPoint {mutability: Mutability::Not, name: "None".to_owned(), members: None}, expr, false);
               }
               None => {}
@@ -195,7 +192,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             match lhs.kind {
               ExprKind::Path(QPath::Resolved(_,p)) => { // assigning to a mutable variable
                 let lhs_var = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-                self.annotate_src(lhs_var.clone(), p.segments[0].ident.span, false);
                 if let Some(mutability)=self.mutability_map.get(&lhs_var){
                   self.match_rhs(AccessPoint { mutability:*mutability, name: lhs_var, members: None }, rhs, false);
                 }
@@ -204,7 +200,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                 match deref_expr.kind {
                   ExprKind::Path(QPath::Resolved(_,p)) => {
                     let lhs_var = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-                    self.annotate_src(lhs_var.clone(), p.segments[0].ident.span, false);
                     self.update_lifetime(Reference::Mut(lhs_var.clone()), line_num);
                     if let Some(mutability)=self.mutability_map.get(&lhs_var){
                       self.match_rhs(AccessPoint { mutability:*mutability, name: lhs_var, members: None }, rhs, true);
@@ -231,6 +226,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         }
   }
   fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
+    self.annotate_stmt(statement);
     match statement.kind {
       // locals are let statements: let <pat>:<ty> = <init>
       StmtKind::Local(ref local) => self.visit_local(local),
@@ -247,8 +243,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) => {
         let lhs_var:String = ident.to_string();
         // annotate left side of let statement
-        //println!("lhs name: {}, line: {}, lo: {:#?}, hi: {:#?}", lhs_var.clone(), self.span_to_line(&ident.span), self.tcx.sess.source_map().lookup_char_pos(ident.span.lo()), self.tcx.sess.source_map().lookup_char_pos(ident.span.hi()));
-        self.annotate_src(lhs_var.clone(), ident.span, false);
         self.mutability_map.insert(lhs_var.clone(), binding_annotation.1);
         match local.init { // init refers to RHS of let
           | Some(expr) => {

@@ -154,29 +154,29 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
   
-  pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool) {
-    let hash = *self.hash_map.entry(name.to_string()).or_insert_with(|| {
-      let current_hash = self.hashes;
-      self.hashes = (self.hashes + 1) % 10;
-      current_hash
-    });
+  // pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool) {
+  //   let hash = *self.hash_map.entry(name.to_string()).or_insert_with(|| {
+  //     let current_hash = self.hashes;
+  //     self.hashes = (self.hashes + 1) % 10;
+  //     current_hash
+  //   });
 
-    let line: usize = self.span_to_line(&s);
-    let left:usize = self.tcx.sess.source_map().lookup_char_pos(s.lo()).col_display;
-    let right: usize = self.tcx.sess.source_map().lookup_char_pos(s.hi()).col_display;
+  //   let line: usize = self.span_to_line(&s);
+  //   let left:usize = self.tcx.sess.source_map().lookup_char_pos(s.lo()).col_display;
+  //   let right: usize = self.tcx.sess.source_map().lookup_char_pos(s.hi()).col_display;
 
-    let mut line_contents:String = self.source_map.get(&line).unwrap().clone();
-    let replace_with: String = if is_func {
-        format!("<tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\">{}</tspan>", 0, hash, name)
-      } else {
-        format!("<tspan data-hash=\"{}\">{}</tspan>", hash, name)
-      };
-    line_contents.replace_range(left..right, &replace_with);
-    let v = self.annotated_lines.get_mut(&line).unwrap();
-    if !v.contains(&line_contents) {
-      v.push(line_contents);
-    }
-  }
+  //   let mut line_contents:String = self.source_map.get(&line).unwrap().clone();
+  //   let replace_with: String = if is_func {
+  //       format!("<tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\">{}</tspan>", 0, hash, name)
+  //     } else {
+  //       format!("<tspan data-hash=\"{}\">{}</tspan>", hash, name)
+  //     };
+  //   line_contents.replace_range(left..right, &replace_with);
+  //   let v = self.annotated_lines.get_mut(&line).unwrap();
+  //   if !v.contains(&line_contents) {
+  //     v.push(line_contents);
+  //   }
+  // }
 
   pub fn match_args(&mut self, line_num: usize, arg: &'tcx Expr, mut fn_name:String) {
     // add callee no matter what
@@ -189,7 +189,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
         if let Some(boundary) = boundary {
           let expected=boundary.expected;
-          self.annotate_src(name.clone(), p.span, false);
+          (name.clone(), p.span, false);
           if expected.drop{
             self.add_event(line_num,format!("Move({}->{}())", name, fn_name));
           }
@@ -237,7 +237,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Call(fn_expr, fn_args) => { //functions can be parameters too
         let callee_name= self.hirid_to_var_name(fn_expr.hir_id).unwrap();
         // generate annotations for function call
-        self.annotate_src(callee_name.clone(), fn_expr.span, true);
+        (callee_name.clone(), fn_expr.span, true);
         for a in fn_args.iter() {
           self.match_args(self.expr_to_line(a), a, callee_name.clone());
         }
@@ -280,7 +280,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 if let Some(boundary) = boundary {
                   let expected=boundary.expected;
                   let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-                  self.annotate_src(name.clone(), p.span, false);
+                  (name.clone(), p.span, false);
                   if expected.drop{
                     self.add_event(line_num,format!("Move({}->{}())", name, fn_name));
                   }
@@ -311,8 +311,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               let expected=boundary.expected;
               let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
               let field_name: String = id.as_str().to_owned();
-              self.annotate_src(name.clone(), p.span, false);
-              self.annotate_src(field_name.clone(), id.span, false); 
+              (name.clone(), p.span, false);
+              (field_name.clone(), id.span, false); 
               if expected.drop{
                 self.add_event(line_num,format!("Move({}->{}())", format!("{}.{}", name, field_name), fn_name));
               }
@@ -383,7 +383,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let bytepos=p.span.lo();
         let name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        self.annotate_src(name.clone(), p.segments[0].ident.span, false);
+        (name.clone(), p.segments[0].ident.span, false);
         // Use aquascope analysis to give information about this path: is it mut, copyable, etc
         let boundary=self.boundary_map.get(&bytepos);
         //println!("rhs name: {}, line: {}, lo: {:#?}, hi: {:#?}", name, self.expr_to_line(rhs), self.tcx.sess.source_map().lookup_char_pos(rhs.span.lo()), self.tcx.sess.source_map().lookup_char_pos(rhs.span.hi()));
@@ -471,7 +471,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
             }
           }
-          self.annotate_src(fn_name.clone(), fn_expr.span, true);
+          (fn_name.clone(), fn_expr.span, true);
           self.add_access_point(AccessPointUsage::Owner(lhs), lhs_var);
         }
         // return type is a reference
@@ -541,7 +541,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             else {
               self.borrow_map.insert(lhs_var.clone(),None);
             }
-            self.annotate_src(name.clone(), p.span, false);
+            (name.clone(), p.span, false);
             match mutability{
               Mutability::Not=>{
                 if is_deref {
@@ -583,7 +583,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           Some(res_expr) => {
             self.match_rhs(lhs.clone(), res_expr, false);
           }
-          // don't know in which scenarios there is not a returned expression in a block
           None => {}
         }
 
@@ -609,7 +608,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 if let Some(boundary) = boundary {
                   let expected=boundary.expected;
                   let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-                  self.annotate_src(name.clone(), p.span, false);
+                  (name.clone(), p.span, false);
+
+                  if expected.drop{ 
+                    self.add_event(line_num,format!("Move(*{}->{})", name, lhs_name));
+                  }
+                  else {
+                    self.add_event(line_num, format!("Copy(*{}->{})", name, lhs_name));
+                  }
 
                   if let Some(a) = self.borrow_map.get(&name).unwrap() {
                     match a.clone() {
@@ -629,14 +635,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                   }
                   else { //we are dereferencing a function reference parameter
                     // we have no way of knowing what lhs should be (an owner or reference)
-                    if expected.drop{ // TODO: test in what scenarios this happens
-                      self.add_event(line_num,format!("Move(*{}->{}())", name, lhs_name));
-                      self.update_lifetime(Reference::Mut(name), line_num);
-                    }
-                    else {
-                      self.add_event(line_num, format!("Copy(*{}->{})", name, lhs_name));
-                      self.update_lifetime(Reference::Static(name), line_num);
-                    }
                   }
                 }
               }
@@ -700,19 +698,19 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       // ex struct = {a: <expr>, b: <expr>, c: <expr>}
       ExprKind::Struct(_qpath, expr_fields, _base) => {
         // LHS must be a struct 
-        if lhs.mutability == Mutability::Not && !is_deref {
-          self.add_event(line_num, format!("Bind({})", lhs.name));
-          let mut field_vec: Vec<AccessPoint> = Vec::new();
-          // Insert Struct into access points -> with members
-          for field in expr_fields.iter() {
-            let mut new_lhs = lhs.clone();
-            new_lhs.name = format!("{}.{}", lhs.name, field.ident.to_string());
-            // TODO: will have to actually annotate the struct fields
-            self.match_rhs(new_lhs.clone(), field.expr, false);
-            field_vec.push(new_lhs);
-          }
-          self.add_access_point(AccessPointUsage::Struct(lhs, field_vec), lhs_var);
+        self.add_event(line_num, format!("Bind({})", lhs.name));
+        let mut field_vec: Vec<AccessPoint> = Vec::new();
+        // Insert Struct into access points -> with members
+        for field in expr_fields.iter() {
+          let mut new_lhs = lhs.clone();
+          new_lhs.name = format!("{}.{}", lhs.name, field.ident.to_string());
+          // TODO: will have to actually annotate the struct fields
+          self.match_rhs(new_lhs.clone(), field.expr, false);
+          (field.ident.to_string(), field.ident.span, false);
+          field_vec.push(new_lhs);
         }
+        self.add_access_point(AccessPointUsage::Struct(lhs, field_vec), lhs_var);
+      
       },
 
       ExprKind::Field(expr, id) => {
@@ -724,8 +722,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               let expected=boundary.expected;
               let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
               let field_name: String = id.as_str().to_owned();
-              self.annotate_src(name.clone(), p.span, false);
-              self.annotate_src(field_name.clone(), id.span, false);
+              (name.clone(), p.span, false);
+              (field_name.clone(), id.span, false);
               let a = self.name_to_access_point.get(&name).unwrap().clone();
               if expected.drop{
                 if is_deref {

@@ -11,3 +11,4 @@
 10. What to with function calls as arguments (RV1 can't handle them rn)
 11. A consideration: can't have variables with the same name as fields 
 12. Have yet to handle struct reference fields (lifetimes)
+13. Seperate annotation from event construction
