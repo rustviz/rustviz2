@@ -11,7 +11,8 @@ rustc_private = true
 
 
 [dependencies]
-rustviz_library = {path = "./rustviz-library/rustviz_library"}
+rustviz_library = {path = "src/rustviz_library"}
+rustviz-svg = {path = "src/rustviz_library/src/svg_generator/"}
 aquascope = {version = "0.1", path = "./aquascope"}
 env_logger = "0.10"
 clap = {version = "3", features = ["derive"]}

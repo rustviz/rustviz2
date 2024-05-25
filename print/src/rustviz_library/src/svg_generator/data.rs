@@ -1,6 +1,8 @@
 use std::collections::{HashSet, BTreeMap};
 use std::vec::Vec;
 use std::fmt::{Formatter, Result, Display};
+use std::hash::{Hash, Hasher};
+use std::borrow::Borrow;
 use crate::data::Event::*;
 use crate::hover_messages;
 /*
@@ -65,7 +67,8 @@ pub struct Struct {
     pub hash: u64,
     pub owner: u64,
     pub is_mut: bool,                     
-    pub is_member: bool
+    pub is_member: bool,
+    //pub rap: Option<Box<ResourceAccessPoint>>
 }
 
 // a reference of type &mut T
@@ -117,21 +120,18 @@ impl ResourceAccessPoint {
     // get the is_mut field, if any
     pub fn is_mut(&self) -> bool {
         match self {
-            ResourceAccessPoint::Owner(Owner{is_mut, ..}) => is_mut.to_owned(),
-            ResourceAccessPoint::Struct(Struct{is_mut, ..}) => is_mut.to_owned(),
-            ResourceAccessPoint::MutRef(MutRef{is_mut, ..}) => is_mut.to_owned(),
-            ResourceAccessPoint::StaticRef(StaticRef{is_mut, ..}) => is_mut.to_owned(),
+            ResourceAccessPoint::Owner(Owner{is_mut, ..}) => *is_mut,
+            ResourceAccessPoint::Struct(Struct{is_mut, ..}) => *is_mut,
+            ResourceAccessPoint::MutRef(MutRef{is_mut, ..}) => *is_mut,
+            ResourceAccessPoint::StaticRef(StaticRef{is_mut, ..}) => *is_mut,
             ResourceAccessPoint::Function(_) => false,
         }
     }
 
     pub fn is_ref(&self) -> bool {
         match self {
-            ResourceAccessPoint::Owner(_) => false,
-            ResourceAccessPoint::Struct(_) => false,
-            ResourceAccessPoint::MutRef(_) => true,
-            ResourceAccessPoint::StaticRef(_) => true,
-            ResourceAccessPoint::Function(_) => false,
+            ResourceAccessPoint::MutRef(_) | ResourceAccessPoint::StaticRef(_) => true,
+            _ => false
         }
     }
 
@@ -144,31 +144,22 @@ impl ResourceAccessPoint {
 
     pub fn is_struct_group(&self) -> bool {
         match self {
-            ResourceAccessPoint::Owner(_) => false,
             ResourceAccessPoint::Struct(_) => true,
-            ResourceAccessPoint::MutRef(_) => false,
-            ResourceAccessPoint::StaticRef(_) => false,
-            ResourceAccessPoint::Function(_) => false,
+            _ => false
         }
     }
 
     pub fn is_struct(&self) -> bool {
         match self {
-            ResourceAccessPoint::Owner(_) => false,
-            ResourceAccessPoint::Struct(Struct{is_member, ..}) => !is_member.to_owned(),
-            ResourceAccessPoint::MutRef(_) => false,
-            ResourceAccessPoint::StaticRef(_) => false,
-            ResourceAccessPoint::Function(_) => false,
+            ResourceAccessPoint::Struct(Struct{is_member, ..}) => !is_member,
+            _ => false
         }
     }
 
     pub fn is_member(&self) -> bool {
         match self {
-            ResourceAccessPoint::Owner(_) => false,
-            ResourceAccessPoint::Struct(Struct{is_member, ..}) => is_member.to_owned(),
-            ResourceAccessPoint::MutRef(_) => false,
-            ResourceAccessPoint::StaticRef(_) => false,
-            ResourceAccessPoint::Function(_) => false,
+            ResourceAccessPoint::Struct(Struct{is_member, ..}) => *is_member,
+            _ => false
         }
     }
 
@@ -179,6 +170,20 @@ impl ResourceAccessPoint {
             ResourceAccessPoint::MutRef(MutRef{hash, ..}) => hash.to_owned(),
             ResourceAccessPoint::StaticRef(StaticRef{hash, ..}) => hash.to_owned(),
             ResourceAccessPoint::Function(Function{hash, ..}) => hash.to_owned(),
+        }
+    }
+
+    pub fn is_owner(&self) -> bool {
+        match self {
+            ResourceAccessPoint::Owner(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_fn(&self) -> bool {
+        match self {
+            ResourceAccessPoint::Function(_) => true,
+            _ => false
         }
     }
 }
@@ -419,8 +424,8 @@ impl State {
 // provide string output for usages like format!("{}", eventA)
 impl Display for Event {
     fn fmt(&self, f: &mut Formatter) -> Result {       
-        let mut from_ro = None;
-        let mut to_ro = None;
+        let mut from_ro: Option<ResourceAccessPoint> = None;
+        let mut to_ro: Option<ResourceAccessPoint> = None;
         let mut display = match self {
             Event::Acquire{ from } => { from_ro = from.to_owned(); "" },
             Event::Duplicate{ to } => { to_ro = to.to_owned(); "Copying resource" },
@@ -677,7 +682,7 @@ impl Visualizable for VisualizationData {
 
             (State::FullPrivilege, Event::RefGoOutOfScope) =>
                 State::OutOfScope,
-            
+
             (State::FullPrivilege, Event::StaticLend{ to: to_ro }) =>
                 State::PartialPrivilege {
                     borrow_count: 1,

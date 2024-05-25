@@ -4,4 +4,8 @@ fn main() {
 
     let mut y = String::from("huh");
     y = String::from("huh2");
+
+    let z = & mut x;
+    z = y;
+
 }

@@ -621,6 +621,7 @@ dependencies = [
  "regex",
  "rustc-plugin",
  "rustc_utils",
+ "rustviz-svg",
  "rustviz_library",
  "serde",
  "test-log",

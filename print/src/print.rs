@@ -1,5 +1,5 @@
 use crate::rustc_span::Pos;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashMap, BTreeMap, HashSet};
 use rustc_span::source_map::SourceMap;
 use aquascope::analysis::{AquascopeAnalysis,
   boundaries::PermissionsBoundary};
@@ -131,6 +131,7 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
   // TESTING HELPER STUFF
   let mut testing_helper: RV1Helper = RV1Helper::new();
   let mut line_map: BTreeMap<usize, String> = BTreeMap::new();
+  let mut line_map2: BTreeMap<usize, Vec<rustviz_lib::data::ExternalEvent>> = BTreeMap::new();
   match testing_helper.initialize_line_map() {
     Ok(l) => {
       line_map = l;
@@ -142,17 +143,21 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
   let a_map: BTreeMap<usize, String> = line_map.clone();
   let mut a_line_map: BTreeMap<usize, Vec<String>> = BTreeMap::new();
   let mut owner_to_hash: HashMap<String, usize> = HashMap::new();
+  let mut pre_events: Vec<(usize, rustviz_lib::data::ExternalEvent)> = Vec::new();
+  let mut rap_map: HashMap<String, rustviz_lib::data::ResourceAccessPoint> = HashMap::new();
   for k in a_map.keys() {
     a_line_map.insert(*k, vec![a_map[k].clone()]);
+    line_map2.insert(*k, vec![]);
   }
   let mut hash_num: usize = 1;
+  let mut rap_hash_num: usize = 1;
 
   // Generate a few things needed for later analysis. They
   // are basically things generated when compiling code.
   let mut access_point_map:HashMap<AccessPointUsage, usize> = HashMap::new();
 
   let mut declarations: Vec<String> = Vec::new();
-  let mut analysis_result: Vec<(u64, String)> = Vec::new();
+  //let analysis_result: Vec<(u64, String)> = Vec::new();
   let hir = tcx.hir().clone();
   
   for id in hir.items() {
@@ -184,7 +189,6 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
         let def_id = tcx.hir().body_owner_def_id(*body_id);
         let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, def_id);
         let body = &bwf.body;
-        let span = tcx.def_span(def_id);
         // Our analysis begins here. Things are printed out.
         // run the AquascopeAnalysis and get the result
         let result=AquascopeAnalysis::run(tcx,*body_id);
@@ -215,10 +219,14 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
               lifetime_map: HashMap::new(),
               current_scope: pos,
               borrow_map: HashMap::new(),
+              raps: &mut rap_map,
               analysis_result: HashMap::new(),
               owners: Vec::new(),
               name_to_access_point: HashMap::new(),
               event_line_map: & mut line_map,
+              event_line_map2: & mut line_map2,
+              preprocessed_events: & mut pre_events,
+              rap_hashes: rap_hash_num,
               source_map: & a_map,
               annotated_lines: & mut a_line_map,
               hash_map: & mut owner_to_hash,
@@ -231,6 +239,7 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
             declarations.extend(visitor.print_definitions());
             access_point_map.extend(visitor.access_points);
             hash_num = visitor.hashes;
+            rap_hash_num = visitor.rap_hashes;
           },
           Err(_) => {}
         }

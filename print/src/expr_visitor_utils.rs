@@ -1,4 +1,5 @@
 use crate::expr_visitor::{ExprVisitor, AccessPoint, AccessPointUsage, Reference};
+use rustc_hir::Mutability;
 
 // A small helper function
 pub fn extract_var_name(input_string: &str ) -> Option<String> {
@@ -45,4 +46,13 @@ pub fn string_of_access_point(a: &AccessPointUsage) -> String {
         AccessPointUsage::StaticRef(b) => { b.name.clone() },
         AccessPointUsage::Struct(b, _) => { b.name.clone() }
     }
+}
+
+pub fn bool_of_mut (m: Mutability) -> bool {
+  match m {
+    Mutability::Not => {
+      false
+    }
+    _ => { true }
+  }
 }

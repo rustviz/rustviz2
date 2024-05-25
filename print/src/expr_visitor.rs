@@ -3,13 +3,15 @@ use rustc_middle::{
     ty::{TyCtxt,Ty},
   };
   use rustc_hir::{Expr, ExprKind, QPath, Path, Mutability};
-  use std::collections::{HashMap, BTreeMap};
+  use std::collections::{HashMap, BTreeMap, HashSet};
   use rustc_span::Span;
   use aquascope::analysis::boundaries::PermissionsBoundary;
   use rustc_hir::{intravisit::Visitor, hir_id::HirId};
   use std::cmp::{Eq, PartialEq};
   use std::hash::Hash;
-  use crate::expr_visitor_utils::{extract_var_name, string_of_access_point};
+  use crate::expr_visitor_utils::*;
+  use rustviz_library::Rustviz;
+  use rustviz_lib::data::*;
 
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
@@ -34,20 +36,13 @@ pub enum Reference{
   Mut(String),
 }
 
-pub enum Event{
-  Bind(String),
-  Copy(String, String),
-  Move(String, String),
-  StaticBorrow(String, String),
-  MutableBorrow(String, String),
-  StaticDie(String, String),
-  MutableDie(String, String),
-  PassByStaticReference(String, String),
-  PassByMutableReference(String, String),
-  GoOutOfScope(String),
-  InitRefParam(String),
-  InitOwnerParam(String)
+#[derive(Eq, PartialEq,Hash, Clone, Debug)]
+pub enum LhsTy {
+  Unknown,
+  Deref,
+  Field,
 }
+
 
 pub struct ExprVisitor<'a, 'tcx:'a> {
   pub tcx: TyCtxt<'tcx>,
@@ -55,13 +50,17 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
   pub mutability_map: HashMap<String,Mutability>, // map owner name to mutablility status
   pub lifetime_map: HashMap<Reference,usize>,
-  pub borrow_map: HashMap<String, Option<AccessPointUsage>>,
+  pub borrow_map: HashMap<String, Option<ResourceAccessPoint>>, 
   pub access_points: HashMap<AccessPointUsage, usize>,
+  pub raps: &'a mut HashMap<String, ResourceAccessPoint>,
   pub current_scope: usize,
   pub analysis_result : HashMap<usize, Vec<String>>,
   pub owners: Vec<AccessPointUsage>,
   pub name_to_access_point: HashMap<String, AccessPointUsage>,
   pub event_line_map: & 'a mut BTreeMap<usize, String>,
+  pub event_line_map2: &'a mut BTreeMap<usize, Vec<ExternalEvent>>,
+  pub preprocessed_events: &'a mut Vec<(usize, ExternalEvent)>,
+  pub rap_hashes: usize,
   pub source_map: & 'a BTreeMap<usize, String>,
   pub annotated_lines: & 'a mut BTreeMap<usize, Vec<String>>,
   pub hash_map: & 'a mut HashMap<String, usize>,
@@ -102,6 +101,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  pub fn is_return_type_struct(&self, fn_expr: &Expr) -> bool {
+    false
+  }
+
   pub fn is_return_type_copyable(&self,fn_expr:&Expr)->bool{
     if let Some(return_type)=self.return_type_of(fn_expr){
       if return_type.walk().fold(false,|flag,item|{flag||item.expect_ty().is_ref()}) {
@@ -135,7 +138,41 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     self.owners.push(a);
   }
 
+  pub fn add_owner(&mut self, name: String, mutability: bool) {
+    self.add_rap(ResourceAccessPoint::Owner(Owner{name: name, hash: self.rap_hashes as u64, is_mut: mutability}));
+  }
 
+  pub fn add_ref(&mut self, name: String, mutability: bool) {
+    match mutability {
+      true => { self.add_mut_ref(name) }
+      false => { self.add_static_ref(name) }
+    }
+  }
+  
+  pub fn add_static_ref(&mut self, name: String) {
+    self.add_rap(ResourceAccessPoint::StaticRef(StaticRef { name: name, hash: self.rap_hashes as u64, is_mut: false }));
+  }
+
+  pub fn add_mut_ref(&mut self, name: String) {
+    self.add_rap(ResourceAccessPoint::MutRef(MutRef { name: name, hash: self.rap_hashes as u64, is_mut: true }));
+  }
+
+  pub fn add_fn(&mut self, name: String) {
+    self.add_rap(ResourceAccessPoint::Function(Function { name: name, hash: self.rap_hashes as u64 }));
+  }
+
+  pub fn add_struct(&mut self, name: String, owner: u64, mem: bool, mutability: bool) {
+    self.add_rap(ResourceAccessPoint::Struct(Struct { 
+      name: name, 
+      hash: self.rap_hashes as u64, 
+      owner: owner, 
+      is_mut: mutability, 
+      is_member: mem }));
+  }
+
+  pub fn add_rap(&mut self, r: ResourceAccessPoint) {
+    self.raps.entry(r.name().to_string()).or_insert_with(|| {self.rap_hashes += 1; r});
+  }
 
   pub fn add_event(&mut self, line_num: usize, event: String) {
     self.analysis_result
@@ -153,96 +190,56 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       }
     }
   }
-  
-  // pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool) {
-  //   let hash = *self.hash_map.entry(name.to_string()).or_insert_with(|| {
-  //     let current_hash = self.hashes;
-  //     self.hashes = (self.hashes + 1) % 10;
-  //     current_hash
-  //   });
 
-  //   let line: usize = self.span_to_line(&s);
-  //   let left:usize = self.tcx.sess.source_map().lookup_char_pos(s.lo()).col_display;
-  //   let right: usize = self.tcx.sess.source_map().lookup_char_pos(s.hi()).col_display;
+  pub fn add_external_event(&mut self, line_num: usize, evt: ExternalEvent) {
+    self.preprocessed_events.push((line_num, evt.clone()));
+    let v = self.event_line_map2.get_mut(&line_num).unwrap();
+    v.push(evt);
+  }
 
-  //   let mut line_contents:String = self.source_map.get(&line).unwrap().clone();
-  //   let replace_with: String = if is_func {
-  //       format!("<tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\">{}</tspan>", 0, hash, name)
-  //     } else {
-  //       format!("<tspan data-hash=\"{}\">{}</tspan>", hash, name)
-  //     };
-  //   line_contents.replace_range(left..right, &replace_with);
-  //   let v = self.annotated_lines.get_mut(&line).unwrap();
-  //   if !v.contains(&line_contents) {
-  //     v.push(line_contents);
-  //   }
-  // }
-
-  pub fn match_args(&mut self, line_num: usize, arg: &'tcx Expr, mut fn_name:String) {
+  pub fn match_args(&mut self, arg: &'tcx Expr, fn_name:String) {
+    let line_num = self.span_to_line(&arg.span);
     // add callee no matter what
     self.add_access_point(AccessPointUsage::Function(fn_name.clone()), fn_name.clone());
+    self.add_fn(fn_name.clone());
+    let fn_rap = self.raps.get(&fn_name).unwrap();
     match arg.kind {
       // arg is variable
       ExprKind::Path(QPath::Resolved(_,p))=>{
         let bytepos=p.span.lo();
         let boundary=self.boundary_map.get(&bytepos);
         let name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+        let arg_rap = self.raps.get(&name).unwrap();
         if let Some(boundary) = boundary {
           let expected=boundary.expected;
-          (name.clone(), p.span, false);
           if expected.drop{
+            self.add_external_event(line_num, ExternalEvent::Move { from: Some(arg_rap.to_owned()), to: Some(fn_rap.to_owned()) });
             self.add_event(line_num,format!("Move({}->{}())", name, fn_name));
           }
-          else if expected.write{                          
+          else if expected.write{           
+            self.add_external_event(line_num, ExternalEvent::PassByMutableReference { from: Some(arg_rap.to_owned()), to: Some(fn_rap.to_owned()) });               
             self.add_event(line_num,format!("PassByMutableReference({}->{}())", name, fn_name));
             self.update_lifetime(Reference::Mut(name), line_num);
           }
           else if expected.read{
+            self.add_external_event(line_num, ExternalEvent::PassByStaticReference { from: Some(arg_rap.to_owned()), to: Some(fn_rap.to_owned()) });      
             self.add_event(line_num,format!("PassByStaticReference({}->{}())", name, fn_name));
             self.update_lifetime(Reference::Static(name), line_num);
           }
         }
       }
-      // arg is ref
       ExprKind::AddrOf(_,mutability,expr)=>{        
-        // match expr.kind{
-        //   ExprKind::Path(QPath::Resolved(_,p))=>{
-        //     if let Some(name)=self.hirid_to_var_name(p.segments[0].hir_id){
-        //       if fn_name.contains("{") { // println (refers to formatting function {})
-        //         fn_name = "println".to_string(); // scuffed (and incorrect for other formatting cases)
-        //         let mut_reference=Reference::Mut(name.clone());
-        //         let sta_reference=Reference::Static(name.clone());
-        //         if self.lifetime_map.contains_key(&mut_reference) {
-        //           self.update_lifetime(mut_reference, line_num);
-        //         } else if self.lifetime_map.contains_key(&sta_reference) {
-        //           self.update_lifetime(sta_reference, line_num);
-        //         }
-        //       }
-        //       match mutability{
-        //         Mutability::Not=>{
-        //           self.add_event(line_num,format!("PassByStaticReference({}->{}())", name,fn_name));
-        //         }
-        //         Mutability::Mut=>{
-        //           self.add_event(line_num,format!("PassByMutableReference({}->{}())", name,fn_name));
-        //         }
-        //       }
-        //       self.access_points.insert(AccessPointUsage::Function(fn_name),self.current_scope);
-        //     }
-        //   }
-        //   _=>{
-            self.match_args(self.expr_to_line(expr), expr, fn_name);
-          //}
-        //}
+        self.match_args(expr, fn_name);
       }
       ExprKind::Call(fn_expr, fn_args) => { //functions can be parameters too
         let callee_name= self.hirid_to_var_name(fn_expr.hir_id).unwrap();
         // generate annotations for function call
         (callee_name.clone(), fn_expr.span, true);
         for a in fn_args.iter() {
-          self.match_args(self.expr_to_line(a), a, callee_name.clone());
+          self.match_args(a, callee_name.clone());
         }
         return;
-
+        // TODO: implement a way to visualize relationship from an anonymous owner/RAP -> 
         // if return type is not a reference
         if !self.is_return_type_ref(fn_expr){
           if self.is_return_type_copyable(fn_expr) {
@@ -275,12 +272,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           rustc_hir::UnOp::Deref => {
             match expr.kind {
               ExprKind::Path(QPath::Resolved(_,p))=>{
+                // TODO: implement a way to visualize events between/to dereferences
                 let bytepos=arg.span.lo(); // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not path
                 let boundary=self.boundary_map.get(&bytepos);
                 if let Some(boundary) = boundary {
                   let expected=boundary.expected;
                   let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-                  (name.clone(), p.span, false);
                   if expected.drop{
                     self.add_event(line_num,format!("Move({}->{}())", name, fn_name));
                   }
@@ -298,7 +295,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             }
           }
           _ => {
-            self.match_args(self.expr_to_line(&expr), expr, fn_name);
+            self.match_args( expr, fn_name);
           }
         }
       },
@@ -311,208 +308,166 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               let expected=boundary.expected;
               let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
               let field_name: String = id.as_str().to_owned();
-              (name.clone(), p.span, false);
-              (field_name.clone(), id.span, false); 
+              let mem_name = format!("{}.{}", name, field_name);
+              let arg_rap = self.raps.get(&mem_name).unwrap();
               if expected.drop{
-                self.add_event(line_num,format!("Move({}->{}())", format!("{}.{}", name, field_name), fn_name));
+                self.add_external_event(line_num, ExternalEvent::Move { from: Some(arg_rap.to_owned()), to: Some(fn_rap.to_owned()) });
+                self.add_event(line_num,format!("Move({}->{}())", name, fn_name));
               }
-              else if expected.write{                          
-                self.add_event(line_num,format!("PassByMutableReference({}->{}())", format!("{}.{}", name, field_name), fn_name));
+              else if expected.write{           
+                self.add_external_event(line_num, ExternalEvent::PassByMutableReference { from: Some(arg_rap.to_owned()), to: Some(fn_rap.to_owned()) });               
+                self.add_event(line_num,format!("PassByMutableReference({}->{}())", name, fn_name));
+                self.update_lifetime(Reference::Mut(name), line_num);
               }
               else if expected.read{
-                self.add_event(line_num,format!("PassByStaticReference({}->{}())", format!("{}.{}", name, field_name), fn_name));
+                self.add_external_event(line_num, ExternalEvent::PassByStaticReference { from: Some(arg_rap.to_owned()), to: Some(fn_rap.to_owned()) });      
+                self.add_event(line_num,format!("PassByStaticReference({}->{}())", name, fn_name));
+                self.update_lifetime(Reference::Static(name), line_num);
               }
             }
           }
           _ => { println!("wacky struct expr")}
         }
       }
-      _=>{}
+      _=>{ println!("unmatched arg") }
     }
-  }
-  
-  
-  // given a path (variable) determines if a move occurs on the line
-  fn determine_move(&self, path: &'tcx Path) -> bool {
-    let bytepos: rustc_span::BytePos = path.span.lo();
-    if let Some(boundary) = self.boundary_map.get(&bytepos){
-      return boundary.expected.drop
-    }
-    false
   }
 
-  // given an expression, determine if a move occured
-  fn determine_move_expr(&self, expr: &'tcx Expr) -> bool {
-    match expr.kind {
-      ExprKind::Path(QPath::Resolved(_,p)) => self.determine_move(p),
+  pub fn define_lhs(&mut self, lhs_name: String, lhs_mutability: bool, rhs: &'tcx Expr) {
+    match rhs.kind {
+      ExprKind::Path(QPath::Resolved(_, p)) => {
+        let line_num = self.span_to_line(&p.span);
+        let rhs_name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+        let rhs_rap = self.raps.get(&rhs_name).unwrap().to_owned();
+        if rhs_rap.is_owner() || rhs_rap.is_member() {
+          self.add_owner(lhs_name, lhs_mutability);
+        }
+        else if rhs_rap.is_struct() {
+          self.add_struct(lhs_name, self.rap_hashes as u64 , false, lhs_mutability);
+        }
+        else if rhs_rap.is_ref() {
+          self.add_ref(lhs_name, lhs_mutability);
+          self.borrow_map.insert(lhs_name.clone(), self.borrow_map.get(&rhs_name).unwrap().clone());
+          if rhs_rap.is_mutref() {
+            self.update_lifetime(Reference::Mut(lhs_name), line_num);
+          }
+          else {
+            self.update_lifetime(Reference::Static(lhs_name), line_num);
+          }
+        }
+      }
       ExprKind::Call(fn_expr, _) => {
-        if !self.is_return_type_ref(fn_expr){
-          !self.is_return_type_copyable(fn_expr)
-        }
-        else {
-          let return_type = self.return_type_of(fn_expr).unwrap();
-          let mutability = return_type.ref_mutability().unwrap();
-              match mutability{
-                // if rhs is mutable ref then a move must occur
-                Mutability::Mut=>{
-                  true
-                }
-                // Reference should be copied
-                Mutability::Not=>{
-                  false
-                }
-              }
-            }
-        }
-      ExprKind::Block(..) => {
-        // TODO: implement
-        false
+        let line_num = self.span_to_line(&fn_expr.span);
+        let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+        self.add_fn(fn_name);
+        let rhs_rap = self.raps.get(&fn_name).unwrap().to_owned();
+        
       }
-      ExprKind::MethodCall(..) => {
-        false         // TODO: implement
-      }
-      _ => { false } // TODO: implement, at least for expressions we care about
     }
   }
 
   // match the Right-hand-side of an expression
-  pub fn match_rhs(&mut self, lhs:AccessPoint, rhs:&'tcx Expr, is_deref: bool){
-    let lhs_var=lhs.name.clone();
-    let line_num = self.expr_to_line(rhs);
+  // TODO: need to modify this function for when lhs is a field, dereference
+  pub fn match_rhs(
+    &mut self, 
+    lhs_name: String, 
+    lhs_mutability: bool, 
+    rhs:&'tcx Expr, 
+    is_deref: bool){
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
+        let line_num = self.span_to_line(&p.span);
         let bytepos=p.span.lo();
-        let name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        (name.clone(), p.segments[0].ident.span, false);
-        // Use aquascope analysis to give information about this path: is it mut, copyable, etc
+        let rhs_name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
         let boundary=self.boundary_map.get(&bytepos);
-        //println!("rhs name: {}, line: {}, lo: {:#?}, hi: {:#?}", name, self.expr_to_line(rhs), self.tcx.sess.source_map().lookup_char_pos(rhs.span.lo()), self.tcx.sess.source_map().lookup_char_pos(rhs.span.hi()));
         // This if statement checks: Is something the path p actually happening here - see aquascope/analysis/boundaries/mod.rs for more info
         if let Some(boundary) = boundary {
-          if let Some(rhs_mut)=self.mutability_map.get(&name){
-            // will have to change this for structs
-            let rhs = AccessPoint{mutability:*rhs_mut,name:name.clone(), members: None};
-            // use aqua analysis to see if rhs is dropped (ie rhs is mut)
-            if boundary.expected.drop {
-              if is_deref {
-                self.add_event(line_num, format!("Move({}->*{})", name, lhs_var));
-              }
-              else {
-                self.add_event(line_num, format!("Move({}->{})", name, lhs_var));
-              }
-              if self.access_points.contains_key(&AccessPointUsage::Owner(rhs.clone())){
-                self.add_access_point(AccessPointUsage::Owner(lhs), lhs_var);
-              }
-              // let a = b (where b is a mut ref)
-              else {
-                self.add_access_point(AccessPointUsage::MutRef(lhs), lhs_var.clone());
-                let owner =self.borrow_map.get(&name).unwrap();
-                // lhs is borrowing from another owner (rhs)
-                if let Some(owner)=owner{
-                  self.borrow_map.insert(lhs_var.clone(),Some(owner.clone()));
-                }
-                else {
-                  self.borrow_map.insert(lhs_var.clone(),None);
-                }
-                self.update_lifetime(Reference::Mut(name), line_num);
-                self.update_lifetime(Reference::Mut(lhs_var), line_num);
-              }
+          // will have to change this for structs
+          let rhs_mut = self.mutability_map.get(&rhs_name).unwrap();
+          let rhs_rap = self.raps.get(&rhs_name).unwrap().to_owned();
+          if rhs_rap.is_owner() {
+            self.add_owner(lhs_name, lhs_mutability);
+          }
+          else if rhs_rap.is_struct() { //TODO: Add support for structs
+
+          }
+          else if rhs_rap.is_ref() {
+            self.add_ref(lhs_name, lhs_mutability);
+            let owner = self.borrow_map.get(&rhs_name).unwrap();
+            self.borrow_map.insert(lhs_name.clone(), owner.clone());
+            if lhs_mutability { // mut ref
+              self.update_lifetime(Reference::Mut(rhs_name), line_num);
+              self.update_lifetime(Reference::Mut(lhs_name), line_num);
             }
-            // Else a copy occurs (no drop)
-            else {
-              if is_deref {
-                self.add_event(line_num, format!("Copy({}->*{})", name, lhs_var));
-              }
-              else {
-                self.add_event(line_num, format!("Copy({}->{})", name, lhs_var));
-              }
-              // if rhs is an owner then lhs is an owner
-              if self.access_points.contains_key(&AccessPointUsage::Owner(rhs.clone())){
-                self.add_access_point(AccessPointUsage::Owner(lhs), lhs_var);
-              }
-              // else rhs is a static ref
-              else {
-                self.add_access_point(AccessPointUsage::StaticRef(lhs), lhs_var.clone());
-                if let Some(owner)=self.borrow_map.get(&name){
-                  if let Some(owner)=owner{
-                    self.borrow_map.insert(lhs_var.clone(),Some(owner.clone()));
-                  }
-                  else {
-                    self.borrow_map.insert(lhs_var.clone(),None);
-                  }
-                }
-                // lifetimes updated when as borrow occurs
-                self.update_lifetime(Reference::Static(name), line_num);
-                self.update_lifetime(Reference::Static(lhs_var), line_num);
-              }
+            else { // static ref
+              self.update_lifetime(Reference::Static(rhs_name), line_num);
+              self.update_lifetime(Reference::Static(lhs_name), line_num);
             }
+          }
+          else {
+            panic!("invalid rhs_rap");
+          }
+          
+          let lhs_rap = self.raps.get(&lhs_name).unwrap().to_owned();
+          // use aqua analysis to see if rhs is dropped (ie rhs is mut)
+          if boundary.expected.drop { // if a resource is being dropped -> a move occurs
+            self.add_external_event(line_num, ExternalEvent::Move { from: Some(rhs_rap), to: Some(lhs_rap) });
+          }
+          else { // a copy occurs
+            self.add_external_event(line_num, ExternalEvent::Copy { from: Some(rhs_rap), to: Some(lhs_rap) });
           }
         }   
       },
       // fn_expr: resolves to function itself (Path)
       // second arg, is a list of args to the function
       ExprKind::Call(fn_expr, _) => {
+        let line_num = self.span_to_line(&fn_expr.span);
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+        self.add_fn(fn_name);
+        let rhs_rap = self.raps.get(&fn_name).unwrap().to_owned();
         // if return type is not a reference
         if !self.is_return_type_ref(fn_expr){
-          if self.is_return_type_copyable(fn_expr) {
-            if is_deref {
-              self.add_event(line_num, format!("Copy({}()->*{})", fn_name, lhs_var));
-            }
-            else {
-              self.add_event(line_num, format!("Copy({}()->{})", fn_name, lhs_var));
-            }
+          if self.is_return_type_struct(fn_expr) { // TODO: how to implement when fn returns a struct
+
           }
           else {
-            if is_deref {
-              self.add_event(line_num, format!("Move({}()->*{})", fn_name, lhs_var));;
-            }
-            else {
-              self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
-            }
+            self.add_owner(lhs_name, lhs_mutability);
           }
-          (fn_name.clone(), fn_expr.span, true);
-          self.add_access_point(AccessPointUsage::Owner(lhs), lhs_var);
+          let lhs_rap = self.raps.get(&lhs_name).unwrap().to_owned();
+          if self.is_return_type_copyable(fn_expr) {
+            self.add_external_event(line_num, ExternalEvent::Copy { from: Some(rhs_rap), to: Some(lhs_rap) });
+          }
+          else {
+            self.add_external_event(line_num, ExternalEvent::Move { from: Some(rhs_rap), to: Some(lhs_rap) });
+          }
         }
         // return type is a reference
         else {
-          if let Some(return_type)=self.return_type_of(fn_expr){
-            self.borrow_map.insert(lhs_var.clone(),None); //borrowing from none
-            if let Some(mutability)=return_type.ref_mutability(){
+          self.add_ref(lhs_name, lhs_mutability);
+          let lhs_rap = self.raps.get(&lhs_name).unwrap().to_owned();
+          if let Some(return_type) = self.return_type_of(fn_expr){
+            self.borrow_map.insert(lhs_name.clone(),None); //borrowing from an anonymous owner
+            if let Some(mutability) = return_type.ref_mutability(){
               match mutability{
-                // if rhs is mutable ref then a move must occur
-                Mutability::Mut=>{
-                  if is_deref {
-                    self.add_event(line_num, format!("Move({}()->*{})", fn_name, lhs_var));;
-                  }
-                  else {
-                    self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
-                  }
-                  self.add_access_point(AccessPointUsage::MutRef(lhs), lhs_var.clone());
-                  self.update_lifetime(Reference::Mut(lhs_var), line_num);
+                Mutability::Mut=>{ // if rhs is mutable ref then a move must occur
+                  self.add_external_event(line_num, ExternalEvent::Move { from: Some(rhs_rap), to: Some(lhs_rap) });
+                  self.update_lifetime(Reference::Mut(lhs_name), line_num);
                 }
-                // Reference should be copied
-                Mutability::Not=>{
-                  if is_deref {
-                    self.add_event(line_num, format!("Copy({}()->*{})", fn_name, lhs_var));
-                  }
-                  else {
-                    self.add_event(line_num, format!("Copy({}()->{})", fn_name, lhs_var));
-                  }
-                  self.add_access_point(AccessPointUsage::StaticRef(lhs), lhs_var.clone());
-                  self.update_lifetime(Reference::Static(lhs_var), line_num);
+                Mutability::Not=>{ // static reference should be copied
+                  self.add_external_event(line_num, ExternalEvent::Copy { from: Some(rhs_rap), to: Some(lhs_rap) });
+                  self.update_lifetime(Reference::Static(lhs_name), line_num);
                 }
               }
             }
           }
         }
-        self.add_access_point(AccessPointUsage::Function(fn_name.clone()), fn_name);
       },
       // Any type of literal on RHS implies a bind
       ExprKind::Lit(_) => {
-        match self.name_to_access_point.get(&lhs_var) {
+        let line_num = self.span_to_line(&rhs.span);
+        match self.raps.get(&lhs_name) {
           None => {
-            self.add_event(line_num, format!("Bind({})", lhs_var));
+            self.add_event(line_num, format!("Bind({})", lhs_name));
             self.add_access_point(AccessPointUsage::Owner(lhs.clone()), lhs_var);
           }
           Some(p) => {
@@ -520,10 +475,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               AccessPointUsage::MutRef(_) => {}
               _ => {
                 // this is to prevent re-annotation of binds for mutable variables
-                if lhs.mutability == Mutability::Not {
-                  self.add_event(line_num, format!("Bind({})", lhs_var));
-                  self.add_access_point(AccessPointUsage::Owner(lhs.clone()), lhs_var);
-                }
+                self.add_event(line_num, format!("Bind({})", lhs_var));
+                self.add_access_point(AccessPointUsage::Owner(lhs.clone()), lhs_var);
               }
             }
           }
@@ -534,6 +487,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         match expr.kind{
           // only handling paths so far, could technically be other expr kind
           ExprKind::Path(QPath::Resolved(_,p))=>{
+            let line_num = self.span_to_line(&p.span);
             let name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             if let Some(ref_to) = self.name_to_access_point.get(&name) {
               self.borrow_map.insert(lhs_var.clone(),Some(ref_to.clone()));
@@ -589,6 +543,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       }
       // A binary operation (e.g., <expr> + <expr>, <expr> * <expr>).
       ExprKind::Binary(..) => {
+        let line_num = self.span_to_line(&rhs.span);
         if lhs.mutability == Mutability::Not && !is_deref && lhs.name != "None" {
           self.add_event(line_num, format!("Bind({})", lhs_var));
           self.add_access_point(AccessPointUsage::Owner(lhs), lhs_var);
@@ -602,6 +557,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             // find span corresponding to deref operator (this is the byte pos that's stored in the boundary map)
             match expr.kind {
               ExprKind::Path(QPath::Resolved(_,p))=>{
+                let line_num = self.span_to_line(&p.span);
                 let lhs_name = lhs.name.clone();
                 let bytepos=rhs.span.lo(); // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not path
                 let boundary=self.boundary_map.get(&bytepos);
@@ -643,6 +599,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
           // ! and ~ operators
           _ => {
+            let line_num = self.span_to_line(&expr.span);
             if lhs.mutability == Mutability::Not && !is_deref {
               self.add_event(line_num, format!("Bind({})", lhs_var));
               self.add_access_point(AccessPointUsage::Owner(lhs), lhs_var);
@@ -651,53 +608,56 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         }
       },
       ExprKind::MethodCall(name_and_generic_args, rcvr, args, _) => {
-          let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
-          let type_check = self.tcx.typeck(name_and_generic_args.hir_id.owner);
-          self.add_access_point(AccessPointUsage::Function(fn_name.clone()), fn_name.clone());
-          if let Some(return_type) = type_check.node_type_opt(rhs.hir_id){
-            if !return_type.is_ref(){
-              if return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(name_and_generic_args.hir_id.owner)) {
-                if is_deref {
-                  self.add_event(line_num, format!("Copy({}()->*{})", fn_name, lhs_var));
-                }
-                else { 
-                  self.add_event(line_num, format!("Copy({}()->{})", fn_name, lhs_var)); 
-                  self.add_access_point(AccessPointUsage::Owner(lhs.clone()), lhs_var);
-                }
+        let line_num = self.span_to_line(&rcvr.span);
+        let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
+        let type_check = self.tcx.typeck(name_and_generic_args.hir_id.owner);
+        self.add_access_point(AccessPointUsage::Function(fn_name.clone()), fn_name.clone());
+        if let Some(return_type) = type_check.node_type_opt(rhs.hir_id){
+          if !return_type.is_ref(){
+            if return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(name_and_generic_args.hir_id.owner)) {
+              if is_deref {
+                self.add_event(line_num, format!("Copy({}()->*{})", fn_name, lhs_var));
               }
-              else {
-                if is_deref {
-                  self.add_event(line_num, format!("Move({}()->*{})", fn_name, lhs_var));
-                }
-                else {
-                  self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
-                  self.add_access_point(AccessPointUsage::Owner(lhs.clone()), lhs_var);
-                }
+              else { 
+                self.add_event(line_num, format!("Copy({}()->{})", fn_name, lhs_var)); 
+                self.add_access_point(AccessPointUsage::Owner(lhs.clone()), lhs_var);
               }
             }
             else {
-              self.borrow_map.insert(lhs_var.clone(),None);
-              if let Some(mutability)=return_type.ref_mutability(){
-                match mutability{
-                  Mutability::Mut=>{
-                    self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
-                    self.add_access_point(AccessPointUsage::MutRef(lhs), lhs_var.clone());
-                    self.update_lifetime(Reference::Mut(lhs_var), line_num);
-                  }
-                  Mutability::Not=>{
-                    self.add_event(line_num, format!("Copy({}()->{})",fn_name, lhs_var));
-                    self.add_access_point(AccessPointUsage::StaticRef(lhs), lhs_var.clone());
-                    self.update_lifetime(Reference::Static(lhs_var), line_num);
-                  }
+              if is_deref {
+                self.add_event(line_num, format!("Move({}()->*{})", fn_name, lhs_var));
+              }
+              else {
+                self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
+                self.add_access_point(AccessPointUsage::Owner(lhs.clone()), lhs_var);
+              }
+            }
+          }
+          else {
+            self.borrow_map.insert(lhs_var.clone(),None);
+            if let Some(mutability)=return_type.ref_mutability(){
+              match mutability{
+                Mutability::Mut=>{
+                  self.add_event(line_num, format!("Move({}()->{})", fn_name, lhs_var));
+                  self.add_access_point(AccessPointUsage::MutRef(lhs), lhs_var.clone());
+                  self.update_lifetime(Reference::Mut(lhs_var), line_num);
+                }
+                Mutability::Not=>{
+                  self.add_event(line_num, format!("Copy({}()->{})",fn_name, lhs_var));
+                  self.add_access_point(AccessPointUsage::StaticRef(lhs), lhs_var.clone());
+                  self.update_lifetime(Reference::Static(lhs_var), line_num);
                 }
               }
-            }      
+            }
+          }      
         }      
       }
       // Struct intializer list:
       // ex struct = {a: <expr>, b: <expr>, c: <expr>}
       ExprKind::Struct(_qpath, expr_fields, _base) => {
-        // LHS must be a struct 
+        // LHS must be a struct
+        let line_num = self.span_to_line(&rhs.span);
+        //TODO: check what kind of QPath this is
         self.add_event(line_num, format!("Bind({})", lhs.name));
         let mut field_vec: Vec<AccessPoint> = Vec::new();
         // Insert Struct into access points -> with members
@@ -716,6 +676,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Field(expr, id) => {
         match expr {
           Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
+            let line_num = self.span_to_line(&p.span);
             let bytepos=p.span.lo(); // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not path
             let boundary=self.boundary_map.get(&bytepos);
             if let Some(boundary) = boundary {
