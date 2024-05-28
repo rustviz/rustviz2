@@ -2,7 +2,7 @@ use anyhow::Result;
 // svg_generator
 mod parse;
 use rustviz_lib::svg_frontend::svg_generation;
-use rustviz_lib::data::VisualizationData;
+use rustviz_lib::data::{ExternalEvent, ResourceAccessPoint, VisualizationData};
 
 use std::collections::BTreeMap;
 
@@ -12,22 +12,22 @@ pub struct Rustviz{
 }
 
 impl Rustviz {
-  pub fn new(a_src_str: &str, src_str: &str, main_str: &str) -> Result<Rustviz>{
+  pub fn new(a_src_str: &str, src_str: &str, p_evts: Vec<(usize, ExternalEvent)> , ev_map: BTreeMap<usize, Vec<ExternalEvent>>) -> Result<Rustviz>{
     /* ******************************************
             --- Parse main.rs file ---
     ****************************************** */
-    let (contents, line_num, var_map) = parse::parse_vars_to_map(main_str)?;
-    let events = parse::extract_events(contents, line_num)?;
+    // let (contents, line_num, var_map) = parse::parse_vars_to_map(main_str)?;
+    // let events = parse::extract_events(contents, line_num)?;
     /* ******************************************
             --- Build VisualizationData ---
     ****************************************** */
     let mut vd = VisualizationData {
       timelines: BTreeMap::new(),
       external_events: Vec::new(),
-      preprocess_external_events: Vec::new(),
-      event_line_map: BTreeMap::new()
+      preprocess_external_events: p_evts,
+      event_line_map: ev_map
     };
-    parse::add_events(&mut vd, var_map, events)?;
+    // parse::add_events(&mut vd, var_map, events)?;
     /* ******************************************
             --- Render SVG images ---
     ****************************************** */

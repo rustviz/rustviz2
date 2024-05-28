@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use rustviz_lib::data::ExternalEvent;
 use crate::expr_visitor::AccessPointUsage;
 use std::collections::{HashMap, BTreeMap};
 use std::{path::PathBuf, fs};
@@ -54,47 +55,57 @@ impl RV1Helper {
     return Ok(line_map);
   }
 
-  pub fn generate_vis(& mut self, line_map: & mut BTreeMap<usize, String>, owners: &Vec<String>, a_map: &BTreeMap<usize, Vec<String>>) -> Result<()> {
-    let mut main_str = String::new();
+  pub fn generate_vis(& mut self, mut line_map: BTreeMap<usize, Vec<ExternalEvent>>, p_events: Vec<(usize, ExternalEvent)>, a_map: &BTreeMap<usize, Vec<String>>) -> Result<()> {
+    //let mut main_str = String::new();
 
     // add closing brace for event strings
-    for (_, value) in line_map.iter_mut(){
-      if value.contains("//") {
-        value.push_str(" }");
-      }
-    }
+    // for (_, value) in line_map.iter_mut(){
+    //   if value.contains("//") {
+    //     value.push_str(" }");
+    //   }
+    // }
   
     // add variable definitions
-    main_str.push_str("/* --- BEGIN Variable Definitions ---\n");
-    for name in owners {
-      if name.contains("Not") {
-        let n = name.replace("Not", "");
-        main_str.push_str(&(n + "\n"));
-      }
-      else if name.contains("Mut") && !name.contains("MutRef") {
-        let n = name.replace("Mut", "mut");
-        main_str.push_str(&(n + "\n"));
-      }
-      else {
-        main_str.push_str(&(name.to_owned() + "\n"));
+    // main_str.push_str("/* --- BEGIN Variable Definitions ---\n");
+    // for name in owners {
+    //   if name.contains("Not") {
+    //     let n = name.replace("Not", "");
+    //     main_str.push_str(&(n + "\n"));
+    //   }
+    //   else if name.contains("Mut") && !name.contains("MutRef") {
+    //     let n = name.replace("Mut", "mut");
+    //     main_str.push_str(&(n + "\n"));
+    //   }
+    //   else {
+    //     main_str.push_str(&(name.to_owned() + "\n"));
+    //   }
+    // }
+    // main_str.push_str("--- END Variable Definitions --- */\n");
+  
+  
+    // // add the rest from the line map
+    // for (_, value) in line_map {
+    //   main_str.push_str(&(value.to_owned() + "\n"));
+    // }
+    let mut keys_to_remove: Vec<usize> = Vec::new();
+    for (k, v) in line_map.iter() {
+      if v.is_empty() {
+        keys_to_remove.push(*k);
       }
     }
-    main_str.push_str("--- END Variable Definitions --- */\n");
-  
-  
-    // add the rest from the line map
-    for (_, value) in line_map {
-      main_str.push_str(&(value.to_owned() + "\n"));
+
+    for k in keys_to_remove.iter() {
+      line_map.remove(k);
     }
 
     let annotated_source_str: String = generate_annotated_src(a_map);
-    println!("MAIN :\n {}", main_str);
-    println!("SOURCE : \n{}", self.source_str);
-    println!("ANNOTATED : \n{}", annotated_source_str);
+    // println!("MAIN :\n {}", main_str);
+    // println!("SOURCE : \n{}", self.source_str);
+    // println!("ANNOTATED : \n{}", annotated_source_str);
 
 
     // send stuff to RV1
-    let rv = Rustviz::new(&annotated_source_str, &self.source_str, &main_str)?;
+    let rv = Rustviz::new(&annotated_source_str, &self.source_str, p_events, line_map)?;
 
     self.source_path.pop(); // just write to inside cwd
     let code_panel_path: PathBuf = self.source_path.join("vis_code.svg");

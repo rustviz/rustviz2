@@ -1,10 +1,9 @@
 fn main() {
-    let x = 5;
-    let y = x;
-    takes_int(y);
+    let s = String::from("hello");
+    takes_ownership(s);
+    // println!("{}", s) // won't compile if added
 }
 
-
-fn takes_int(a: i32) {
-    
+fn takes_ownership(some_string: String) {
+    println!("{}", some_string);
 }

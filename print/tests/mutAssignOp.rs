@@ -1,3 +1,8 @@
+struct appy {
+  a: u32
+}
+
+
 fn main() {
     let mut x = 5;
     x += 5;
@@ -6,6 +11,9 @@ fn main() {
     y = String::from("huh2");
 
     let z = & mut x;
-    z = y;
+    let y = &String::from("");
+    let z = y;
+    let z2 = & appy {a: 4};
+
 
 }

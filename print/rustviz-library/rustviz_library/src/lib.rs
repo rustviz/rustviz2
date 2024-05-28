@@ -28,6 +28,8 @@ impl Rustviz {
       event_line_map: BTreeMap::new()
     };
     parse::add_events(&mut vd, var_map, events)?;
+    println!("P EVENTS: {:#?}", vd.preprocess_external_events);
+    println!("EV LINE MAP {:#?}", vd.event_line_map);
     /* ******************************************
             --- Render SVG images ---
     ****************************************** */
