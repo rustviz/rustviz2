@@ -25,14 +25,13 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     match param.pat.kind {
       PatKind::Binding(binding_annotation, _ann_hirid, ident, _op_pat) =>{
         let name: String = ident.to_string();
-        self.annotate_src(name.clone(), ident.span, false);
         if ty.is_ref() {
-          self.add_ref(name.clone(), bool_of_mut(binding_annotation.1), line_num);
+          self.add_ref(name.clone(), bool_of_mut(ty.ref_mutability().unwrap()), line_num);
           self.borrow_map.insert(name.clone(), None); // ref parameters don't have an underlying owner they are borrowing from
           //self.add_event(line_num,format!("InitRefParam({})",name));
           self.add_external_event(line_num, ExternalEvent::InitRefParam { param: self.raps.get(&name).unwrap().0.to_owned() });
         }
-        else if ty.is_adt(){ // kind of weird given we don't have a InitStructParam
+        else if ty.is_adt() && !self.ty_is_special_owner(ty){ // kind of weird given we don't have a InitStructParam
           let owner_hash = self.rap_hashes as u64;
           self.add_struct(name.clone(), owner_hash, false, bool_of_mut(binding_annotation.1));
           for field in ty.ty_adt_def().unwrap().all_fields() {
@@ -45,6 +44,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           self.add_owner(name.clone(), bool_of_mut(binding_annotation.1));
           self.add_external_event(line_num, ExternalEvent::Move { from: None, to: Some(self.raps.get(&name).unwrap().0.to_owned())});
         }
+        self.annotate_src(name.clone(), ident.span, false, *self.raps.get(&name).unwrap().0.hash());
       }
       _=>{}
     }
@@ -79,11 +79,18 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                   _ => {}
                 }
               }
-              _ => {}
+              _ => {
+                let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+                self.add_fn(fn_name.clone());
+                for arg in args.iter(){
+                  self.match_args(&arg, fn_name.clone());
+                }
+              }
             }
           }
           _ => {
             let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+            self.add_fn(fn_name.clone());
             for arg in args.iter(){
               self.match_args(&arg, fn_name.clone());
             }
@@ -97,7 +104,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         // println!("caller local id {:#?}", rcvr.hir_id.local_id);
         let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
         let fn_name =self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
+        self.add_fn(fn_name.clone());
         let rcvr_rap = self.raps.get(&rcvr_name).unwrap().0.to_owned();
+        self.update_rap(&rcvr_rap, line_num);
         let fn_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
         // typecheck the whole function body
         let adjustment_map = self.tcx.typeck(name_and_generic_args.hir_id.owner).adjustments();
@@ -164,6 +173,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       }
 
       ExprKind::Unary(UnOp::Deref, exp) => { self.visit_expr(exp) }
+      ExprKind::Path(QPath::Resolved(_,p)) => {
+        let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+        let r = &self.raps.get(&name).unwrap().0.clone();
+        let line_num = self.span_to_line(&p.span);
+        self.update_rap(r, line_num);
+      }
       
       _ => {
         intravisit::walk_expr(self, expr);
@@ -171,7 +186,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     }
   }
   fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
-    self.annotate_stmt(statement);
     match statement.kind {
       StmtKind::Local(ref local) => self.visit_local(local),
       StmtKind::Item(item) => self.visit_nested_item(item),
@@ -179,6 +193,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           self.visit_expr(expression)
       }
     }
+    self.annotate_stmt(statement);
   }
 
   // locals are let statements: let <pat>:<ty> = <expr>
@@ -186,12 +201,17 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     match local.pat.kind {
       PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) => {
         let lhs_var:String = ident.to_string();
+        let tycheck_results = self.tcx.typeck(ann_hirid.owner);
+        let lhs_ty = tycheck_results.node_type(ann_hirid);
+        // println!("TY OF LHS: {:#?}", tycheck_results.node_type(ann_hirid));
+        // println!("sorted lhs string {:#?}", tycheck_results.node_type(ann_hirid).sort_string(self.tcx));
+        // println!("sorted lhs string {:#?}", tycheck_results.node_type(ann_hirid).prefix_string(self.tcx));
         // annotate left side of let statement
         //self.mutability_map.insert(lhs_var.clone(), binding_annotation.1);
         match local.init { // init refers to RHS of let
           Some(expr) => {
             self.visit_expr(expr);
-            self.define_lhs(lhs_var.clone(), bool_of_mut(binding_annotation.1), expr);
+            self.define_lhs(lhs_var.clone(), bool_of_mut(binding_annotation.1), expr, lhs_ty);
             self.match_rhs(Some(self.raps.get(&lhs_var).unwrap().0.to_owned()), expr);
             // println!("lhs RAP :{:#?}", self.raps.get(&lhs_var).unwrap());
               // self.visit_expr(expr); -- may not be a bad idea to visit rhs expr then match it

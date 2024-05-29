@@ -70,8 +70,7 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub rap_hashes: usize,
   pub source_map: & 'a BTreeMap<usize, String>,
   pub annotated_lines: & 'a mut BTreeMap<usize, Vec<String>>,
-  pub hash_map: & 'a mut HashMap<String, usize>,
-  pub hashes: usize
+  pub id_map: & 'a mut HashMap<String, usize>,
 }
 
 impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
@@ -365,29 +364,29 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         match expr {
           Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
             let bytepos=arg.span.lo(); // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not path
+            let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+            let mem_name = format!("{}.{}", name, id.as_str());
+            let arg_rap = self.raps.get(&mem_name).unwrap().0.to_owned();
+            self.update_rap(&arg_rap, line_num);
             let boundary=self.boundary_map.get(&bytepos);
             if let Some(boundary) = boundary {
               let expected=boundary.expected;
-              let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-              let mem_name = format!("{}.{}", name, id.as_str());
-              let arg_rap = self.raps.get(&mem_name).unwrap().0.to_owned();
+              
               if expected.drop{
                 self.add_ev(line_num, Evt::Move, Some(fn_rap), Some(arg_rap));
               }
               else if expected.write{           
                 self.add_ev(line_num, Evt::PassByMRef, Some(fn_rap), Some(arg_rap));
-                self.update_lifetime(Reference::Mut(name), line_num);
               }
               else if expected.read{
                 self.add_ev(line_num, Evt::PassBySRef, Some(fn_rap), Some(arg_rap));
-                self.update_lifetime(Reference::Static(name), line_num);
               }
             }
           }
           _ => { println!("wacky struct expr")}
         }
       }
-      _=>{ println!("unmatched arg") }
+      _=>{ }
     }
   }
 
@@ -438,42 +437,46 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn define_lhs(&mut self, lhs_name: String, lhs_mutability: bool, rhs_expr: &'tcx Expr) {
+  pub fn ty_is_special_owner (&self, t:Ty<'tcx>) -> bool {
+    match &*t.sort_string(self.tcx) {
+      "`std::string::String`" => { true }
+      _ => {
+        println!("t {}", &*t.sort_string(self.tcx));
+        false
+      }
+    }
+  }
+
+  pub fn define_lhs(&mut self, lhs_name: String, lhs_mutability: bool, rhs_expr: &'tcx Expr, lhs_ty: Ty <'tcx>) {
     let tycheck_results = self.tcx.typeck(rhs_expr.hir_id.owner);
-    match tycheck_results.expr_ty_opt(rhs_expr) {
-      Some(t) => {
-        if t.is_ref() {
-          self.add_ref(lhs_name.clone(), lhs_mutability, self.expr_to_line(&rhs_expr));
-          self.borrow_map.insert(lhs_name, self.find_lender(rhs_expr));
-        }
-        else if t.is_adt() {
-          match t.ty_adt_def().unwrap().adt_kind() {
-            AdtKind::Struct => {
-              let owner_hash = self.rap_hashes as u64;
-              self.add_struct(lhs_name.clone(), owner_hash, false, lhs_mutability);
-              for field in t.ty_adt_def().unwrap().all_fields() {
-                let field_name = format!("{}.{}", lhs_name.clone(), field.name.as_str());
-                self.add_struct(field_name, owner_hash, true, lhs_mutability);
-              }
-            },
-            AdtKind::Union => {
-              panic!("lhs union not implemented yet")
-            },
-            AdtKind::Enum => {
-              panic!("lhs enum not implemented yet")
-            }
+    //println!("NODE TYPES {:#?}", tycheck_results.node_types().items_in_stable_order());
+    if lhs_ty.is_ref() {
+      self.add_ref(lhs_name.clone(), bool_of_mut(lhs_ty.ref_mutability().unwrap()), self.expr_to_line(&rhs_expr));
+      self.borrow_map.insert(lhs_name, self.find_lender(rhs_expr));
+    }
+    else if lhs_ty.is_adt() && !self.ty_is_special_owner(lhs_ty) {
+      match lhs_ty.ty_adt_def().unwrap().adt_kind() {
+        AdtKind::Struct => {
+          let owner_hash = self.rap_hashes as u64;
+          self.add_struct(lhs_name.clone(), owner_hash, false, lhs_mutability);
+          for field in lhs_ty.ty_adt_def().unwrap().all_fields() {
+            let field_name = format!("{}.{}", lhs_name.clone(), field.name.as_str());
+            self.add_struct(field_name, owner_hash, true, lhs_mutability);
           }
-        }
-        else if t.is_fn() {
-          panic!("cannot have fn as lhs of expr");
-        }
-        else { 
-          self.add_owner(lhs_name, lhs_mutability);
+        },
+        AdtKind::Union => {
+          panic!("lhs union not implemented yet")
+        },
+        AdtKind::Enum => {
+          panic!("lhs enum not implemented yet")
         }
       }
-      None => {
-        panic!("lhs_expr could not be typechecked")
-      }
+    }
+    else if lhs_ty.is_fn() {
+      panic!("cannot have fn as lhs of expr");
+    }
+    else { 
+      self.add_owner(lhs_name, lhs_mutability);
     }
   }
 
@@ -572,7 +575,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       => {
         let line_num = self.span_to_line(&rhs.span);
         if let Some(lhs) = lhs {
-          println!("adding bind");
           self.add_ev(line_num, Evt::Bind, Some(lhs), None);
         }
         else {
@@ -712,57 +714,32 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
   
-  // pub fn print_definitions(&mut self) -> Vec<String> {
-  //   let mut declarations : Vec<String> = Vec::new();
-    
-  //   for point in &self.owners {
-  //     let owner_name: String = 
-  //       match point {
-  //         AccessPointUsage::Owner(p)=>{
-  //           format!("Owner {:?} {};",p.mutability,p.name)
-  //         }
-  //         AccessPointUsage::StaticRef(p)=>{
-  //           format!("StaticRef {:?} {};",p.mutability,p.name)
-  //         }
-  //         AccessPointUsage::MutRef(p)=>{
-  //           format!("MutRef {:?} {};",p.mutability,p.name)
-  //         }
-  //         AccessPointUsage::Function(name)=>{
-  //           format!("Function {}();",name)
-  //         }
-  //         AccessPointUsage::Struct(p, field_vec) => {
-  //           format!(
-  //             "Struct {}{{{}}}", p.name,
-  //             field_vec.iter()
-  //                 .map(|s| 
-  //                   if let Some(dot_index) = s.name.find('.') {
-  //                     s.name[dot_index + 1..].to_string()
-  //                   } else {
-  //                       println!("No dot found in the string.");
-  //                     s.name.clone()
-  //                   })
-  //                 .collect::<Vec<String>>()
-  //                 .join(", "))
-  //         }
-  //       };
-  //     if !declarations.contains(&owner_name) && !owner_name.contains("."){
-  //       declarations.push(owner_name);
-  //     }
-  //   }
-  //   return declarations;
-  // }
-  
   pub fn print_out_of_scope(&mut self){
     for (_, rap) in self.raps.clone().iter() {
       if !rap.0.is_fn() {
-        self.add_external_event(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone() })
+        let mut die_flag = false;
+        for (_, e) in self.preprocessed_events.iter() {
+          match e {
+            ExternalEvent::StaticDie { from: Some(r), ..} if rap.0.name() == r.name() => {
+              die_flag = true;
+            }
+            ExternalEvent::MutableDie { from: Some(r), ..} if rap.0.name() == r.name() => {
+              die_flag = true;
+            }
+            _ => {}
+          }
+        }
+        if !die_flag {
+          self.add_external_event(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone() })
+        }
       }
     }
   }
   
   pub fn print_lifetimes(&mut self){
-    // println!("LIFETIME MAP: {:#?}", self.lifetime_map);
-    // println!("BORROW MAP {:#?}", self.borrow_map);
+    println!("LIFETIME MAP: {:#?}", self.lifetime_map);
+    println!("BORROW MAP {:#?}", self.borrow_map);
+    println!("RAPS {:#?}", self.raps);
     let lifetime_map = self.lifetime_map.clone();
     for (reference,line_num) in &lifetime_map {
       match reference{
@@ -774,7 +751,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         Reference::Static(name)=>{
           let from_rap = self.raps.get(name).unwrap().0.to_owned();
           let to_rap = self.borrow_map.get(name).unwrap().to_owned();
-          self.add_external_event(*line_num, ExternalEvent::MutableDie { from: Some(from_rap), to: to_rap });
+          self.add_external_event(*line_num, ExternalEvent::StaticDie { from: Some(from_rap), to: to_rap });
         }
       }
     }

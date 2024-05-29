@@ -10,6 +10,7 @@ use rustc_utils::{
   source_map::range::CharRange,
   mir::borrowck_facts,
 };
+use rustviz_lib::data::ResourceAccessPoint;
 use crate::expr_visitor::{AccessPointUsage, ExprVisitor};
 use crate::PrintAllItemsPluginArgs;
 use crate::utils::RV1Helper;
@@ -36,30 +37,6 @@ fn charrange_to_line(crange:CharRange,source_map:&SourceMap)->usize{
   line
 }
 
-// given an identifier returns the name of that item
-// expects the form of node_str to be:
-// HirId(DefId(0:6 ~ test_crate[f525]::name).0) (<item_str> name)
-fn item_name (item_str: &str, node_str: &str) -> String {
-  use regex::Regex;
-  // pattern starts with identifier, (struct, enum) followed by whitespace
-  // followed by any number of characters and terminates with )
-  let pattern = format!(r"{}\s+(\w+)\)", item_str);
-  let re = Regex::new(&pattern).unwrap();
-  if let Some(captures) = re.captures(node_str) {
-    if let Some(identifier) = captures.get(1) {
-        identifier.as_str().to_owned()
-    }
-    else {
-      println!("error, pattern not matched");
-      String::from("")
-    }
-  }
-  else {
-    println!("error, pattern not matched");
-    String::from("")
-  }
-}
-
 fn annotate_struct_field (
   line_str: &str,
   hash_map: & mut HashMap<String, usize>,
@@ -75,7 +52,7 @@ fn annotate_struct_field (
     current_hash
   });
 
-  let line:usize = m.sess.source_map().lookup_char_pos(field.span.lo()).line;
+  let line: usize = m.sess.source_map().lookup_char_pos(field.span.lo()).line;
   let left: usize = m.sess.source_map().lookup_char_pos(field.span.lo()).col_display;
   let right: usize = m.sess.source_map().lookup_char_pos(field.span.hi()).col_display;
 
@@ -92,7 +69,7 @@ fn annotate_struct_field (
 fn annotate_toplevel_fn (
   func_name: &str, 
   line_str: &str, 
-  hash_map: & mut HashMap<String, usize>,
+  raps: & mut HashMap<String, (ResourceAccessPoint, usize)>,
   a_map: & mut BTreeMap<usize, Vec<String>>,
   hashes: & mut usize,
   line: usize)  {
@@ -104,11 +81,14 @@ fn annotate_toplevel_fn (
     if let Some(m) = caps.get(1) {
       let left: usize = m.start();
       let right: usize = m.end();
-      let hash = *hash_map.entry(func_name.to_string()).or_insert_with(|| {
-        let current_hash = *hashes;
-        *hashes = (*hashes + 1) % 10;
-        current_hash
-      });
+      let hash = match raps.get(func_name) {
+        Some(r) => { *r.0.hash() }
+        None => {
+          let current_hash = *hashes;
+          *hashes = (*hashes + 1) % 10;
+          current_hash as u64
+        }
+      };
 
       let mut line_contents = line_str.to_string();
       let replace_with: String = format!("<tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\">{}</tspan>", 0, hash, func_name);
@@ -149,7 +129,6 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
     a_line_map.insert(*k, vec![a_map[k].clone()]);
     line_map2.insert(*k, vec![]);
   }
-  let mut hash_num: usize = 1;
   let mut rap_hash_num: usize = 1;
 
   // Generate a few things needed for later analysis. They
@@ -170,21 +149,14 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
               for field in fields.iter(){
                 let line = tcx.sess.source_map().lookup_char_pos(field.span.lo()).line;
                 let line_str = &a_map[&line];
-                annotate_struct_field(line_str, & mut owner_to_hash, & mut a_line_map , & mut hash_num, &field, &tcx);
+                annotate_struct_field(line_str, & mut owner_to_hash, & mut a_line_map , & mut rap_hash_num, &field, &tcx);
               }
             }
           }
           _ => {}
         }
       }
-      ItemKind::Fn(fn_sig, _generic, body_id) => {
-        let func_name:String = hir.name(hir.parent_id(body_id.hir_id)).as_str().to_owned();
-        let line = tcx.sess.source_map().lookup_char_pos(fn_sig.span.lo()).line;
-        let line_str = &a_map[&line];
-        if func_name != "main" {
-          annotate_toplevel_fn(&func_name, line_str, & mut owner_to_hash, & mut a_line_map, & mut hash_num, line);
-        }
-        
+      ItemKind::Fn(fn_sig, _generic, body_id) => {        
         let hir_body = hir.body(*body_id);
         let def_id = tcx.hir().body_owner_def_id(*body_id);
         let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, def_id);
@@ -224,16 +196,11 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
               rap_hashes: rap_hash_num,
               source_map: & a_map,
               annotated_lines: & mut a_line_map,
-              hash_map: & mut owner_to_hash,
-              hashes: hash_num
+              id_map: & mut owner_to_hash,
             };
             visitor.visit_body(hir_body);
-            visitor.print_out_of_scope();
             visitor.print_lifetimes();
-            //declarations.push(visitor.print_definitions());
-            // declarations.extend(visitor.print_definitions());
-            // access_point_map.extend(visitor.access_points);
-            hash_num = visitor.hashes;
+            visitor.print_out_of_scope();
             rap_hash_num = visitor.rap_hashes;
           },
           Err(_) => {}
@@ -242,6 +209,22 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
       _ => {}
     }
   }
+
+  for id in hir.items() {
+    match &hir.item(id).kind {
+      ItemKind::Fn(fn_sig, _generic, body_id) => {
+        let func_name:String = hir.name(hir.parent_id(body_id.hir_id)).as_str().to_owned();
+        let line = tcx.sess.source_map().lookup_char_pos(fn_sig.span.lo()).line;
+        let line_str = &a_map[&line];
+        if func_name != "main" {
+          annotate_toplevel_fn(&func_name, line_str, & mut rap_map, & mut a_line_map, & mut rap_hash_num, line);
+        }
+      }
+      _ => {}
+    }
+  }
+
+  pre_events.sort_by_key(|k| k.0);
   println!("RAPS {:#?}", rap_map);
   println!("EVENTS: {:#?}", pre_events);
   println!("LINE MAP {:#?}", line_map2);

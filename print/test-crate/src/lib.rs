@@ -1,9 +1,10 @@
 fn main() {
-    let s = String::from("hello");
-    takes_ownership(s);
-    // println!("{}", s) // won't compile if added
+    let x = String::from("hello");
+    let y = &x;
+    let z = &x;
+    f(y, z);
 }
 
-fn takes_ownership(some_string: String) {
-    println!("{}", some_string);
+fn f(s1 : &String, s2 : &String) {
+    println!("{} and {}", s1, s2);
 }

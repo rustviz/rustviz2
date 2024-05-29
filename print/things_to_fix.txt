@@ -1,4 +1,4 @@
-1. binary expressions, especially those in return <exp>
+1. binary expressions, especially those in return <exp> (FIXED)
 2. method calls (FIXED)
 3. nested function calls ex: println!("", func2()) (SOMEWHAT FIXED)
 4. discrepancy between timeline annotations and code panel annotations
@@ -11,4 +11,5 @@
 10. What to with function calls as arguments (RV1 can't handle them rn)
 11. A consideration: can't have variables with the same name as fields 
 12. Have yet to handle struct reference fields (lifetimes)
-13. Seperate annotation from event construction
+13. Seperate annotation from event construction (FIXED)
+14. Change mut ref hover message (mut refs cannot point to different pieces of data)

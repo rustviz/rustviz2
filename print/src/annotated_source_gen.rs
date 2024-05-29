@@ -5,6 +5,7 @@ use rustc_middle::{
     ty::{TyCtxt,Ty},
   };
 use rustc_hir::{Expr, ExprKind, QPath, Stmt, StmtKind, Local, Path, Mutability};
+use rustviz_lib::data::ResourceAccessPoint;
 use std::collections::{HashMap, BTreeMap};
 use rustc_span::Span;
 
@@ -13,13 +14,7 @@ use rustc_span::Span;
 
 impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
 
-pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool) {
-  let hash = *self.hash_map.entry(name.to_string()).or_insert_with(|| {
-    let current_hash = self.hashes;
-    self.hashes = (self.hashes + 1) % 10;
-    current_hash
-  });
-
+pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool, hash: u64) {
   let line: usize = self.span_to_line(&s);
   let left:usize = self.tcx.sess.source_map().lookup_char_pos(s.lo()).col_display;
   let right: usize = self.tcx.sess.source_map().lookup_char_pos(s.hi()).col_display;
@@ -41,7 +36,7 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
   match expr.kind {
     ExprKind::Path(QPath::Resolved(_, p)) => {
       let name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-      self.annotate_src(name, p.span, false);
+      self.annotate_src(name.clone(), p.span, false, *self.raps.get(&name).unwrap().0.hash());
     }
     ExprKind::Call(fn_expr, fn_args) => {
       match fn_expr.kind {
@@ -66,12 +61,18 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
                   _ => {}
                 }
               }
-              _ => {}
+              _ => {
+                let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+                self.annotate_src(fn_name.clone(), fn_expr.span, true, *self.raps.get(&fn_name).unwrap().0.hash());
+                for a in fn_args.iter() {
+                  self.annotate_expr(a);
+                }
+              }
             }
           }
           _ => {
             let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
-            self.annotate_src(fn_name, fn_expr.span, true);
+            self.annotate_src(fn_name.clone(), fn_expr.span, true, *self.raps.get(&fn_name).unwrap().0.hash());
             for a in fn_args.iter() {
               self.annotate_expr(a);
             }
@@ -86,13 +87,14 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
       self.annotate_expr(exp1);
       self.annotate_expr(exp2);
     }
-    ExprKind::MethodCall(_fn, rcvr, args, _) => {
+    ExprKind::MethodCall(name_and_generic_args, rcvr, args, _) => {
       let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
-      self.annotate_src(rcvr_name, rcvr.span, false);
+      let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
+      self.annotate_src(rcvr_name.clone(), rcvr.span, false, *self.raps.get(&rcvr_name).unwrap().0.hash());
+      self.annotate_src(fn_name.clone(), name_and_generic_args.ident.span, true, *self.raps.get(&fn_name).unwrap().0.hash());
       for arg in args.iter() {
         self.annotate_expr(arg);
       }
-      // note - currently not annotating method function
     }
     ExprKind::Assign(exp1, exp2, _) | ExprKind::AssignOp(_, exp1, exp2) => {
       self.annotate_expr(exp1);
@@ -104,7 +106,6 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
       }
       match block.expr {
         Some(ex) => {
-          println!("visiting ret expr");
           self.annotate_expr(ex);
         }
         _ => {}
@@ -112,12 +113,12 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
     }
     ExprKind::Struct(_, fields, _) => {
       for field in fields.iter() {
-        self.annotate_src(field.ident.to_string(), field.ident.span, false);
+        self.annotate_src(field.ident.to_string(), field.ident.span, false, *self.id_map.get(field.ident.as_str()).unwrap() as u64);
         self.annotate_expr(field.expr);
       }
     }
     ExprKind::Field(exp, ident) => {
-      self.annotate_src(ident.to_string(), ident.span, false);
+      self.annotate_src(ident.to_string(), ident.span, false, *self.id_map.get(ident.as_str()).unwrap() as u64);
       self.annotate_expr(exp);
     }
     _ => {}
@@ -128,7 +129,7 @@ pub fn annotate_local(&mut self, loc: &'tcx Local<'tcx>) {
   match loc.pat.kind {
     rustc_hir::PatKind::Binding(_, _, ident, _) => {
       let lhs_var:String = ident.to_string();
-      self.annotate_src(lhs_var.clone(), ident.span, false);
+      self.annotate_src(lhs_var.clone(), ident.span, false, *self.raps.get(&lhs_var).unwrap().0.hash());
       match loc.init {
         Some(exp) => {
           self.annotate_expr(exp);
