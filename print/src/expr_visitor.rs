@@ -165,7 +165,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
 
   pub fn add_mut_ref(&mut self, name: String) {
-    self.add_rap(ResourceAccessPoint::MutRef(MutRef { name: name, hash: self.rap_hashes as u64, is_mut: true }));
+    self.add_rap(ResourceAccessPoint::MutRef(MutRef { name: name, hash: self.rap_hashes as u64, is_mut: false }));
   }
 
   pub fn add_fn(&mut self, name: String) {

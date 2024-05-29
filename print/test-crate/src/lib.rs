@@ -1,10 +1,9 @@
 fn main() {
-    let x = String::from("hello");
-    let y = &x;
-    let z = &x;
-    f(y, z);
+    let mut x = String::from("Hello");
+    world(&mut x);
+    println!("{}", x);
 }
 
-fn f(s1 : &String, s2 : &String) {
-    println!("{} and {}", s1, s2);
+fn world(s : &mut String) {
+    s.push_str(", world");
 }

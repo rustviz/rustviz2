@@ -1,4 +1,4 @@
-<svg height="490px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg height="430px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 
       <desc>vis</desc>
 
@@ -168,16 +168,14 @@
 
           <g id="code">
         <text class="code" x="20" y="90"> <tspan fill="#AAA">1  </tspan>fn main() { </text>
-        <text class="code" x="20" y="120"> <tspan fill="#AAA">2  </tspan>    let <tspan data-hash="2">x</tspan> = <tspan class="fn" data-hash="0" hash="1">String::from</tspan>("hello"); </text>
-        <text class="code" x="20" y="150"> <tspan fill="#AAA">3  </tspan>    let <tspan data-hash="3">y</tspan> = &amp;<tspan data-hash="2">x</tspan>; </text>
-        <text class="code" x="20" y="180"> <tspan fill="#AAA">4  </tspan>    let <tspan data-hash="4">z</tspan> = &amp;<tspan data-hash="2">x</tspan>; </text>
-        <text class="code" x="20" y="210"> <tspan fill="#AAA">5  </tspan>    <tspan class="fn" data-hash="0" hash="5">f</tspan>(<tspan data-hash="3">y</tspan>, <tspan data-hash="4">z</tspan>); </text>
-        <text class="code" x="20" y="240"> <tspan fill="#AAA">6</tspan> </text>
-        <text class="code" x="20" y="270"> <tspan fill="#AAA">7  </tspan>} </text>
-        <text class="code" x="20" y="300"> <tspan fill="#AAA">8  </tspan> </text>
-        <text class="code" x="20" y="330"> <tspan fill="#AAA">9  </tspan>fn <tspan class="fn" data-hash="0" hash="5">f</tspan>(<tspan data-hash="6">s1</tspan> : &amp;String, <tspan data-hash="7">s2</tspan> : &amp;String) { </text>
-        <text class="code" x="20" y="360"> <tspan fill="#AAA">10  </tspan>    println!("{} and {}", <tspan data-hash="6">s1</tspan>, <tspan data-hash="7">s2</tspan>); </text>
-        <text class="code" x="20" y="390"> <tspan fill="#AAA">11  </tspan>} </text>
+        <text class="code" x="20" y="120"> <tspan fill="#AAA">2  </tspan>    let mut <tspan data-hash="2">x</tspan> = <tspan class="fn" data-hash="0" hash="1">String::from</tspan>("Hello"); </text>
+        <text class="code" x="20" y="150"> <tspan fill="#AAA">3  </tspan>    <tspan class="fn" data-hash="0" hash="3">world</tspan>(&amp;mut <tspan data-hash="2">x</tspan>); </text>
+        <text class="code" x="20" y="180"> <tspan fill="#AAA">4  </tspan>    println!("{}", <tspan data-hash="2">x</tspan>); </text>
+        <text class="code" x="20" y="210"> <tspan fill="#AAA">5  </tspan>} </text>
+        <text class="code" x="20" y="240"> <tspan fill="#AAA">6  </tspan> </text>
+        <text class="code" x="20" y="270"> <tspan fill="#AAA">7  </tspan>fn <tspan class="fn" data-hash="0" hash="3">world</tspan>(<tspan data-hash="5">s</tspan> : &amp;mut String) { </text>
+        <text class="code" x="20" y="300"> <tspan fill="#AAA">8  </tspan>    <tspan data-hash="5">s</tspan>.<tspan class="fn" data-hash="0" hash="6">push_str</tspan>(", world"); </text>
+        <text class="code" x="20" y="330"> <tspan fill="#AAA">9  </tspan>} </text>
     </g>
 
 
