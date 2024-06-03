@@ -216,32 +216,36 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   pub fn add_external_event(&mut self, line_num: usize, event: ExternalEvent) {
     self.preprocessed_events.push((line_num, event.clone()));
     let resourceaccesspoint = ResourceAccessPoint_extract(&event);
-        match (resourceaccesspoint.0, resourceaccesspoint.1, &event) {
-            (Some(ResourceAccessPoint::Function(_)), Some(ResourceAccessPoint::Function(_)), _) => {
-                // do nothing case
-            },
-            (Some(ResourceAccessPoint::Function(_from_function)), Some(_to_variable), _) => {  
-                // (Some(function), Some(variable), _)
-            },
-            (Some(_from_variable), Some(ResourceAccessPoint::Function(_function)), 
-             ExternalEvent::PassByStaticReference{..}) => { 
-                 // (Some(variable), Some(function), PassByStatRef)
-            },
-            (Some(_from_variable), Some(ResourceAccessPoint::Function(_function)), 
-             ExternalEvent::PassByMutableReference{..}) => {  
-                 // (Some(variable), Some(function), PassByMutRef)
-            },
-            (Some(_from_variable), Some(ResourceAccessPoint::Function(_to_function)), _) => { 
-                // (Some(variable), Some(function), _)
-            },
-            (Some(_from_variable), Some(_to_variable), _) => {
-              self.event_line_map.get_mut(&line_num).unwrap().push(event);
-            },
-            _ => ()
-        }
+    match (resourceaccesspoint.0, resourceaccesspoint.1, &event) {
+      (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_)), _) => {
+          // do nothing case
+      },
+      (ResourceTy::Value(ResourceAccessPoint::Function(_)),_,  _) => {  
+          // (Some(function), Some(variable), _)
+      },
+      (_, ResourceTy::Value(ResourceAccessPoint::Function(_function)), 
+       ExternalEvent::PassByStaticReference{..}) => { 
+           // (Some(variable), Some(function), PassByStatRef)
+      },
+      (_, ResourceTy::Value(ResourceAccessPoint::Function(_function)), 
+       ExternalEvent::PassByMutableReference{..}) => {  
+           // (Some(variable), Some(function), PassByMutRef)
+      },
+      (_, ResourceTy::Value(ResourceAccessPoint::Function(_)), _) => { 
+          // (Some(variable), Some(function), _)
+      },
+      (ResourceTy::Anonymous, ResourceTy::Anonymous, _) | (_, ResourceTy::Caller(_), _) => {},
+      (ResourceTy::Value(_), ResourceTy::Value(_), _) // maybe change later
+      | (ResourceTy::Deref(_), ResourceTy::Deref(_), _) 
+      | (ResourceTy::Value(_), ResourceTy::Deref(_), _)
+      | (ResourceTy::Deref(_), ResourceTy::Value(_), _) => {
+        self.event_line_map.get_mut(&line_num).unwrap().push(event);
+      },
+      _ => ()
+    }
   }
 
-  pub fn add_ev(&mut self, line_num: usize, evt: Evt, lhs: Option<ResourceAccessPoint>, rhs: Option<ResourceAccessPoint>) {
+  pub fn add_ev(&mut self, line_num: usize, evt: Evt, lhs: ResourceTy, rhs: ResourceTy) {
     match evt {
       Evt::Bind => self.add_external_event(line_num, ExternalEvent::Bind { from: rhs, to: lhs }),
       Evt::Copy => self.add_external_event(line_num, ExternalEvent::Copy { from: rhs, to: lhs }),
@@ -302,13 +306,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         if let Some(boundary) = boundary {
           let expected=boundary.expected;
           if expected.drop{
-            self.add_ev(line_num, Evt::Move, Some(fn_rap), Some(arg_rap));
+            self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
           }
           else if expected.write{           
-            self.add_ev(line_num, Evt::PassByMRef, Some(fn_rap), Some(arg_rap));
+            self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
           }
           else if expected.read{
-            self.add_ev(line_num, Evt::PassBySRef, Some(fn_rap), Some(arg_rap));
+            self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
           }
         }
       }
@@ -322,10 +326,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           self.match_args(a, callee_name.clone());
         }
         if self.is_return_type_copyable(fn_expr) {
-          self.add_ev(line_num, Evt::Copy, Some(fn_rap), None);
+          self.add_ev(line_num, Evt::Copy, ResourceTy::Value(fn_rap), ResourceTy::Anonymous);
         }
         else {
-          self.add_ev(line_num, Evt::Move, Some(fn_rap), None);
+          self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Anonymous);
           //self.add_event(line_num, format!("Move({}()->{}())", callee_name, fn_name));
         }
       }
@@ -342,13 +346,22 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             let boundary=self.boundary_map.get(&arg.span.lo());
             if let Some(boundary) = boundary {
               if boundary.expected.drop { //TODO: will have to update with a new type of RAP, maybe a DEREF{Option<RAP>}
-                self.add_ev(line_num, Evt::Move, Some(fn_rap), self.find_lender(arg));
+                match rhs_rap {
+                  Some(x) => self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Deref(x)),
+                  None => self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Anonymous)
+                }
               }
               else if boundary.expected.write{
-                self.add_ev(line_num, Evt::PassByMRef, Some(fn_rap), self.find_lender(arg));
+                match rhs_rap {
+                  Some(x) => self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), ResourceTy::Value(x)),
+                  None => self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), ResourceTy::Anonymous)
+                }
               }
               else if boundary.expected.read {
-                self.add_ev(line_num, Evt::PassBySRef, Some(fn_rap), self.find_lender(arg));
+                match rhs_rap {
+                  Some(x) => self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), ResourceTy::Value(x)),
+                  None => self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), ResourceTy::Anonymous)
+                }
               }
             }
             else {
@@ -373,13 +386,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               let expected=boundary.expected;
               
               if expected.drop{
-                self.add_ev(line_num, Evt::Move, Some(fn_rap), Some(arg_rap));
+                self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
               }
               else if expected.write{           
-                self.add_ev(line_num, Evt::PassByMRef, Some(fn_rap), Some(arg_rap));
+                self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
               }
               else if expected.read{
-                self.add_ev(line_num, Evt::PassBySRef, Some(fn_rap), Some(arg_rap));
+                self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
               }
             }
           }
@@ -527,7 +540,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn match_rhs(&mut self, lhs: Option<ResourceAccessPoint>, rhs:&'tcx Expr){
+  pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr){
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let line_num = self.span_to_line(&p.span);
@@ -539,18 +552,18 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         if let Some(boundary) = boundary {
           if boundary.expected.drop { // if a resource is being dropped
             if rhs_rap.is_ref() {
-              self.add_ev(line_num, Evt::MBorrow, lhs, Some(rhs_rap));
+              self.add_ev(line_num, Evt::MBorrow, lhs, ResourceTy::Value(rhs_rap));
             }
             else {
-              self.add_ev(line_num, Evt::Move, lhs, Some(rhs_rap));
+              self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
             }
           }
           else {
             if rhs_rap.is_ref() {
-              self.add_ev(line_num, Evt::SBorrow, lhs, Some(rhs_rap));
+              self.add_ev(line_num, Evt::SBorrow, lhs, ResourceTy::Value(rhs_rap));
             }
             else {
-              self.add_ev(line_num, Evt::Copy, lhs, Some(rhs_rap));
+              self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
             }
           }
         }   
@@ -562,10 +575,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
         let rhs_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
         if self.is_return_type_copyable(fn_expr) {
-          self.add_ev(line_num, Evt::Copy, lhs, Some(rhs_rap));
+          self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
         }
         else {
-          self.add_ev(line_num, Evt::Move, lhs, Some(rhs_rap));
+          self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
         }
       },
       
@@ -574,11 +587,11 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Unary(UnOp::Not, _) // !<expr>
       => {
         let line_num = self.span_to_line(&rhs.span);
-        if let Some(lhs) = lhs {
-          self.add_ev(line_num, Evt::Bind, Some(lhs), None);
+        if let ResourceTy::Caller(_) = lhs {
+          self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Anonymous);
         }
         else {
-          self.add_ev(line_num, Evt::Copy, lhs, None); // weird to do here
+          self.add_ev(line_num, Evt::Bind, lhs, ResourceTy::Anonymous);
         }
       }
       // ex : &<expr> or &mut <expr>
@@ -590,9 +603,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
           None => {} // taking addrOf some anonymous resource, ie: &String::from("")
         }
+        let res = match self.find_lender(rhs) {
+          Some(x) => ResourceTy::Value(x),
+          None => ResourceTy::Anonymous
+        };
         match self.fetch_mutability(&rhs) { // fetch last ref mutability in the chain -> &&&mut x
-          Some(Mutability::Not) => self.add_ev(line_num, Evt::SBorrow, lhs, self.find_lender(rhs)),
-          Some(Mutability::Mut) => self.add_ev(line_num, Evt::MBorrow, lhs, self.find_lender(rhs)),
+          Some(Mutability::Not) => self.add_ev(line_num, Evt::SBorrow, lhs, res),
+          Some(Mutability::Mut) => self.add_ev(line_num, Evt::MBorrow, lhs, res),
           None => panic!("Shouldn't have been able to get here")
         }
       }
@@ -626,11 +643,15 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not pat
             let boundary=self.boundary_map.get(&rhs.span.lo());
             if let Some(boundary) = boundary {
+              let res = match self.find_lender(rhs) {
+                Some(x) => ResourceTy::Value(x),
+                None => ResourceTy::Anonymous
+              };
               if boundary.expected.drop { //TODO: will have to update with a new type of RAP, maybe a DEREF{Option<RAP>}
-                self.add_ev(line_num, Evt::Move, lhs, self.find_lender(rhs));
+                self.add_ev(line_num, Evt::Move, lhs, res);
               }
               else {
-                self.add_ev(line_num, Evt::Copy, lhs, self.find_lender(rhs));
+                self.add_ev(line_num, Evt::Copy, lhs, res);
               }
             }
             else {
@@ -648,10 +669,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 
         if let Some(return_type) = type_check.node_type_opt(rhs.hir_id){
           if return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(name_and_generic_args.hir_id.owner)) {
-            self.add_ev(line_num, Evt::Copy, lhs, Some(rhs_rap));
+            self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
           }
           else {
-            self.add_ev(line_num, Evt::Move, lhs, Some(rhs_rap));
+            self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
           }
         }
       }
@@ -659,18 +680,15 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       // ex struct = {a: <expr>, b: <expr>, c: <expr>}
       ExprKind::Struct(_qpath, expr_fields, _base) => { 
         let line_num = self.span_to_line(&rhs.span);
-        if let Some(lhs) = lhs.clone() {
-          self.add_ev(line_num, Evt::Bind, Some(lhs), None);
+        if let ResourceTy::Caller(_) = lhs {
+          self.add_ev(line_num, Evt::Move, lhs.clone(), ResourceTy::Anonymous); // weird to do here    
         }
         else {
-          self.add_ev(line_num, Evt::Copy, lhs.clone(), None); // weird to do here    
-        }
-        
-        for field in expr_fields.iter() {
-          if let Some(r) = lhs.clone() {
-            let new_lhs_name = format!("{}.{}", r.name(), field.ident.as_str());
-            let field_rap = self.raps.get(&new_lhs_name).unwrap().0.to_owned();
-            self.match_rhs(Some(field_rap), field.expr);
+          self.add_ev(line_num, Evt::Bind, lhs, ResourceTy::Anonymous);
+          for field in expr_fields.iter() {
+              let new_lhs_name = format!("{}.{}", lhs.name(), field.ident.as_str());
+              let field_rap = self.raps.get(&new_lhs_name).unwrap().0.to_owned();
+              self.match_rhs(ResourceTy::Value(field_rap), field.expr);
           }
         }
       },
@@ -686,11 +704,11 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             let rhs_rap = self.raps.get(&total_name).unwrap().0.to_owned();
             if let Some(boundary) = boundary {
               let expected=boundary.expected;
-              if expected.drop { // TODO: add other possibilities for when fields can be refs
-                self.add_ev(line_num, Evt::Move, lhs, Some(rhs_rap));
+              if expected.drop {
+                self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
               }
               else {
-                self.add_ev(line_num, Evt::Copy, lhs, Some(rhs_rap));
+                self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
               }
             }
           }
@@ -717,21 +735,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   pub fn print_out_of_scope(&mut self){
     for (_, rap) in self.raps.clone().iter() {
       if !rap.0.is_fn() {
-        let mut die_flag = false;
-        for (_, e) in self.preprocessed_events.iter() {
-          match e {
-            ExternalEvent::StaticDie { from: Some(r), ..} if rap.0.name() == r.name() => {
-              die_flag = true;
-            }
-            ExternalEvent::MutableDie { from: Some(r), ..} if rap.0.name() == r.name() => {
-              die_flag = true;
-            }
-            _ => {}
-          }
-        }
-        if !die_flag {
-          self.add_external_event(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone() })
-        }
+        self.add_external_event(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone() })
+        
       }
     }
   }
@@ -746,12 +751,20 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         Reference::Mut(name)=>{
           let from_rap = self.raps.get(name).unwrap().0.to_owned();
           let to_rap = self.borrow_map.get(name).unwrap().to_owned();
-          self.add_external_event(*line_num, ExternalEvent::MutableDie { from: Some(from_rap), to: to_rap });
+          let res = match to_rap {
+            Some(x) => ResourceTy::Value(x),
+            None => ResourceTy::Anonymous
+          };
+          self.add_external_event(*line_num, ExternalEvent::MutableDie { from: ResourceTy::Value(from_rap), to: res });
         }
         Reference::Static(name)=>{
           let from_rap = self.raps.get(name).unwrap().0.to_owned();
           let to_rap = self.borrow_map.get(name).unwrap().to_owned();
-          self.add_external_event(*line_num, ExternalEvent::StaticDie { from: Some(from_rap), to: to_rap });
+          let res = match to_rap {
+            Some(x) => ResourceTy::Value(x),
+            None => ResourceTy::Anonymous
+          };
+          self.add_external_event(*line_num, ExternalEvent::StaticDie { from: ResourceTy::Value(from_rap), to: res });
         }
       }
     }

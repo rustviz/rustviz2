@@ -1,6 +1,6 @@
 extern crate handlebars;
 
-use crate::data::{StructsInfo, VisualizationData, Visualizable, ExternalEvent, State, ResourceAccessPoint, Event, LINE_SPACE};
+use crate::data::{StructsInfo, VisualizationData, Visualizable, ExternalEvent, State, ResourceAccessPoint, Event, LINE_SPACE, ResourceTy};
 use crate::svg_frontend::line_styles::{RefDataLine, RefValueLine, OwnerLine};
 use handlebars::Handlebars;
 use std::collections::BTreeMap;
@@ -135,8 +135,8 @@ pub fn render_timeline_panel(visualization_data : &VisualizationData) -> (String
     // Note: key {-1} = non-struct timelines
     
     // render resource owner labels
-    render_timelines(&mut output, visualization_data, &resource_owners_layout, &registry);
-    render_labels_string(&mut output, &resource_owners_layout, &registry);
+    render_timelines(&mut output, visualization_data, &resource_owners_layout, &registry); // vertical bars
+    render_labels_string(&mut output, &resource_owners_layout, &registry); 
     render_dots_string(&mut output, visualization_data, &resource_owners_layout, &registry);
     render_ref_line(&mut output, visualization_data, &resource_owners_layout, &registry);
     render_arrows_string_external_events_version(&mut output, visualization_data, &resource_owners_layout, &registry);
@@ -463,31 +463,35 @@ fn render_arrows_string_external_events_version(
                 title = String::from("Pass by immutable reference");
                 (from_ro, to_ro)
             },
-            _ => (&None, &None),
+            _ => (&ResourceTy::Anonymous, &ResourceTy::Anonymous),
         };
         // complete title
-        if let Some(some_from) = from {
-            let from_string = match some_from {
-                ResourceAccessPoint::Owner(owner) => owner.name.to_owned(),
-                ResourceAccessPoint::Struct(stru) => stru.name.to_owned(),
-                ResourceAccessPoint::MutRef(mutref) => mutref.name.to_owned(),
-                ResourceAccessPoint::StaticRef(statref) => statref.name.to_owned(),
-                ResourceAccessPoint::Function(func) => func.name.to_owned(),
-            };
-            let styled_from_string = SPAN_BEGIN.to_string() + &from_string + SPAN_END;
-            title = format!("{} from {}", title, styled_from_string);
-        };
-        if let Some(some_to) = to {
-            let to_string = match some_to {
-                ResourceAccessPoint::Owner(owner) => owner.name.to_owned(),
-                ResourceAccessPoint::Struct(stru) => stru.name.to_owned(),
-                ResourceAccessPoint::MutRef(mutref) => mutref.name.to_owned(),
-                ResourceAccessPoint::StaticRef(statref) => statref.name.to_owned(),
-                ResourceAccessPoint::Function(func) => func.name.to_owned(),
-            };
-            let styled_to_string = SPAN_BEGIN.to_string() + &to_string + SPAN_END;
-            title = format!("{} to {}", title, styled_to_string);
-        };
+        let styled_from_string = SPAN_BEGIN.to_string() + &from.name() + SPAN_END;
+        title = format!("{} from {}", title, styled_from_string);
+        let styled_to_string = SPAN_BEGIN.to_string() + &to.name() + SPAN_END;
+        title = format!("{} to {}", title, styled_to_string);
+        // if let Some(some_from) = from {
+        //     let from_string = match some_from {
+        //         ResourceAccessPoint::Owner(owner) => owner.name.to_owned(),
+        //         ResourceAccessPoint::Struct(stru) => stru.name.to_owned(),
+        //         ResourceAccessPoint::MutRef(mutref) => mutref.name.to_owned(),
+        //         ResourceAccessPoint::StaticRef(statref) => statref.name.to_owned(),
+        //         ResourceAccessPoint::Function(func) => func.name.to_owned(),
+        //     };
+        //     let styled_from_string = SPAN_BEGIN.to_string() + &from_string + SPAN_END;
+        //     title = format!("{} from {}", title, styled_from_string);
+        // };
+        // if let Some(some_to) = to {
+        //     let to_string = match some_to {
+        //         ResourceAccessPoint::Owner(owner) => owner.name.to_owned(),
+        //         ResourceAccessPoint::Struct(stru) => stru.name.to_owned(),
+        //         ResourceAccessPoint::MutRef(mutref) => mutref.name.to_owned(),
+        //         ResourceAccessPoint::StaticRef(statref) => statref.name.to_owned(),
+        //         ResourceAccessPoint::Function(func) => func.name.to_owned(),
+        //     };
+        //     let styled_to_string = SPAN_BEGIN.to_string() + &to_string + SPAN_END;
+        //     title = format!("{} to {}", title, styled_to_string);
+        // };
 
         // order of points is to -> from
         let mut data = ArrowData {
@@ -499,11 +503,12 @@ fn render_arrows_string_external_events_version(
         let arrow_length = 20;
         // render title
         match (from, to, external_event) {
-            (Some(ResourceAccessPoint::Function(_)), Some(ResourceAccessPoint::Function(_)), _) => {
+            (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_)), _) => {
                 // do nothing for case: from = function
                 // it is easier to exclude this case than list all possible cases for when ResourceAccessPoint is a variable
             },
-            (Some(ResourceAccessPoint::Function(from_function)), Some(to_variable), _) => {  // (Some(function), Some(variable), _)
+            (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _) 
+            | (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _) => {  // (Some(function), Some(variable), _)
                 // ro1 (to_variable) <- ro2 (from_function)
                 // arrow go from (x2, y2) -> (x1, y1)
                 let x1 = resource_owners_layout[to_variable.hash()].x_val + 3; // adjust arrow head pos
@@ -531,11 +536,11 @@ fn render_arrows_string_external_events_version(
                     output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
                 }
             },
-            (Some(from_variable), Some(ResourceAccessPoint::Function(function)), 
+            (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), 
              ExternalEvent::PassByStaticReference{..}) => { // (Some(variable), Some(function), PassByStatRef)
                 // get variable's position
                 let styled_fn_name = SPAN_BEGIN.to_string() + &function.name + SPAN_END;
-                let styled_from_name = SPAN_BEGIN.to_string() + from_variable.name() + SPAN_END;
+                let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
                 
                 let function_dot_data = FunctionDotData {
                     x: resource_owners_layout[from_variable.hash()].x_val,
@@ -555,11 +560,11 @@ fn render_arrows_string_external_events_version(
                     output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
                 }
             },
-            (Some(from_variable), Some(ResourceAccessPoint::Function(function)), 
+            (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), 
              ExternalEvent::PassByMutableReference{..}) => {  // (Some(variable), Some(function), PassByMutRef)
                 // get variable's position
                 let styled_fn_name = SPAN_BEGIN.to_string() + &function.name + SPAN_END;
-                let styled_from_name = SPAN_BEGIN.to_string() + from_variable.name() + SPAN_END;
+                let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
 
                 let function_dot_data = FunctionDotData {
                     x: resource_owners_layout[from_variable.hash()].x_val,
@@ -578,7 +583,7 @@ fn render_arrows_string_external_events_version(
                     output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
                 }
             },
-            (Some(from_variable), Some(ResourceAccessPoint::Function(to_function)), _) => { // (Some(variable), Some(function), _)
+            (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(to_function)), _) => { // (Some(variable), Some(function), _)
                 let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
                 //  ro1 (to_function) <- ro2 (from_variable)
                 let x2 = resource_owners_layout[from_variable.hash()].x_val - 5;
@@ -607,7 +612,7 @@ fn render_arrows_string_external_events_version(
                     output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
                 }
             },
-            (Some(from_variable), Some(to_variable), _) => {
+            (from_variable, to_variable, _) => {
                 let arrow_order = visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
 
                 let x1 = resource_owners_layout[to_variable.hash()].x_val;
@@ -686,18 +691,15 @@ fn render_arrows_string_external_events_version(
                 data.coordinates_hbs.push_str(&recent.unwrap().1.to_string());
                 data.coordinates_hbs.push_str(&String::from(" "));
             }
-
-            if let Some(ro) = from {
-                if resource_owners_layout.contains_key(ro.hash()) && resource_owners_layout[ro.hash()].is_struct_group {
-                    if resource_owners_layout[ro.hash()].is_member {
-                        output.get_mut(&(resource_owners_layout[ro.hash()].owner.to_owned() as i64)).unwrap().1.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
-                    } else {
-                        output.get_mut(&(resource_owners_layout[ro.hash()].owner.to_owned() as i64)).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
-                    }
+            if resource_owners_layout.contains_key(from.hash()) && resource_owners_layout[from.hash()].is_struct_group {
+                if resource_owners_layout[from.hash()].is_member {
+                    output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().1.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
+                } else {
+                    output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
                 }
-                else {
-                    output.get_mut(&-1).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
-                }
+            }
+            else {
+                output.get_mut(&-1).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
             }
         }
     }
@@ -802,7 +804,7 @@ fn create_reference_line_string(
     match (state, rap.is_mut()) {
         (State::FullPrivilege, true) => {
             data.line_class = String::from("solid");
-            if rap.is_ref() {
+            if rap.is_ref() { // TODO this can never happen
                 data.title += "; can read and write data; can point to another piece of data.";
             } else {
                 data.title += "; can read and write data";

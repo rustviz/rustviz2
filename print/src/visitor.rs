@@ -38,11 +38,11 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             let field_name = format!("{}.{}", name.clone(), field.name.as_str());
             self.add_struct(field_name, owner_hash, true, bool_of_mut(binding_annotation.1));
           }
-          self.add_external_event(line_num, ExternalEvent::Move { from: None, to: Some(self.raps.get(&name).unwrap().0.to_owned())})
+          //self.add_external_event(line_num, ExternalEvent::Move { from: None, to: Some(self.raps.get(&name).unwrap().0.to_owned())}) Come back to
         }
         else {
           self.add_owner(name.clone(), bool_of_mut(binding_annotation.1));
-          self.add_external_event(line_num, ExternalEvent::Move { from: None, to: Some(self.raps.get(&name).unwrap().0.to_owned())});
+          //self.add_external_event(line_num, ExternalEvent::Move { from: None, to: Some(self.raps.get(&name).unwrap().0.to_owned())});
         }
         self.annotate_src(name.clone(), ident.span, false, *self.raps.get(&name).unwrap().0.hash());
       }
@@ -163,7 +163,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             // TODO: update this to a better solution, for now LHS is just an access point with the name "None"
             // this is a scuffed fix in order to adhere to rv1 visualization practices
             self.annotate_expr(expr);
-            self.match_rhs(None, expr);
+            self.match_rhs(ResourceTy::Caller(_), expr);
             //self.match_rhs(AccessPoint {mutability: Mutability::Not, name: "None".to_owned(), members: None}, expr, false);
           }
           None => {}
@@ -212,7 +212,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           Some(expr) => {
             self.visit_expr(expr);
             self.define_lhs(lhs_var.clone(), bool_of_mut(binding_annotation.1), expr, lhs_ty);
-            self.match_rhs(Some(self.raps.get(&lhs_var).unwrap().0.to_owned()), expr);
+            self.match_rhs(ResourceTy::Value(self.raps.get(&lhs_var).unwrap().0.to_owned()), expr);
             // println!("lhs RAP :{:#?}", self.raps.get(&lhs_var).unwrap());
               // self.visit_expr(expr); -- may not be a bad idea to visit rhs expr then match it
               //self.match_rhs(AccessPoint { mutability: binding_annotation.1, name: lhs_var, members: None}, expr, false);

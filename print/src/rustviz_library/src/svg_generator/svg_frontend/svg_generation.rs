@@ -31,17 +31,13 @@ pub fn render_svg(
         event_vec.sort_by(|a, b| {
             ResourceAccessPoint_extract(a)
                 .1
-                .as_ref()
-                .unwrap()
                 .hash()
-                .cmp(&ResourceAccessPoint_extract(b).1.as_ref().unwrap().hash())
+                .cmp(&ResourceAccessPoint_extract(b).1.hash())
                 .then(
                     ResourceAccessPoint_extract(a)
                         .0
-                        .as_ref()
-                        .unwrap()
                         .hash()
-                        .cmp(&ResourceAccessPoint_extract(b).0.as_ref().unwrap().hash()),
+                        .cmp(&ResourceAccessPoint_extract(b).0.hash()),
                 )
         });
     }

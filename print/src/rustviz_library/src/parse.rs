@@ -203,142 +203,142 @@ pub fn extract_events(
 // Requires: Well-formatted events, HashMap of ResourceAccessPoints
 // Modifies: VisualizationData
 // Effects: Creates ExternalEvents and appends to VisualizationData
-pub fn add_events(
-    vd: &mut VisualizationData,
-    vars: HashMap<String, ResourceAccessPoint>,
-    events: Vec<(u64, String)>
-) -> Result<()>{
-    for event in events {
-        // fmt: Event(from->to)
-        let split: Vec<String> = event.1.split("->")
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
+// pub fn add_events(
+//     vd: &mut VisualizationData,
+//     vars: HashMap<String, ResourceAccessPoint>,
+//     events: Vec<(u64, String)>
+// ) -> Result<()>{
+//     for event in events {
+//         // fmt: Event(from->to)
+//         let split: Vec<String> = event.1.split("->")
+//             .map(|s| s.trim().to_string())
+//             .filter(|s| !s.is_empty())
+//             .collect();
 
-        let mut field = Vec::new();
-        if split.len() == 1 { // no "->"
-            let idx = split[0].find("(").expect(&event_usage_err());
-            field.push(&split[0][..idx]); // event
-            field.push(&split[0][idx+1..split[0].len()-1]); // name
-        }
-        else if split.len() == 2 { // has "->"
-            // [event, name1, name2]
-            let idx = split[0].find("(").expect(&event_usage_err());
-            field.push(&split[0][..idx]); // event
-            field.push(&split[0][idx+1..]); // from
-            field.push(&split[1][..split[1].len()-1]); // to
-        }
-        else { // uh oh, wrong
-            return Err(anyhow!(event_usage_err()));
-        }
+//         let mut field = Vec::new();
+//         if split.len() == 1 { // no "->"
+//             let idx = split[0].find("(").expect(&event_usage_err());
+//             field.push(&split[0][..idx]); // event
+//             field.push(&split[0][idx+1..split[0].len()-1]); // name
+//         }
+//         else if split.len() == 2 { // has "->"
+//             // [event, name1, name2]
+//             let idx = split[0].find("(").expect(&event_usage_err());
+//             field.push(&split[0][..idx]); // event
+//             field.push(&split[0][idx+1..]); // from
+//             field.push(&split[1][..split[1].len()-1]); // to
+//         }
+//         else { // uh oh, wrong
+//             return Err(anyhow!(event_usage_err()));
+//         }
 
-        // check for any empty fields
-        for f in &field {
-            if f.is_empty() {
-                return Err(anyhow!(event_usage_err()));
-            }
-        };
+//         // check for any empty fields
+//         for f in &field {
+//             if f.is_empty() {
+//                 return Err(anyhow!(event_usage_err()));
+//             }
+//         };
 
-        match field[0] {
-            "Bind" => vd.append_external_event(
-                ExternalEvent::Bind{
-                    from: get_resource(&vars, "None")?,
-                    to: get_resource(&vars, field[1])?
-                }, &(event.0 as usize)
-            ),
-            "Copy" => vd.append_external_event(
-                ExternalEvent::Copy{
-                    from: get_resource(&vars, field[1])?,
-                    to: get_resource(&vars, field[2])?
-                }, &(event.0 as usize)
-            ),
-            "Move" => vd.append_external_event(
-                ExternalEvent::Move{
-                    from: get_resource(&vars, field[1])?,
-                    to: get_resource(&vars, field[2])?
-                },
-                &(event.0 as usize)
-            ),
-            "StaticBorrow" => vd.append_external_event(
-                ExternalEvent::StaticBorrow{
-                    from: get_resource(&vars, field[1])?,
-                    to: get_resource(&vars, field[2])?
-                },
-                &(event.0 as usize)
-            ),
-            "MutableBorrow" => vd.append_external_event(
-                ExternalEvent::MutableBorrow{
-                    from: get_resource(&vars, field[1])?,
-                    to: get_resource(&vars, field[2])?
-                },
-                &(event.0 as usize)
-            ),
-            "StaticDie" => vd.append_external_event(
-                ExternalEvent::StaticDie{
-                    from: get_resource(&vars, field[1])?,
-                    to: get_resource(&vars, field[2])?
-                },
-                &(event.0 as usize)
-            ),
-            "MutableDie" => vd.append_external_event(
-                ExternalEvent::MutableDie{
-                    from: get_resource(&vars, field[1])?,
-                    to: get_resource(&vars, field[2])?
-                },
-                &(event.0 as usize)
-            ),
-            "PassByStaticReference" => vd.append_external_event(
-                ExternalEvent::PassByStaticReference{
-                    from: get_resource(&vars, field[1])?,
-                    to: get_resource(&vars, field[2])?
-                },
-                &(event.0 as usize)
-            ),
-            "PassByMutableReference" => vd.append_external_event(
-                ExternalEvent::PassByMutableReference{
-                    from: get_resource(&vars, field[1])?,
-                    to: get_resource(&vars, field[2])?
-                },
-                &(event.0 as usize)
-            ),
-            "InitRefParam" => {
-              let rap = get_resource(&vars, field[1])?;
-              if rap == None {
-                return Err(anyhow!("Expected Some variable, found None!"));
-              }
-              let res = rap.unwrap();
-              vd.append_external_event(
-                ExternalEvent::InitRefParam{
-                    param: res,
-                },
-                &(event.0 as usize)
-            )},
-            "InitOwnerParam" => vd.append_external_event(
-                ExternalEvent::Move{
-                    from: get_resource(&vars, "None")?,
-                    to: get_resource(&vars, field[1])?
-                },
-                &(event.0 as usize)
-            ),
-            "GoOutOfScope" => {
-              let rap = get_resource(&vars, field[1])?;
-              if rap == None {
-                return Err(anyhow!("Expected Some variable, found None!"));
-              }
-              let res = rap.unwrap();
-              vd.append_external_event(
-                ExternalEvent::GoOutOfScope{
-                    ro: res
-                },
-                &(event.0 as usize)
-            )},
-            _ => {
-                return Err(anyhow!(event_usage_err()));
-            }
-        }
-    }
-    Ok(())
-}
+//         match field[0] {
+//             "Bind" => vd.append_external_event(
+//                 ExternalEvent::Bind{
+//                     from: get_resource(&vars, "None")?,
+//                     to: get_resource(&vars, field[1])?
+//                 }, &(event.0 as usize)
+//             ),
+//             "Copy" => vd.append_external_event(
+//                 ExternalEvent::Copy{
+//                     from: get_resource(&vars, field[1])?,
+//                     to: get_resource(&vars, field[2])?
+//                 }, &(event.0 as usize)
+//             ),
+//             "Move" => vd.append_external_event(
+//                 ExternalEvent::Move{
+//                     from: get_resource(&vars, field[1])?,
+//                     to: get_resource(&vars, field[2])?
+//                 },
+//                 &(event.0 as usize)
+//             ),
+//             "StaticBorrow" => vd.append_external_event(
+//                 ExternalEvent::StaticBorrow{
+//                     from: get_resource(&vars, field[1])?,
+//                     to: get_resource(&vars, field[2])?
+//                 },
+//                 &(event.0 as usize)
+//             ),
+//             "MutableBorrow" => vd.append_external_event(
+//                 ExternalEvent::MutableBorrow{
+//                     from: get_resource(&vars, field[1])?,
+//                     to: get_resource(&vars, field[2])?
+//                 },
+//                 &(event.0 as usize)
+//             ),
+//             "StaticDie" => vd.append_external_event(
+//                 ExternalEvent::StaticDie{
+//                     from: get_resource(&vars, field[1])?,
+//                     to: get_resource(&vars, field[2])?
+//                 },
+//                 &(event.0 as usize)
+//             ),
+//             "MutableDie" => vd.append_external_event(
+//                 ExternalEvent::MutableDie{
+//                     from: get_resource(&vars, field[1])?,
+//                     to: get_resource(&vars, field[2])?
+//                 },
+//                 &(event.0 as usize)
+//             ),
+//             "PassByStaticReference" => vd.append_external_event(
+//                 ExternalEvent::PassByStaticReference{
+//                     from: get_resource(&vars, field[1])?,
+//                     to: get_resource(&vars, field[2])?
+//                 },
+//                 &(event.0 as usize)
+//             ),
+//             "PassByMutableReference" => vd.append_external_event(
+//                 ExternalEvent::PassByMutableReference{
+//                     from: get_resource(&vars, field[1])?,
+//                     to: get_resource(&vars, field[2])?
+//                 },
+//                 &(event.0 as usize)
+//             ),
+//             "InitRefParam" => {
+//               let rap = get_resource(&vars, field[1])?;
+//               if rap == None {
+//                 return Err(anyhow!("Expected Some variable, found None!"));
+//               }
+//               let res = rap.unwrap();
+//               vd.append_external_event(
+//                 ExternalEvent::InitRefParam{
+//                     param: res,
+//                 },
+//                 &(event.0 as usize)
+//             )},
+//             "InitOwnerParam" => vd.append_external_event(
+//                 ExternalEvent::Move{
+//                     from: get_resource(&vars, "None")?,
+//                     to: get_resource(&vars, field[1])?
+//                 },
+//                 &(event.0 as usize)
+//             ),
+//             "GoOutOfScope" => {
+//               let rap = get_resource(&vars, field[1])?;
+//               if rap == None {
+//                 return Err(anyhow!("Expected Some variable, found None!"));
+//               }
+//               let res = rap.unwrap();
+//               vd.append_external_event(
+//                 ExternalEvent::GoOutOfScope{
+//                     ro: res
+//                 },
+//                 &(event.0 as usize)
+//             )},
+//             _ => {
+//                 return Err(anyhow!(event_usage_err()));
+//             }
+//         }
+//     }
+//     Ok(())
+// }
 
 // Requires: Valid, existant ResourceAccessPoint name
 // Modifies: Nothing, unchanged

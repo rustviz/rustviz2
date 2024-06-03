@@ -1,9 +1,8 @@
 fn main() {
-    let mut x = String::from("Hello");
-    world(&mut x);
-    println!("{}", x);
+    let y = f();
 }
 
-fn world(s : &mut String) {
-    s.push_str(", world");
+fn f() -> i32{
+    let x = 6;
+    x
 }
