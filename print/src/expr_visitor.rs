@@ -234,7 +234,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       (_, ResourceTy::Value(ResourceAccessPoint::Function(_)), _) => { 
           // (Some(variable), Some(function), _)
       },
-      (ResourceTy::Anonymous, ResourceTy::Anonymous, _) | (_, ResourceTy::Caller(_), _) => {},
+      (ResourceTy::Anonymous, ResourceTy::Anonymous, _) | (_, ResourceTy::Caller, _) => {},
       (ResourceTy::Value(_), ResourceTy::Value(_), _) // maybe change later
       | (ResourceTy::Deref(_), ResourceTy::Deref(_), _) 
       | (ResourceTy::Value(_), ResourceTy::Deref(_), _)
@@ -259,18 +259,18 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn rap_of_lhs(&mut self, expr: &'tcx Expr) -> ResourceAccessPoint{
+  pub fn resource_of_lhs(&mut self, expr: &'tcx Expr) -> ResourceTy{
     match expr.kind {
       ExprKind::Path(QPath::Resolved(_, p)) => {
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        self.raps.get(&name).unwrap().0.to_owned()
+        ResourceTy::Value(self.raps.get(&name).unwrap().0.to_owned())
       }
       ExprKind::Field(expr, ident) => {
         match expr {
           Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             let total_name = format!("{}.{}", name, ident.as_str());
-            self.raps.get(&total_name).unwrap().0.to_owned()
+            ResourceTy::Value(self.raps.get(&total_name).unwrap().0.to_owned())
           }
           _ => { panic!("unexpected field expr") }
         } 
@@ -281,9 +281,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         match rhs_rap {
           Some(x) => {
             self.update_rap(&x, line_num);
-            x
+            ResourceTy::Deref(x)
           }
-          None => { panic!("invalid deref of lhs")}
+          None => { ResourceTy::Anonymous }
         }
 
       }
@@ -338,30 +338,24 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           rustc_hir::UnOp::Deref => {
             let line_num = self.expr_to_line(&expr);
             let rhs_rap = self.fetch_rap(&expr);
-            match rhs_rap {
-              Some(x) => self.update_rap(&x, line_num),
-              None => {}
-            }
+            let res = match rhs_rap {
+              Some(x) => {
+                self.update_rap(&x, line_num);
+                ResourceTy::Deref(x)
+              }
+              None => ResourceTy::Anonymous
+            };
             // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not pat
             let boundary=self.boundary_map.get(&arg.span.lo());
             if let Some(boundary) = boundary {
               if boundary.expected.drop { //TODO: will have to update with a new type of RAP, maybe a DEREF{Option<RAP>}
-                match rhs_rap {
-                  Some(x) => self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Deref(x)),
-                  None => self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Anonymous)
-                }
+                self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), res);
               }
               else if boundary.expected.write{
-                match rhs_rap {
-                  Some(x) => self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), ResourceTy::Value(x)),
-                  None => self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), ResourceTy::Anonymous)
-                }
+                self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), res);
               }
               else if boundary.expected.read {
-                match rhs_rap {
-                  Some(x) => self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), ResourceTy::Value(x)),
-                  None => self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), ResourceTy::Anonymous)
-                }
+                self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), res)
               }
             }
             else {
@@ -587,7 +581,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Unary(UnOp::Not, _) // !<expr>
       => {
         let line_num = self.span_to_line(&rhs.span);
-        if let ResourceTy::Caller(_) = lhs {
+        if let ResourceTy::Caller = lhs {
           self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Anonymous);
         }
         else {
@@ -680,11 +674,11 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       // ex struct = {a: <expr>, b: <expr>, c: <expr>}
       ExprKind::Struct(_qpath, expr_fields, _base) => { 
         let line_num = self.span_to_line(&rhs.span);
-        if let ResourceTy::Caller(_) = lhs {
+        if let ResourceTy::Caller = lhs {
           self.add_ev(line_num, Evt::Move, lhs.clone(), ResourceTy::Anonymous); // weird to do here    
         }
         else {
-          self.add_ev(line_num, Evt::Bind, lhs, ResourceTy::Anonymous);
+          self.add_ev(line_num, Evt::Bind, lhs.clone(), ResourceTy::Anonymous);
           for field in expr_fields.iter() {
               let new_lhs_name = format!("{}.{}", lhs.name(), field.ident.as_str());
               let field_rap = self.raps.get(&new_lhs_name).unwrap().0.to_owned();
@@ -734,7 +728,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   
   pub fn print_out_of_scope(&mut self){
     for (_, rap) in self.raps.clone().iter() {
-      if !rap.0.is_fn() {
+      // need this to avoid duplicating out of scope events, this is due to the fact that RAPS is a map that lives over multiple fn ctxts
+      if !rap.0.is_fn() && !self.preprocessed_events.contains(&(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone() })){ 
         self.add_external_event(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone() })
         
       }

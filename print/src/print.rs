@@ -133,9 +133,7 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
 
   // Generate a few things needed for later analysis. They
   // are basically things generated when compiling code.
-  let mut access_point_map:HashMap<AccessPointUsage, usize> = HashMap::new();
 
-  let mut declarations: Vec<String> = Vec::new();
   //let analysis_result: Vec<(u64, String)> = Vec::new();
   let hir = tcx.hir().clone();
   

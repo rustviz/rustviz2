@@ -97,7 +97,7 @@ pub struct Function {
 pub enum ResourceTy {
     Anonymous, // an anonymous resource holder
     Deref(ResourceAccessPoint), // Dereferencing a RAP
-    Caller(ResourceAccessPoint), // For expressing relationship between return expr and fn
+    Caller, // For expressing relationship between return expr and fn
     Value(ResourceAccessPoint) 
 }
 
@@ -105,15 +105,15 @@ impl ResourceTy {
     pub fn name(&self) -> String {
         match self {
             ResourceTy::Anonymous => "Anonymous resource".to_owned(),
-            ResourceTy::Caller(r) | ResourceTy::Value(r) => r.name().to_owned(),
-            ResourceTy::Deref(r) => format!("*{}", r.name())
+            ResourceTy::Value(r) | ResourceTy::Deref(r) => r.name().to_owned(),
+            ResourceTy::Caller => "Caller".to_owned()
         }
     }
 
     pub fn hash(&self) -> &u64 {
         match self {
-            ResourceTy::Anonymous => &std::u64::MAX,
-            ResourceTy::Caller(r) | ResourceTy::Value(r) | ResourceTy::Deref(r) => r.hash(),
+            ResourceTy::Caller | ResourceTy::Anonymous => &std::u64::MAX,
+            ResourceTy::Value(r) | ResourceTy::Deref(r) => r.hash(),
         }
     }
 }
@@ -411,10 +411,7 @@ fn safe_message(
     my_name: &String,
     some_target: &ResourceTy
 ) -> String {
-    match some_target {
-        ResourceTy::Anonymous => message_functor(my_name, &"anonymous resource owner".to_owned()),
-        ResourceTy::Caller(r) | ResourceTy::Deref(r) | ResourceTy::Value(r) => message_functor(my_name, r.name())
-    }
+    message_functor(my_name, &some_target.name())
 }
 
 
@@ -487,13 +484,13 @@ impl Event {
             // arrow going out
             Duplicate{ to } => {
                 match to {
-                    ResourceTy::Caller(_) => safe_message(hover_messages::event_dot_copy_to_caller, my_name, to),
+                    ResourceTy::Caller => safe_message(hover_messages::event_dot_copy_to_caller, my_name, to),
                     _ => safe_message(hover_messages::event_dot_copy_to, my_name, to)
                 }
             }
             Move{ to } => {
                 match to {
-                    ResourceTy::Caller(_) => safe_message(hover_messages::event_dot_move_to_caller, my_name, to),
+                    ResourceTy::Caller => safe_message(hover_messages::event_dot_move_to_caller, my_name, to),
                     _ => safe_message(hover_messages::event_dot_move_to, my_name, to),
                 }
                 
@@ -621,14 +618,11 @@ impl Visualizable for VisualizationData {
         if event_invalid(event) { return State::Invalid; }
 
         match (previous_state, event) {
-            (State::Invalid, _) =>
-                State::Invalid,
+            (State::Invalid, _) => State::Invalid,
 
-            (State::OutOfScope, Event::Acquire{ .. }) =>
-                State::FullPrivilege,
+            (State::OutOfScope, Event::Acquire{ .. }) => State::FullPrivilege,
 
-            (State::OutOfScope, Event::Copy{ .. }) =>
-                State::FullPrivilege,
+            (State::OutOfScope, Event::Copy{ .. }) => State::FullPrivilege,
 
             (State::OutOfScope, Event::StaticBorrow{ from: ro }) =>
                 State::PartialPrivilege {
@@ -636,8 +630,7 @@ impl Visualizable for VisualizationData {
                     borrow_to: [ro.to_owned()].iter().cloned().collect()
                 },
 
-            (State::OutOfScope, Event::MutableBorrow{ .. }) =>
-                State::FullPrivilege,
+            (State::OutOfScope, Event::MutableBorrow{ .. }) => State::FullPrivilege,
 
             (State::OutOfScope, Event::InitRefParam{ param: ro })  => {
                 match ro {
@@ -750,9 +743,8 @@ impl Visualizable for VisualizationData {
 
             (State::RevokedPrivilege{ .. }, Event::MutableReacquire{ .. }) =>
                 State::FullPrivilege,
-
-            (_, Event::Duplicate { .. }) =>
-                (*previous_state).clone(),
+            (_, Event::Duplicate { to: ResourceTy::Caller}) => State::OutOfScope,
+            (_, Event::Duplicate { .. }) => (*previous_state).clone(),
 
             (_, _) => State::Invalid,
         }
@@ -809,7 +801,7 @@ impl Visualizable for VisualizationData {
             (_, ResourceTy::Value(ResourceAccessPoint::Function(_)), _) => { 
                 // (Some(variable), Some(function), _)
             },
-            (ResourceTy::Anonymous, ResourceTy::Anonymous, _) | (_, ResourceTy::Caller(_), _) => {},
+            (ResourceTy::Anonymous, ResourceTy::Anonymous, _) | (_, ResourceTy::Caller, _) => {},
             (ResourceTy::Value(_), ResourceTy::Value(_), _) 
             | (ResourceTy::Deref(_), ResourceTy::Deref(_), _) 
             | (ResourceTy::Value(_), ResourceTy::Deref(_), _)
@@ -866,8 +858,8 @@ impl Visualizable for VisualizationData {
         // append_event if resource_access_point is not null
         fn maybe_append_event(vd: &mut VisualizationData, resource_access_point: &ResourceTy, event: Event, line_number : &usize) {
             match resource_access_point {
-                ResourceTy::Anonymous => {} // TODO fix this
-                ResourceTy::Caller(r) | ResourceTy::Deref(r) | ResourceTy::Value(r) => {
+                ResourceTy::Anonymous | ResourceTy::Caller => {}
+                ResourceTy::Deref(r) | ResourceTy::Value(r) => {
                     vd._append_event(&r, event, line_number)
                 }
             }

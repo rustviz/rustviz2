@@ -28,8 +28,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         if ty.is_ref() {
           self.add_ref(name.clone(), bool_of_mut(ty.ref_mutability().unwrap()), line_num);
           self.borrow_map.insert(name.clone(), None); // ref parameters don't have an underlying owner they are borrowing from
-          //self.add_event(line_num,format!("InitRefParam({})",name));
-          self.add_external_event(line_num, ExternalEvent::InitRefParam { param: self.raps.get(&name).unwrap().0.to_owned() });
         }
         else if ty.is_adt() && !self.ty_is_special_owner(ty){ // kind of weird given we don't have a InitStructParam
           let owner_hash = self.rap_hashes as u64;
@@ -38,12 +36,11 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             let field_name = format!("{}.{}", name.clone(), field.name.as_str());
             self.add_struct(field_name, owner_hash, true, bool_of_mut(binding_annotation.1));
           }
-          //self.add_external_event(line_num, ExternalEvent::Move { from: None, to: Some(self.raps.get(&name).unwrap().0.to_owned())}) Come back to
         }
         else {
           self.add_owner(name.clone(), bool_of_mut(binding_annotation.1));
-          //self.add_external_event(line_num, ExternalEvent::Move { from: None, to: Some(self.raps.get(&name).unwrap().0.to_owned())});
         }
+        self.add_external_event(line_num, ExternalEvent::InitRefParam { param: self.raps.get(&name).unwrap().0.to_owned() });
         self.annotate_src(name.clone(), ident.span, false, *self.raps.get(&name).unwrap().0.hash());
       }
       _=>{}
@@ -117,10 +114,10 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                 Adjust::Borrow(AutoBorrow::Ref(_, m)) => {
                   match m {
                     AutoBorrowMutability::Mut{allow_two_phase_borrow: AllowTwoPhase::Yes} => {
-                      self.add_ev(line_num, Evt::PassByMRef, Some(fn_rap.clone()), Some(rcvr_rap.clone()));
+                      self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap.clone()), ResourceTy::Value(rcvr_rap.clone()));
                     },
                     AutoBorrowMutability::Not => {
-                      self.add_ev(line_num, Evt::PassBySRef, Some(fn_rap.clone()), Some(rcvr_rap.clone()));
+                      self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap.clone()), ResourceTy::Value(rcvr_rap.clone()));
                     }
                     _ => {}
                   }
@@ -145,7 +142,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
 
       ExprKind::Assign(lhs_expr, rhs_expr, _,) | ExprKind::AssignOp(_, lhs_expr, rhs_expr) => {
         self.visit_expr(rhs_expr); // visit rhs side first to order moves?
-        let lhs_rap = Some(self.rap_of_lhs(lhs_expr));
+        let lhs_rap = self.resource_of_lhs(lhs_expr);
         self.match_rhs(lhs_rap, rhs_expr);
       }
 
@@ -159,11 +156,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         // handle the return expr (if there is one)
         match block.expr {
           Some(expr) => {
-            // TODO: if function returns void then last expression can not have a semi-colon (and will be double annotated)
-            // TODO: update this to a better solution, for now LHS is just an access point with the name "None"
-            // this is a scuffed fix in order to adhere to rv1 visualization practices
             self.annotate_expr(expr);
-            self.match_rhs(ResourceTy::Caller(_), expr);
+            self.match_rhs(ResourceTy::Caller, expr); // this probably needs to be fixed
             //self.match_rhs(AccessPoint {mutability: Mutability::Not, name: "None".to_owned(), members: None}, expr, false);
           }
           None => {}

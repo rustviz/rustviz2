@@ -1,8 +1,9 @@
-fn main() {
-    let y = f();
+fn f() -> u32 {
+  let y = 7;
+  y
 }
 
-fn f() -> i32{
-    let x = 6;
-    x
+
+fn main () {
+  let x = f();
 }

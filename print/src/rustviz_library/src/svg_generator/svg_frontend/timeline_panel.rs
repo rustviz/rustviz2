@@ -507,8 +507,9 @@ fn render_arrows_string_external_events_version(
                 // do nothing for case: from = function
                 // it is easier to exclude this case than list all possible cases for when ResourceAccessPoint is a variable
             },
-            (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _) 
-            | (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _) => {  // (Some(function), Some(variable), _)
+            (_, _, ExternalEvent::Bind {..}) | (_, _, ExternalEvent::GoOutOfScope {..}) | (_, _, ExternalEvent::InitRefParam { .. }) | 
+            (_, ResourceTy::Caller, _)=> {}
+            (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _)  => {  // (Some(function), Some(variable), _)
                 // ro1 (to_variable) <- ro2 (from_function)
                 // arrow go from (x2, y2) -> (x1, y1)
                 let x1 = resource_owners_layout[to_variable.hash()].x_val + 3; // adjust arrow head pos
@@ -612,7 +613,8 @@ fn render_arrows_string_external_events_version(
                     output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
                 }
             },
-            (from_variable, to_variable, _) => {
+            (from_variable, to_variable, _e) => {
+              println!("{:#?}\n {:#?}\n {:#?} ", from_variable, to_variable, _e);
                 let arrow_order = visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
 
                 let x1 = resource_owners_layout[to_variable.hash()].x_val;
