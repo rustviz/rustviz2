@@ -1,4 +1,4 @@
-use crate::expr_visitor::{ExprVisitor, AccessPoint, AccessPointUsage, Reference};
+use crate::expr_visitor::{ExprVisitor, AccessPoint, AccessPointUsage};
 use rustc_hir::Mutability;
 
 // A small helper function

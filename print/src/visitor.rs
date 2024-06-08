@@ -9,7 +9,7 @@ use rustc_middle::{
   mir::Body,
   ty::{TyCtxt,Ty, adjustment::*},
 };
-
+use std::collections::HashSet;
 
 // these are the visitor trait itself
 // the visitor will walk through the hir
@@ -26,8 +26,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       PatKind::Binding(binding_annotation, _ann_hirid, ident, _op_pat) =>{
         let name: String = ident.to_string();
         if ty.is_ref() {
-          self.add_ref(name.clone(), bool_of_mut(ty.ref_mutability().unwrap()), line_num);
-          self.borrow_map.insert(name.clone(), None); // ref parameters don't have an underlying owner they are borrowing from
+          self.add_ref(name.clone(), bool_of_mut(ty.ref_mutability().unwrap()),bool_of_mut(binding_annotation.1), line_num, ResourceTy::Anonymous);
         }
         else if ty.is_adt() && !self.ty_is_special_owner(ty){ // kind of weird given we don't have a InitStructParam
           let owner_hash = self.rap_hashes as u64;
@@ -47,7 +46,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     }
   }
   fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
-    let line_num = self.expr_to_line(expr);
     match expr.kind {
       ExprKind::Call(fn_expr, args) => {
         match fn_expr.kind {
@@ -69,11 +67,15 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                               self.match_args(&arg, fn_name.clone());
                             }
                           }
-                          _ => {}
+                          _ => {
+                            println!("getting here to the println 1");
+                          }
                         }
                       }
                     }
-                  _ => {}
+                  _ => {
+                    println!("getting here to the println 2");
+                  }
                 }
               }
               _ => {
@@ -142,8 +144,49 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
 
       ExprKind::Assign(lhs_expr, rhs_expr, _,) | ExprKind::AssignOp(_, lhs_expr, rhs_expr) => {
         self.visit_expr(rhs_expr); // visit rhs side first to order moves?
-        let lhs_rap = self.resource_of_lhs(lhs_expr);
-        self.match_rhs(lhs_rap, rhs_expr);
+        let line_num = self.expr_to_line(&lhs_expr);
+        let lhs_rty = self.resource_of_lhs(lhs_expr);
+        let lhs_rap = self.raps.get(&lhs_rty.real_name()).unwrap().0.clone();
+        let is_ref = self.borrow_map.contains_key(lhs_rap.name());
+        let tycheck_results = self.tcx.typeck(lhs_expr.hir_id.owner);
+        let lhs_ty = tycheck_results.node_type(lhs_expr.hir_id);
+        if is_ref && lhs_ty.is_ref() {
+          let (lender, _lifetime, ref_mut) = self.borrow_map.get(lhs_rap.name()).unwrap().clone();
+          let to_ro = match lender {
+            ResourceTy::Anonymous => ResourceTy::Deref(lhs_rap.clone()),
+            _ => lender.clone()
+          };
+          println!("lenders {:#?}", self.lenders);
+          let num_borrowers = self.lenders.get(&lender.name()).unwrap().len();
+          if num_borrowers > 1 {
+            self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro });
+            self.lenders.get_mut(lhs_rap.name()).unwrap().remove(&lhs_rty);
+          }
+          else {
+            match ref_mut {
+              true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone()),
+              false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone())
+            }
+            self.lenders.remove(lhs_rap.name());
+          }
+          let new_lender = self.find_lender(&rhs_expr);
+          let (lender, lifetime, ref_mut) = self.borrow_map.get_mut(lhs_rap.name()).unwrap();
+          println!("lhs_ty {:#?}", lhs_ty);
+          println!("new ref mutability {}", bool_of_mut(lhs_ty.ref_mutability().unwrap()));
+          *lender = new_lender.clone();
+          *lifetime = line_num;
+          *ref_mut = bool_of_mut(lhs_ty.ref_mutability().unwrap()); // TECHNICALLY THIS HAS TO BE THE SAME AS PREVIOUS BORROW
+          match new_lender {
+            ResourceTy::Anonymous => {}
+            _ => {
+              self.lenders.entry(new_lender.name()).
+                and_modify(|v| {v.insert(lhs_rty.clone());}).
+                  or_insert(HashSet::from([lhs_rty.clone()]));
+            }
+          }
+        }
+
+        self.match_rhs(lhs_rty.clone(), rhs_expr);
       }
 
       // The function body block

@@ -147,7 +147,7 @@ fn union_strings (strings: &Vec<String>) -> String {
         let mut j = offsets[string];
         let mut char_at_i = string.chars().nth(j).unwrap();
         if char_at_i != consistent_char {
-          assert_eq!(char_at_i, '<');
+          assert_eq!(char_at_i, '<'); //todo: fix 
           while char_at_i != '>' {
             res.push(char_at_i);
             j += 1;

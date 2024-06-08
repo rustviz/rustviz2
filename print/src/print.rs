@@ -74,7 +74,7 @@ fn annotate_toplevel_fn (
   hashes: & mut usize,
   line: usize)  {
   use regex::Regex;
-  let pattern: String = format!(r"fn\s+({})\s*\(", regex::escape(func_name));
+  let pattern: String = format!(r"fn\s+({})\s*[<(]", regex::escape(func_name));
 
   let re = Regex::new(&pattern).unwrap();
   if let Some(caps) = re.captures(line_str) {
@@ -184,9 +184,9 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
               tcx, 
               mir_body:body, 
               boundary_map,
-              lifetime_map: HashMap::new(),
               current_scope: pos,
-              borrow_map: HashMap::new(),
+              borrow_map: HashMap::new(), // TODO turn this to mut ref
+              lenders: HashMap::new(),
               raps: &mut rap_map,
               analysis_result: HashMap::new(),
               event_line_map: & mut line_map2,

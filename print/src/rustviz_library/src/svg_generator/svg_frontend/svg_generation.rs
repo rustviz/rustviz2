@@ -315,7 +315,9 @@ pub fn render_svg(
         .is_ok());
 
     // data for code panel
-
+    println!("TIMELINE DATA : {:#?}", visualization_data.timelines);
+    println!("y states {:#?}", visualization_data.get_states(&2));
+    // println!("c states {:#?}", visualization_data.get_states(&3));
     let mut max_x_space: i64 = 0;
     let (output, line_of_code) =
             code_panel::render_code_panel(a_lines, s_lines, &mut max_x_space, &visualization_data.event_line_map);

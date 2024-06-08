@@ -105,6 +105,15 @@ impl ResourceTy {
     pub fn name(&self) -> String {
         match self {
             ResourceTy::Anonymous => "Anonymous resource".to_owned(),
+            ResourceTy::Value(r) => r.name().to_owned(),
+            ResourceTy::Deref(r) => format!("*{}", r.name()),
+            ResourceTy::Caller => "Caller".to_owned()
+        }
+    }
+
+    pub fn real_name(&self) -> String {
+        match self {
+            ResourceTy::Anonymous => "Anonymous resource".to_owned(),
             ResourceTy::Value(r) | ResourceTy::Deref(r) => r.name().to_owned(),
             ResourceTy::Caller => "Caller".to_owned()
         }
@@ -245,6 +254,11 @@ pub enum ExternalEvent {
         from: ResourceTy,
         to: ResourceTy,
     },
+
+    RefDie {
+        from: ResourceTy,
+        to: ResourceTy
+    },
     // a use of the Owner, happens when var pass by reference
     // its really borrow and return but happens on the same line,
     // use this event instead of borrow and return for more concise visualization 
@@ -287,7 +301,8 @@ pub enum Event {
     // Event's "from" variable is x.
     // TODO do we need mut/static_acquire for get_state?
     Acquire {
-        from: ResourceTy
+        from: ResourceTy,
+        is: ResourceTy
     },
     // this happens when a ResourceAccessPoint implements copy trait or
     // explicitly calls .clone() function
@@ -298,13 +313,15 @@ pub enum Event {
     //                                  at this point, we treat it as y duplicates to None
     // 2. x: MyStruct = y.clone();      here y duplicates to x.
     Duplicate {
-        to: ResourceTy
+        to: ResourceTy,
+        is: ResourceTy
     },
     // this happens when a ResourceAccessPoint transfers a copy of its contents
     // to another ResourceAccessPoint.
     // Typically, this occurs when a resource owner implements the Copy trait.
     Copy {
-        from: ResourceTy
+        from: ResourceTy,
+        is: ResourceTy
     },
     // this happens when a ResourceAccessPoint transfer the ownership of its resource
     // to another ResourceAccessPoint, or if it is no longer used after this line.
@@ -315,31 +332,40 @@ pub enum Event {
     //    its ownership on this line. This includes tranfering its
     //    ownership to a function as well.
     Move {
-        to: ResourceTy
+        to: ResourceTy,
+        is: ResourceTy
     },
     MutableLend {
-        to: ResourceTy
+        to: ResourceTy,
+        is: ResourceTy
     },
     MutableBorrow {
-        from: ResourceTy
+        from: ResourceTy,
+        is: ResourceTy
     },
     MutableDie {
-        to: ResourceTy
+        to: ResourceTy,
+        is: ResourceTy
     },
     MutableReacquire {
-        from: ResourceTy
+        from: ResourceTy,
+        is: ResourceTy
     },
     StaticLend {
-        to: ResourceTy
+        to: ResourceTy,
+        is: ResourceTy
     },
     StaticBorrow {
-        from: ResourceTy
+        from: ResourceTy,
+        is: ResourceTy
     },
     StaticDie {
-        to: ResourceTy
+        to: ResourceTy,
+        is: ResourceTy
     },
     StaticReacquire {
-        from: ResourceTy
+        from: ResourceTy,
+        is: ResourceTy
     },
     // this happens when a owner is returned this line,
     // or if this owner's scope ends at this line. The data must be dropped. 
@@ -356,7 +382,7 @@ pub enum Event {
 
 // A State is a description of a ResourceAccessPoint IMMEDIATELY AFTER a specific line.
 // We think of this as what read/write access we have to its resource.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum State {
     // The viable is no longer in the scope after this line.
     OutOfScope,
@@ -411,7 +437,16 @@ fn safe_message(
     my_name: &String,
     some_target: &ResourceTy
 ) -> String {
-    message_functor(my_name, &some_target.name())
+
+    let target_name = match some_target {
+        ResourceTy::Deref(r) => {
+            let mut temp = r.name().clone();
+            temp.insert(0, '*');
+            temp
+        }
+        _ => some_target.name()
+    };
+    message_functor(my_name, &target_name)
 }
 
 
@@ -443,21 +478,19 @@ impl State {
 // provide string output for usages like format!("{}", eventA)
 impl Display for Event {
     fn fmt(&self, f: &mut Formatter) -> Result {       
-        let mut from_ro: ResourceTy;
-        let mut to_ro: ResourceTy;
         match self {
-            Event::Acquire{ from } => { write!(f, "Acquiring resource from {}", from.name()) },
-            Event::Duplicate{ to } => { write!(f, "Duplicating resource to {}", to.name())},
-            Event::Copy{ from } => { write!(f, "Copying resource from {}", from.name())},
-            Event::Move{ to } => {write!(f, "Moving resource to {}", to.name())},
-            Event::MutableLend{ to } => {write!(f, "Mutable lend to {}", to.name())},
-            Event::MutableBorrow{ from } => { write!(f, "Fully borrows resource from {}", from.name())},
-            Event::MutableDie{ to } => { write!(f, "Fully returns resource to {}", to.name())},
-            Event::MutableReacquire{ from } => {write!(f, "Fully reacquires resource from {}", from.name())},
-            Event::StaticLend{ to } => {write!(f, "Partially lends resource to {}", to.name())},
-            Event::StaticBorrow{ from } => { write!(f, "Partially borrows resource from {}", from.name())},
-            Event::StaticDie{ to } => { write!(f, "Partially returns resource to {}", to.name())},
-            Event::StaticReacquire{ from } => { write!(f, "Partially acquires resource from {}", from.name()) },
+            Event::Acquire{ from , ..} => { write!(f, "Acquiring resource from {}", from.name()) },
+            Event::Duplicate{ to , ..} => { write!(f, "Duplicating resource to {}", to.name())},
+            Event::Copy{ from , ..} => { write!(f, "Copying resource from {}", from.name())},
+            Event::Move{ to , ..} => {write!(f, "Moving resource to {}", to.name())},
+            Event::MutableLend{ to , ..} => {write!(f, "Mutable lend to {}", to.name())},
+            Event::MutableBorrow{ from , ..} => { write!(f, "Fully borrows resource from {}", from.name())},
+            Event::MutableDie{ to , ..} => { write!(f, "Fully returns resource to {}", to.name())},
+            Event::MutableReacquire{ from, .. } => {write!(f, "Fully reacquires resource from {}", from.name())},
+            Event::StaticLend{ to , ..} => {write!(f, "Partially lends resource to {}", to.name())},
+            Event::StaticBorrow{ from , ..} => { write!(f, "Partially borrows resource from {}", from.name())},
+            Event::StaticDie{ to , ..} => { write!(f, "Partially returns resource to {}", to.name())},
+            Event::StaticReacquire{ from , ..} => { write!(f, "Partially acquires resource from {}", from.name()) },
             Event::InitRefParam{ param: _ } => { write!(f, "Function parameter is initialized") },
             Event::OwnerGoOutOfScope => { 
                 write!(f, "Goes out of Scope as an owner of resource" ) }
@@ -469,7 +502,25 @@ impl Display for Event {
 }
 
 impl Event {
-    pub fn print_message_with_name(&self, my_name: &String) -> String {
+    pub fn deref_name <'a>(&self, name: &'a mut String) -> & 'a String {
+        match self {
+            Duplicate {is: x , ..} | Move {is: x, ..} | StaticLend {is : x, ..} | 
+            MutableLend {is: x, ..} | MutableDie {is: x, ..} | StaticDie {is: x, ..} | 
+            Acquire { is: x, .. } | Copy { is: x, .. } | MutableBorrow { is: x, .. } |
+            StaticBorrow { is: x, .. } | StaticReacquire { is: x, .. } | MutableReacquire {is: x, ..} => {
+                match x {
+                    ResourceTy::Deref(_) => {
+                        println!("erm are we getting here? {:#?}", self);
+                        name.insert(0, '*');
+                        name
+                    },
+                    _ => name
+                }
+            },
+            _ => name
+        }
+    }
+    pub fn print_message_with_name(&self, my_name: &mut String) -> String {
         match self {
             // no arrow involved
             OwnerGoOutOfScope => { 
@@ -482,49 +533,49 @@ impl Event {
                 hover_messages::event_dot_init_param(my_name)
             }
             // arrow going out
-            Duplicate{ to } => {
+            Duplicate{ to ,..} => {
                 match to {
-                    ResourceTy::Caller => safe_message(hover_messages::event_dot_copy_to_caller, my_name, to),
-                    _ => safe_message(hover_messages::event_dot_copy_to, my_name, to)
+                    ResourceTy::Caller => safe_message(hover_messages::event_dot_copy_to_caller, &self.deref_name(my_name), to),
+                    _ => safe_message(hover_messages::event_dot_copy_to, &self.deref_name(my_name), to)
                 }
             }
-            Move{ to } => {
+            Move{ to ,..} => {
                 match to {
-                    ResourceTy::Caller => safe_message(hover_messages::event_dot_move_to_caller, my_name, to),
-                    _ => safe_message(hover_messages::event_dot_move_to, my_name, to),
+                    ResourceTy::Caller => safe_message(hover_messages::event_dot_move_to_caller, &self.deref_name(my_name), to),
+                    _ => safe_message(hover_messages::event_dot_move_to, &self.deref_name(my_name), to),
                 }
                 
             }
-            StaticLend{ to } => {
-                safe_message(hover_messages::event_dot_static_lend, my_name, to)
+            StaticLend{ to ,..} => {
+                safe_message(hover_messages::event_dot_static_lend, &self.deref_name(my_name), to)
             }
-            MutableLend{ to } => {
-                safe_message(hover_messages::event_dot_mut_lend, my_name, to)
+            MutableLend{ to ,..} => {
+                safe_message(hover_messages::event_dot_mut_lend, &self.deref_name(my_name), to)
             }
-            StaticDie{ to } => {
-                safe_message(hover_messages::event_dot_static_return, my_name, to)
+            StaticDie{ to,.. } => {
+                safe_message(hover_messages::event_dot_static_return, &self.deref_name(my_name), to)
             }
-            MutableDie{ to } => {
-                safe_message(hover_messages::event_dot_mut_return, my_name, to)
+            MutableDie{ to ,..} => {
+                safe_message(hover_messages::event_dot_mut_return, &self.deref_name(my_name), to)
             }
             // arrow going in
-            Acquire{ from } => {
-                safe_message(hover_messages::event_dot_acquire, my_name, from)
+            Acquire{ from ,..} => {
+                safe_message(hover_messages::event_dot_acquire, &self.deref_name(my_name), from)
             }
-            Copy{ from } => {
+            Copy{ from ,..} => {
                 safe_message(hover_messages::event_dot_copy_from, my_name, from)
             }
-            MutableBorrow{ from } => {
-                hover_messages::event_dot_mut_borrow(my_name, &from.name())
+            MutableBorrow{ from ,..} => {
+                hover_messages::event_dot_mut_borrow(&self.deref_name(my_name), &from.name())
             }
-            StaticBorrow{ from } => {
-                hover_messages::event_dot_static_borrow(my_name, &from.name())
+            StaticBorrow{ from ,..} => {
+                hover_messages::event_dot_static_borrow(&self.deref_name(my_name), &from.name())
             }
-            StaticReacquire{ from } => {
-                safe_message(hover_messages::event_dot_static_reacquire, my_name, from)
+            StaticReacquire{ from ,..} => {
+                safe_message(hover_messages::event_dot_static_reacquire, &self.deref_name(my_name), from)
             }
-            MutableReacquire{ from } => {
-                safe_message(hover_messages::event_dot_mut_reacquire, my_name, from)
+            MutableReacquire{ from ,..} => {
+                safe_message(hover_messages::event_dot_mut_reacquire, &self.deref_name(my_name), from)
             }
         } 
     }
@@ -608,10 +659,10 @@ impl Visualizable for VisualizationData {
         but can 'lend' or 'reaquire' to Functions (pass itself by reference and take it back); */
         fn event_invalid(event: & Event) -> bool {
             match event {
-                Event::StaticBorrow{ from: ResourceTy::Value(ResourceAccessPoint::Function(_)) } => true,
-                Event::MutableBorrow{ from: ResourceTy::Value(ResourceAccessPoint::Function(_)) } => true,
-                Event::StaticDie{ to: ResourceTy::Value(ResourceAccessPoint::Function(_)) } => true,
-                Event::MutableDie{ to: ResourceTy::Value(ResourceAccessPoint::Function(_)) } => true,
+                Event::StaticBorrow{ from: ResourceTy::Value(ResourceAccessPoint::Function(_)) ,..} => true,
+                Event::MutableBorrow{ from: ResourceTy::Value(ResourceAccessPoint::Function(_)) ,..} => true,
+                Event::StaticDie{ to: ResourceTy::Value(ResourceAccessPoint::Function(_)) ,..} => true,
+                Event::MutableDie{ to: ResourceTy::Value(ResourceAccessPoint::Function(_)) ,..} => true,
                 _ => false,
             }
         }
@@ -622,9 +673,43 @@ impl Visualizable for VisualizationData {
 
             (State::OutOfScope, Event::Acquire{ .. }) => State::FullPrivilege,
 
-            (State::OutOfScope, Event::Copy{ .. }) => State::FullPrivilege,
+            (State::OutOfScope, Event::Copy{ from: ro, is: is_ro }) => {
+                match ro {
+                    ResourceTy::Anonymous => State::FullPrivilege,
+                    ResourceTy::Deref(r) | ResourceTy::Value(r) => {
+                        if r.is_ref() {
+                            if r.is_mutref() {
+                                panic!("Not possible, has to be a move");
+                            }
+                            else {
+                                let mut prev_state = State::OutOfScope;
+                                for (line_number, event) in self.timelines[r.hash()].history.iter() {
+                                    prev_state = self.calc_state(&prev_state, &event, *line_number, hash);
+                                    if event_line == *line_number {
+                                        break;
+                                    }
+                                }
+                                
+                                println!("prev state: {:#?}", prev_state);
+                                match prev_state {
+                                    State::PartialPrivilege { borrow_count: b_c, borrow_to: b_to } => {
+                                        let mut b_new_to = b_to.clone();
+                                        b_new_to.insert(is_ro.to_owned());
+                                        State::PartialPrivilege { borrow_count: b_c + 1, borrow_to: b_new_to}
+                                    }
+                                    _ => panic!("ref copy state has to be partial privilege")
+                                }
+                            }   
+                        }
+                        else {
+                            State::FullPrivilege
+                        }
+                    }
+                    _ => panic!("not possible")
+                }
+            }
 
-            (State::OutOfScope, Event::StaticBorrow{ from: ro }) =>
+            (State::OutOfScope, Event::StaticBorrow{ from: ro,.. }) =>
                 State::PartialPrivilege {
                     borrow_count: 1,
                     borrow_to: [ro.to_owned()].iter().cloned().collect()
@@ -652,7 +737,7 @@ impl Visualizable for VisualizationData {
                 }
             },
 
-            (State::FullPrivilege, Event::Move{to: to_ro}) =>
+            (State::FullPrivilege, Event::Move{to: to_ro,..}) =>
                 State::ResourceMoved{ move_to: to_ro.to_owned(), move_at_line: event_line },
 
             (State::ResourceMoved{ .. }, Event::Acquire{ .. }) => {
@@ -665,7 +750,7 @@ impl Visualizable for VisualizationData {
                 }
             },
 
-            (State::FullPrivilege, Event::MutableLend{ to: to_ro }) => {
+            (State::FullPrivilege, Event::MutableLend{ to: to_ro ,..}) => {
             // Assumption: variables can lend mutably if
             // 1) variable instance is mutable or 2) variable is a mutable reference
             // Use cases: 'mutable_borrow' & 'nll_lexical_scope_different'
@@ -680,13 +765,8 @@ impl Visualizable for VisualizationData {
             (State::FullPrivilege, Event::MutableDie{ .. }) =>
                 State::OutOfScope,
 
-            (State::FullPrivilege, Event::Acquire{ from: _ }) | (State::FullPrivilege, Event::Copy{ from: _ }) => {
-                if self.is_mut(hash) {
+            (State::FullPrivilege, Event::Acquire{ from: _ ,..}) | (State::FullPrivilege, Event::Copy{ from: _ ,..}) => {
                     State::FullPrivilege
-                }
-                else {
-                    State::Invalid
-                }
             },
 
             (State::FullPrivilege, Event::OwnerGoOutOfScope) =>
@@ -695,7 +775,7 @@ impl Visualizable for VisualizationData {
             (State::FullPrivilege, Event::RefGoOutOfScope) =>
                 State::OutOfScope,
 
-            (State::FullPrivilege, Event::StaticLend{ to: to_ro }) =>
+            (State::FullPrivilege, Event::StaticLend{ to: to_ro ,..}) =>
                 State::PartialPrivilege {
                     borrow_count: 1,
                     borrow_to: [(to_ro.to_owned())].iter().cloned().collect() // we assume there is no borrow_to:None
@@ -704,7 +784,7 @@ impl Visualizable for VisualizationData {
             (State::PartialPrivilege{ .. }, Event::MutableLend{ .. }) =>
                 State::Invalid,
 
-            (State::PartialPrivilege{ borrow_count: current, borrow_to }, Event::StaticLend{ to: to_ro }) => {
+            (State::PartialPrivilege{ borrow_count: current, borrow_to }, Event::StaticLend{ to: to_ro ,..}) => {
                 let mut new_borrow_to = borrow_to.clone();
                 // Assume can not lend to None
                 new_borrow_to.insert(to_ro.to_owned());
@@ -718,7 +798,7 @@ impl Visualizable for VisualizationData {
             (State::PartialPrivilege{ .. }, Event::StaticDie{ .. }) =>
                 State::OutOfScope,
 
-            (State::PartialPrivilege{ borrow_count, borrow_to }, Event::StaticReacquire{ from: ro }) => {
+            (State::PartialPrivilege{ borrow_count, borrow_to }, Event::StaticReacquire{ from: ro ,..}) => {
                 let new_borrow_count = borrow_count - 1;
                 // check if it resumes to full privilege    
                 if borrow_count - 1 == 0 {
@@ -743,7 +823,7 @@ impl Visualizable for VisualizationData {
 
             (State::RevokedPrivilege{ .. }, Event::MutableReacquire{ .. }) =>
                 State::FullPrivilege,
-            (_, Event::Duplicate { to: ResourceTy::Caller}) => State::OutOfScope,
+            (_, Event::Duplicate { to: ResourceTy::Caller,..}) => State::OutOfScope,
             (_, Event::Duplicate { .. }) => (*previous_state).clone(),
 
             (_, _) => State::Invalid,
@@ -856,8 +936,8 @@ impl Visualizable for VisualizationData {
         self.external_events.push((line_number, event.clone()));
         
         // append_event if resource_access_point is not null
-        fn maybe_append_event(vd: &mut VisualizationData, resource_access_point: &ResourceTy, event: Event, line_number : &usize) {
-            match resource_access_point {
+        fn maybe_append_event(vd: &mut VisualizationData, resource_ty: &ResourceTy, event: Event, line_number : &usize) {
+            match resource_ty {
                 ResourceTy::Anonymous | ResourceTy::Caller => {}
                 ResourceTy::Deref(r) | ResourceTy::Value(r) => {
                     vd._append_event(&r, event, line_number)
@@ -868,49 +948,65 @@ impl Visualizable for VisualizationData {
         match event {
             // eg let ro_to = String::from("");
             ExternalEvent::Move{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro, Event::Acquire{from : from_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &from_ro, Event::Move{to : to_ro.to_owned()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::Acquire{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
+                maybe_append_event(self, &from_ro.clone(), Event::Move{to : to_ro.to_owned(), is: from_ro}, &line_number);
             },
             // eg: let ro_to = 5;
             ExternalEvent::Bind{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro, Event::Acquire{from : from_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &from_ro, Event::Duplicate{to : to_ro.to_owned()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::Acquire{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
+                maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, &line_number);
             },
             // eg: let x : i64 = y as i64;
             ExternalEvent::Copy{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro, Event::Copy{from : from_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &from_ro, Event::Duplicate{to : to_ro.to_owned()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::Copy{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
+                maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, &line_number);
             },
             ExternalEvent::StaticBorrow{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &to_ro, Event::StaticBorrow{from : from_ro.to_owned()}, &line_number);
+                maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned(), is: to_ro.clone()}, &line_number);
+                maybe_append_event(self, &to_ro, Event::StaticBorrow{from : from_ro.to_owned(), is: from_ro}, &line_number);
                 
             },
             ExternalEvent::StaticDie{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro, Event::StaticReacquire{from : from_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &from_ro, Event::StaticDie{to : to_ro.to_owned()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::StaticReacquire{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
+                maybe_append_event(self, &from_ro.clone(), Event::StaticDie{to : to_ro.to_owned(), is: from_ro}, &line_number);
             },
             ExternalEvent::MutableBorrow{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro, Event::MutableLend{to : to_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &to_ro, Event::MutableBorrow{from : from_ro.to_owned()}, &line_number);
+                maybe_append_event(self, &from_ro, Event::MutableLend{to : to_ro.to_owned(), is: to_ro.clone()}, &line_number);
+                maybe_append_event(self, &to_ro, Event::MutableBorrow{from : from_ro.to_owned(), is: from_ro}, &line_number);
                 
             },
             ExternalEvent::MutableDie{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro, Event::MutableReacquire{from : from_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &from_ro, Event::MutableDie{to : to_ro.to_owned()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::MutableReacquire{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
+                maybe_append_event(self, &from_ro.clone(), Event::MutableDie{to : to_ro.to_owned(), is: from_ro}, &line_number);
             },
+            ExternalEvent::RefDie { from: from_ro, to: to_ro } => { // need Ref Event to avoid drawing redundant arrows when rendering timelines
+                match from_ro.clone() {
+                    ResourceTy::Deref(ro_is) | ResourceTy::Value(ro_is) => {
+                        if ro_is.is_mutref() {
+                            maybe_append_event(self, &from_ro.clone(), Event::MutableDie { to: ResourceTy::Anonymous, is: from_ro.clone() }, &line_number);
+                            maybe_append_event(self, &to_ro.clone(), Event::MutableReacquire { from: from_ro, is: to_ro }, &line_number);
+                        }
+                        else {
+                            maybe_append_event(self, &from_ro.clone(), Event::StaticDie { to: ResourceTy::Anonymous, is: from_ro.clone() }, &line_number);
+                            maybe_append_event(self, &to_ro.clone(), Event::StaticReacquire { from: from_ro, is: to_ro }, &line_number);
+                        }
+                    }
+                    _ => panic!("not possible")
+                }
+            },
+
             // TODO do we really need to add these events, since pass by ref does not change the state?
             ExternalEvent::PassByStaticReference{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro.to_owned(), Event::StaticLend{to : to_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &to_ro.to_owned(), Event::StaticBorrow{from : from_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &from_ro, Event::StaticReacquire{from : to_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &to_ro, Event::StaticDie{to : from_ro.to_owned()}, &line_number);
+                maybe_append_event(self, &from_ro.to_owned(), Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
+                maybe_append_event(self, &to_ro.to_owned(), Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
+                maybe_append_event(self, &from_ro, Event::StaticReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::StaticDie{to : from_ro.to_owned(), is: to_ro}, &line_number);
             },
             ExternalEvent::PassByMutableReference{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro, Event::MutableLend{to : to_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &to_ro, Event::MutableBorrow{from : from_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &from_ro, Event::MutableReacquire{from : to_ro.to_owned()}, &line_number);
-                maybe_append_event(self, &to_ro, Event::MutableDie{to : from_ro.to_owned()}, &line_number);
+                maybe_append_event(self, &from_ro.clone(), Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
+                maybe_append_event(self, &from_ro.clone(), Event::MutableReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::MutableDie{to : from_ro.to_owned(), is: to_ro}, &line_number);
             },
             ExternalEvent::InitRefParam{param: ro} => {
                 maybe_append_event(self, &ResourceTy::Value(ro.clone()), Event::InitRefParam{param : ro.to_owned()}, &line_number);

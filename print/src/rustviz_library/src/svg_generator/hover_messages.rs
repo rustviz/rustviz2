@@ -160,7 +160,7 @@ pub fn event_dot_static_return(my_name: &String, _target_name: &String) -> Strin
     let my_name_fmt = fmt_style(my_name);
     
     format!(
-        "{0}'s mutable borrow ends",
+        "{0}'s immutable borrow ends",
         my_name_fmt
     )
 }
@@ -175,7 +175,7 @@ pub fn event_dot_mut_return(my_name: &String, _target_name: &String) -> String {
     let my_name_fmt = fmt_style(my_name);
     
     format!(
-        "{0}'s immutable borrow ends",
+        "{0}'s mutable borrow ends",
         my_name_fmt
     )
 }

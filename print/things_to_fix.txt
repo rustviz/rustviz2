@@ -13,3 +13,4 @@
 12. Have yet to handle struct reference fields (lifetimes)
 13. Seperate annotation from event construction (FIXED)
 14. Change mut ref hover message (mut refs cannot point to different pieces of data)
+15: fix annotated gen source for lifetime parameters

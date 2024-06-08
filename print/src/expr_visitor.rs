@@ -3,6 +3,7 @@ use rustc_middle::{
     ty::*,
   };
   use rustc_hir::{Expr, ExprKind, QPath, Path, Mutability, UnOp};
+use rustc_utils::mir::mutability;
   use std::cell::Ref;
 use std::collections::{HashMap, BTreeMap, HashSet};
   use rustc_span::Span;
@@ -31,18 +32,6 @@ pub enum AccessPointUsage{
   Function(String),
 }
 
-#[derive(Eq, PartialEq,Hash, Clone, Debug)]
-pub enum Reference{
-  Static(String),
-  Mut(String),
-}
-
-#[derive(Eq, PartialEq,Hash, Clone, Debug)]
-pub enum LhsEv {
-  Standard,
-  Deref,
-}
-
 pub enum Evt {
   Bind,
   Copy,
@@ -60,8 +49,8 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub tcx: TyCtxt<'tcx>,
   pub mir_body: &'a Body<'tcx>,
   pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
-  pub lifetime_map: HashMap<Reference,usize>,
-  pub borrow_map: HashMap<String, Option<ResourceAccessPoint>>, 
+  pub borrow_map: HashMap<String, (ResourceTy, usize, bool)>, //lendee -> (lender, lifetime, ref mutability) 
+  pub lenders: HashMap<String, HashSet<ResourceTy>>,
   pub raps: &'a mut HashMap<String, (ResourceAccessPoint, usize)>,
   pub current_scope: usize,
   pub analysis_result : HashMap<usize, Vec<String>>,
@@ -125,17 +114,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn update_lifetime(&mut self, reference:Reference, line:usize){
-    if self.lifetime_map.contains_key(&reference){
-      if let Some(old_line)=self.lifetime_map.get(&reference){
-        if *old_line<line {
-          self.lifetime_map.insert(reference, line);
-        }
-      }
-    }
-    else{
-      self.lifetime_map.insert(reference, line);
-    }
+  pub fn update_lifetime(&mut self, name: &String, line:usize, ref_mutability: bool){
+    let (r, lifetime, muta) = self.borrow_map.get_mut(name).unwrap();
+    *lifetime = line;
   }
 
   // pub fn add_access_point(&mut self, a: AccessPointUsage, name: String) {
@@ -148,24 +129,31 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     self.add_rap(ResourceAccessPoint::Owner(Owner{name: name, hash: self.rap_hashes as u64, is_mut: mutability}));
   }
 
-  pub fn add_ref(&mut self, name: String, mutability: bool, line_num: usize) {
-    match mutability {
-      true => { 
-        self.add_mut_ref(name.clone());
-        self.update_lifetime(Reference::Mut(name), line_num); }
+  pub fn add_ref(&mut self, name: String, ref_mutability: bool, lhs_mut: bool, line_num: usize, lender: ResourceTy) {
+    match ref_mutability {
+      true => {
+        self.add_mut_ref(name.clone(), lhs_mut);
+      }
       false => { 
-        self.add_static_ref(name.clone());
-        self.update_lifetime(Reference::Static(name), line_num);
+        self.add_static_ref(name.clone(), lhs_mut);
+      }
+    }
+    self.borrow_map.insert(name.clone(), (lender.clone(), line_num, ref_mutability));
+    match lender.clone() {
+      ResourceTy::Anonymous => {}
+      _ => {
+        let borrower = ResourceTy::Value(self.raps.get(&name).unwrap().0.clone());
+        self.lenders.entry(lender.name()).and_modify(|v| {v.insert(borrower.clone());}).or_insert(HashSet::from([borrower]));
       }
     }
   }
   
-  pub fn add_static_ref(&mut self, name: String) {
-    self.add_rap(ResourceAccessPoint::StaticRef(StaticRef { name: name, hash: self.rap_hashes as u64, is_mut: false }));
+  pub fn add_static_ref(&mut self, name: String, mutability: bool) {
+    self.add_rap(ResourceAccessPoint::StaticRef(StaticRef { name: name, hash: self.rap_hashes as u64, is_mut: mutability }));
   }
 
-  pub fn add_mut_ref(&mut self, name: String) {
-    self.add_rap(ResourceAccessPoint::MutRef(MutRef { name: name, hash: self.rap_hashes as u64, is_mut: false }));
+  pub fn add_mut_ref(&mut self, name: String, mutability: bool) {
+    self.add_rap(ResourceAccessPoint::MutRef(MutRef { name: name, hash: self.rap_hashes as u64, is_mut: mutability }));
   }
 
   pub fn add_fn(&mut self, name: String) {
@@ -187,31 +175,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 
   pub fn update_rap(&mut self, r: &ResourceAccessPoint, line_num: usize) {
     if r.is_ref() {
-      if r.is_mutref() {
-        self.update_lifetime(Reference::Mut(r.name().clone()), line_num)
-      }
-      else {
-        self.update_lifetime(Reference::Static(r.name().clone()), line_num)
-      }
+      self.update_lifetime(r.name(), line_num, r.is_mutref());
     }
   }
-
-  // pub fn add_event(&mut self, line_num: usize, event: String) {
-  //   self.analysis_result
-  //   .entry(line_num)
-  //   .or_insert(Vec::new())
-  //   .push(event.clone());
-
-  //   // stuff for testing utils
-  //   if let Some(value) = self.event_line_map.get(&line_num) {
-  //     if value.contains("//") { // appending to same line
-  //       self.event_line_map.entry(line_num).and_modify(|ev| {ev.push_str(&(", ".to_owned() + &event));});
-  //     }
-  //     else { // first thing in a line
-  //       self.event_line_map.entry(line_num).and_modify(|ev| {ev.push_str(&("// !{ ".to_owned() + &event));});
-  //     }
-  //   }
-  // }
 
   pub fn add_external_event(&mut self, line_num: usize, event: ExternalEvent) {
     self.preprocessed_events.push((line_num, event.clone()));
@@ -292,6 +258,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
 
   pub fn match_args(&mut self, arg: &'tcx Expr, fn_name:String) {
+    println!("matching args");
     let line_num = self.span_to_line(&arg.span);
     // add callee no matter what
     self.add_fn(fn_name.clone());
@@ -336,10 +303,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Unary(option, expr) => {
         match option {
           rustc_hir::UnOp::Deref => {
+            println!("we getting here?");
             let line_num = self.expr_to_line(&expr);
             let rhs_rap = self.fetch_rap(&expr);
             let res = match rhs_rap {
               Some(x) => {
+                println!("updating x {:#?}", x);
                 self.update_rap(&x, line_num);
                 ResourceTy::Deref(x)
               }
@@ -397,14 +366,19 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn find_lender(&self, rhs: &'tcx Expr) -> Option<ResourceAccessPoint> {
+  pub fn find_lender(&self, rhs: &'tcx Expr) -> ResourceTy {
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        Some(self.raps.get(&name).unwrap().0.to_owned())
+        if self.borrow_map.contains_key(&name) {
+          self.borrow_map.get(&name).unwrap().to_owned().0
+        }
+        else{
+          ResourceTy::Value(self.raps.get(&name).unwrap().0.to_owned())
+        }
       }
       ExprKind::Call(..) | ExprKind::MethodCall(..) | ExprKind::Lit(_) => {
-        None
+        ResourceTy::Anonymous
       }
       ExprKind::AddrOf(_, _, expr) => {
         self.find_lender(expr)
@@ -419,10 +393,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         match op {
           rustc_hir::UnOp::Deref => {
             match self.find_lender(expr) {
-              Some(r) => {
-                self.borrow_map.get(r.name()).unwrap().to_owned()
+              ResourceTy::Deref(r) | ResourceTy::Value(r) => {
+                self.borrow_map.get(r.name()).unwrap().to_owned().0
               }
-              None => { None }
+              _ => { ResourceTy::Anonymous }
             }
           },
           _ => {
@@ -433,9 +407,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Field(expr, ident) => {
         match expr {
           Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
-            let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-            let total_name = format!("{}.{}", name, ident.as_str());
-            Some(self.raps.get(&total_name).unwrap().0.to_owned())
+            let mut name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+            let name = format!("{}.{}", name, ident.as_str());
+            if self.borrow_map.contains_key(&name) {
+              self.borrow_map.get(&name).unwrap().to_owned().0
+            }
+            else{
+              ResourceTy::Value(self.raps.get(&name).unwrap().0.to_owned())
+            }
           }
           _ => { panic!("unexpected field expr") }
         } 
@@ -455,11 +434,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
 
   pub fn define_lhs(&mut self, lhs_name: String, lhs_mutability: bool, rhs_expr: &'tcx Expr, lhs_ty: Ty <'tcx>) {
-    let tycheck_results = self.tcx.typeck(rhs_expr.hir_id.owner);
     //println!("NODE TYPES {:#?}", tycheck_results.node_types().items_in_stable_order());
     if lhs_ty.is_ref() {
-      self.add_ref(lhs_name.clone(), bool_of_mut(lhs_ty.ref_mutability().unwrap()), self.expr_to_line(&rhs_expr));
-      self.borrow_map.insert(lhs_name, self.find_lender(rhs_expr));
+      self.add_ref(lhs_name.clone(), 
+      bool_of_mut(lhs_ty.ref_mutability().unwrap()), 
+      lhs_mutability, 
+      self.expr_to_line(&rhs_expr),
+      self.find_lender(&rhs_expr));
     }
     else if lhs_ty.is_adt() && !self.ty_is_special_owner(lhs_ty) {
       match lhs_ty.ty_adt_def().unwrap().adt_kind() {
@@ -545,20 +526,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         // This if statement checks: Is something the path p actually happening here - see aquascope/analysis/boundaries/mod.rs for more info
         if let Some(boundary) = boundary {
           if boundary.expected.drop { // if a resource is being dropped
-            if rhs_rap.is_ref() {
-              self.add_ev(line_num, Evt::MBorrow, lhs, ResourceTy::Value(rhs_rap));
-            }
-            else {
-              self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
-            }
+            self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
           }
           else {
-            if rhs_rap.is_ref() {
-              self.add_ev(line_num, Evt::SBorrow, lhs, ResourceTy::Value(rhs_rap));
-            }
-            else {
-              self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
-            }
+            self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
           }
         }   
       },
@@ -597,7 +568,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
           None => {} // taking addrOf some anonymous resource, ie: &String::from("")
         }
-        let res = match self.find_lender(rhs) {
+        let res = match self.fetch_rap(rhs) {
           Some(x) => ResourceTy::Value(x),
           None => ResourceTy::Anonymous
         };
@@ -630,18 +601,19 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           rustc_hir::UnOp::Deref => {
             let line_num = self.expr_to_line(&expr);
             let rhs_rap = self.fetch_rap(&expr);
-            match rhs_rap {
-              Some(x) => self.update_rap(&x, line_num),
-              None => {}
-            }
+            let res = match rhs_rap {
+              Some(x) => {
+                self.update_rap(&x, line_num);
+                ResourceTy::Deref(x)
+              }
+              None => {
+                ResourceTy::Anonymous
+              }
+            };
             // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not pat
             let boundary=self.boundary_map.get(&rhs.span.lo());
             if let Some(boundary) = boundary {
-              let res = match self.find_lender(rhs) {
-                Some(x) => ResourceTy::Value(x),
-                None => ResourceTy::Anonymous
-              };
-              if boundary.expected.drop { //TODO: will have to update with a new type of RAP, maybe a DEREF{Option<RAP>}
+              if boundary.expected.drop { 
                 self.add_ev(line_num, Evt::Move, lhs, res);
               }
               else {
@@ -737,29 +709,56 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
   
   pub fn print_lifetimes(&mut self){
-    println!("LIFETIME MAP: {:#?}", self.lifetime_map);
+    //println!("LIFETIME MAP: {:#?}", self.lifetime_map);
     println!("BORROW MAP {:#?}", self.borrow_map);
-    println!("RAPS {:#?}", self.raps);
-    let lifetime_map = self.lifetime_map.clone();
-    for (reference,line_num) in &lifetime_map {
-      match reference{
-        Reference::Mut(name)=>{
-          let from_rap = self.raps.get(name).unwrap().0.to_owned();
-          let to_rap = self.borrow_map.get(name).unwrap().to_owned();
-          let res = match to_rap {
-            Some(x) => ResourceTy::Value(x),
-            None => ResourceTy::Anonymous
-          };
-          self.add_external_event(*line_num, ExternalEvent::MutableDie { from: ResourceTy::Value(from_rap), to: res });
+    //let lifetime_map = self.lifetime_map.clone();
+    let mut ultimate_refs: HashSet<String> = HashSet::new();
+    let mut res_to_ref: HashMap<String, (usize, String)> = HashMap::new();
+    for (k, (r, lifetime, _)) in &self.borrow_map {
+      match r {
+        ResourceTy::Anonymous => {}
+        ResourceTy::Caller => {panic!("bruh not possible")}
+        ResourceTy::Deref(ro) | ResourceTy::Value(ro) => {
+          if res_to_ref.contains_key(ro.name()) {
+            if res_to_ref.get(ro.name()).unwrap().0 < *lifetime {
+              ultimate_refs.remove(&res_to_ref.get(ro.name()).unwrap().1);
+              *res_to_ref.get_mut(ro.name()).unwrap() = (*lifetime, k.to_owned());
+              ultimate_refs.insert(k.to_owned());
+            }
+          }
+          else {
+            res_to_ref.insert(r.name().to_owned(), (*lifetime, k.to_owned()));
+            ultimate_refs.insert(k.to_owned());
+          }
         }
-        Reference::Static(name)=>{
-          let from_rap = self.raps.get(name).unwrap().0.to_owned();
-          let to_rap = self.borrow_map.get(name).unwrap().to_owned();
-          let res = match to_rap {
-            Some(x) => ResourceTy::Value(x),
-            None => ResourceTy::Anonymous
-          };
-          self.add_external_event(*line_num, ExternalEvent::StaticDie { from: ResourceTy::Value(from_rap), to: res });
+      }
+    }
+
+    // test-case: r and *r are both references
+    // test-case r points to multiple references one of which has multiple borrowers
+
+    println!("res refs {:#?}", res_to_ref);
+    println!("ultimate refs {:#?}", ultimate_refs);
+    let b_map = self.borrow_map.clone();
+
+    // loop through all 'active' references
+    for (k, (r_ty, lifetime, ref_mut)) in &b_map {
+      let from_ro = self.raps.get(k).unwrap().0.to_owned();
+      let to_ro = match r_ty {
+        ResourceTy::Anonymous => ResourceTy::Deref(from_ro.clone()),
+        _ => r_ty.clone()
+      };
+      if !ultimate_refs.contains(k) {
+        self.add_external_event(*lifetime, ExternalEvent::RefDie { from: ResourceTy::Value(from_ro), to: to_ro });
+      }
+      else {
+        match ref_mut {
+          true => {
+            self.add_ev(*lifetime, Evt::MDie, to_ro, ResourceTy::Value(from_ro));
+          }
+          false => {
+            self.add_ev(*lifetime, Evt::SDie, to_ro, ResourceTy::Value(from_ro));
+          }
         }
       }
     }
