@@ -1,9 +1,10 @@
 fn main () {
   let mut x = 7;
-  let mut y = & mut x;
   let mut c = 8;
-  y = &mut c;
-  x += 5;
-  *y += 5;
+  let mut y = &x;
+  let z = & mut y;
+  *z = &c;
+  println!("c value {}", **z);
+  y = &x;
   println!("x value {}", *y);
 }

@@ -316,7 +316,8 @@ pub fn render_svg(
 
     // data for code panel
     println!("TIMELINE DATA : {:#?}", visualization_data.timelines);
-    println!("y states {:#?}", visualization_data.get_states(&2));
+    println!("y states {:#?}", visualization_data.get_states(&3));
+    println!("z states {:#?}", visualization_data.get_states(&4));
     // println!("c states {:#?}", visualization_data.get_states(&3));
     let mut max_x_space: i64 = 0;
     let (output, line_of_code) =

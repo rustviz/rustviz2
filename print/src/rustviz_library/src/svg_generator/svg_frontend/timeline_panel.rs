@@ -372,8 +372,12 @@ fn render_dots_string(
                         Event::Move{..} => {
                             resource_hold = false;
                         },
+                        Event::RefDie { .. } => {
+                          continue;
+                        }
                         _ => {} //do nothing
                     }
+                    
                     let mut data = EventDotData {
                         hash: *hash as u64,
                         dot_x: resource_owners_layout[hash].x_val,
@@ -587,7 +591,6 @@ fn render_arrows_string_external_events_version(
             (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(to_function)), _) => { // (Some(variable), Some(function), _)
                 let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
                 //  ro1 (to_function) <- ro2 (from_variable)
-                println!("from variable {:#?}", from_variable);
                 let x2 = resource_owners_layout[from_variable.hash()].x_val - 5;
                 let x1 = x2 - arrow_length;
                 let y1 = get_y_axis_pos(*line_number);
@@ -615,7 +618,6 @@ fn render_arrows_string_external_events_version(
                 }
             },
             (from_variable, to_variable, _e) => {
-                println!("from {:#?}\n to {:#?}\n {:#?} ", from_variable, to_variable, _e);
                 let arrow_order = visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
 
                 let x1 = resource_owners_layout[to_variable.hash()].x_val;
@@ -804,12 +806,10 @@ fn create_reference_line_string(
     data: &mut VerticalLineData,
     registry: &Handlebars,
 ) -> String {
-    println!("rap {:#?}, state {:#?}", rap, state);
     match (state, rap.is_mut()) {
         (State::FullPrivilege, true) => {
             data.line_class = String::from("solid");
             if rap.is_ref() {
-                println!("getting here");
                 data.title += "; can read and write data; can point to another piece of data.";
             } else {
                 data.title += "; can read and write data";
@@ -828,8 +828,11 @@ fn create_reference_line_string(
             
             registry.render("hollow_line_template", &hollow_line_data).unwrap()
         },
-        (State::PartialPrivilege{ .. }, _) => {
+        (State::PartialPrivilege{ .. }, muta) => {
             data.line_class = String::from("solid");
+            if muta {
+              data.title += "; can point to another piece of data"
+            }
             data.title += "; can only read data.";
             
             let mut hollow_line_data = data.clone();
@@ -859,7 +862,27 @@ fn render_timelines(
     for (hash, timeline) in timelines {
         let rap = &timeline.resource_access_point;
         let rap_states = visualization_data.get_states(hash);
-        for (line_start, line_end, state) in rap_states.iter() {
+        let mut cleaned_rap_states: Vec<(usize, usize, State)> = Vec::new();
+        let mut i: usize = 0;
+        while i < rap_states.len() {
+          match &rap_states[i].2 { // merge partial privilege events together
+            State::PartialPrivilege { .. } => {
+              let mut j = i + 1;
+              let mut ending_range = rap_states[i].1;
+              while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
+                ending_range = rap_states[j].1;
+                j += 1;
+              }
+              cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
+              i = j;
+            }
+            _ => {
+              cleaned_rap_states.push(rap_states[i].clone());
+              i += 1;
+            }
+          }
+        }
+        for (line_start, line_end, state) in cleaned_rap_states.iter() {
             // println!("{} -> start: {}, end: {}, state: {}", visualization_data.get_name_from_hash(hash).unwrap(), line_start, line_end, state); // DEBUG PURPOSES
             let data = match rap {
                 ResourceAccessPoint::Function(_) => None,

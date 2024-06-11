@@ -35,6 +35,8 @@ pub trait Visualizable {
     // if resource_access_point with hash is a function
     fn is_mutref(&self, hash: &u64) -> bool;
 
+    fn is_ref(&self, hash: &u64) -> bool;
+
     fn calc_state(&self, previous_state: & State, event: & Event, event_line: usize, hash: &u64) -> State;
 }
 
@@ -124,6 +126,13 @@ impl ResourceTy {
             ResourceTy::Caller | ResourceTy::Anonymous => &std::u64::MAX,
             ResourceTy::Value(r) | ResourceTy::Deref(r) => r.hash(),
         }
+    }
+
+    pub fn is_ref(&self) -> bool {
+      match self {
+        ResourceTy::Value(r) | ResourceTy::Deref(r) => r.is_ref(),
+        _ => false
+      }
     }
 }
 
@@ -367,6 +376,11 @@ pub enum Event {
         from: ResourceTy,
         is: ResourceTy
     },
+
+    RefDie {
+      from: ResourceTy,
+      is: ResourceTy
+    },
     // this happens when a owner is returned this line,
     // or if this owner's scope ends at this line. The data must be dropped. 
     OwnerGoOutOfScope,
@@ -413,6 +427,7 @@ pub enum State {
     RevokedPrivilege {
         to: ResourceTy,
         borrow_to: ResourceTy,
+        prev_state: Box<State>
     },
     // should not appear for visualization in a correct program
     Invalid,
@@ -465,7 +480,7 @@ impl State {
             State::PartialPrivilege { .. } => {
                 hover_messages::state_partial_privilege(my_name)
             }
-            State::RevokedPrivilege { to: _, borrow_to } => {
+            State::RevokedPrivilege { to: _, borrow_to , prev_state: _} => {
                 safe_message(hover_messages::state_resource_revoked, my_name, borrow_to)
             }
             State::Invalid => {
@@ -497,6 +512,9 @@ impl Display for Event {
             Event::RefGoOutOfScope => {
                 write!(f, "Goes out of Scope as a reference to resource")
             },
+            Event::RefDie { from, .. } => {
+              write!(f, "{} reference dies", from.name())
+            }
         }
     }
 }
@@ -510,7 +528,6 @@ impl Event {
             StaticBorrow { is: x, .. } | StaticReacquire { is: x, .. } | MutableReacquire {is: x, ..} => {
                 match x {
                     ResourceTy::Deref(_) => {
-                        println!("erm are we getting here? {:#?}", self);
                         name.insert(0, '*');
                         name
                     },
@@ -576,6 +593,9 @@ impl Event {
             }
             MutableReacquire{ from ,..} => {
                 safe_message(hover_messages::event_dot_mut_reacquire, &self.deref_name(my_name), from)
+            }
+            RefDie {..} => {
+              panic!("should never be calling this function with this event");
             }
         } 
     }
@@ -653,6 +673,10 @@ impl Visualizable for VisualizationData {
         self.timelines[hash].resource_access_point.is_mutref()
     }
 
+    fn is_ref(&self, hash: &u64) -> bool {
+      self.timelines[hash].resource_access_point.is_ref()
+    }
+
     // a Function does not have a State, so we assume previous_state is always for Variables
     fn calc_state(&self, previous_state: & State, event: & Event, event_line: usize, hash: &u64) -> State {
         /* a Variable cannot borrow or return resource from Functions, 
@@ -677,7 +701,7 @@ impl Visualizable for VisualizationData {
                 match ro {
                     ResourceTy::Anonymous => State::FullPrivilege,
                     ResourceTy::Deref(r) | ResourceTy::Value(r) => {
-                        if r.is_ref() {
+                        if r.is_ref() && is_ro.is_ref() {
                             if r.is_mutref() {
                                 panic!("Not possible, has to be a move");
                             }
@@ -689,8 +713,6 @@ impl Visualizable for VisualizationData {
                                         break;
                                     }
                                 }
-                                
-                                println!("prev state: {:#?}", prev_state);
                                 match prev_state {
                                     State::PartialPrivilege { borrow_count: b_c, borrow_to: b_to } => {
                                         let mut b_new_to = b_to.clone();
@@ -755,7 +777,7 @@ impl Visualizable for VisualizationData {
             // 1) variable instance is mutable or 2) variable is a mutable reference
             // Use cases: 'mutable_borrow' & 'nll_lexical_scope_different'
                 if self.is_mut(hash) | self.is_mutref(hash) {
-                    State::RevokedPrivilege{ to: ResourceTy::Anonymous, borrow_to: to_ro.to_owned() }
+                    State::RevokedPrivilege{ to: ResourceTy::Anonymous, borrow_to: to_ro.to_owned(), prev_state: Box::from(previous_state.to_owned()) }
                 } else {
                     State::Invalid
                 }
@@ -781,8 +803,8 @@ impl Visualizable for VisualizationData {
                     borrow_to: [(to_ro.to_owned())].iter().cloned().collect() // we assume there is no borrow_to:None
                 },
 
-            (State::PartialPrivilege{ .. }, Event::MutableLend{ .. }) =>
-                State::Invalid,
+            (State::PartialPrivilege{ .. }, Event::MutableLend{ to: to_ro, .. }) => 
+            State::RevokedPrivilege { to: ResourceTy::Anonymous, borrow_to: to_ro.to_owned(), prev_state: Box::from(previous_state.to_owned()) },
 
             (State::PartialPrivilege{ borrow_count: current, borrow_to }, Event::StaticLend{ to: to_ro ,..}) => {
                 let mut new_borrow_to = borrow_to.clone();
@@ -798,7 +820,8 @@ impl Visualizable for VisualizationData {
             (State::PartialPrivilege{ .. }, Event::StaticDie{ .. }) =>
                 State::OutOfScope,
 
-            (State::PartialPrivilege{ borrow_count, borrow_to }, Event::StaticReacquire{ from: ro ,..}) => {
+            (State::PartialPrivilege{ borrow_count, borrow_to }, Event::StaticReacquire{ from: ro ,..}) 
+            | (State::PartialPrivilege { borrow_count, borrow_to }, Event::RefDie { from: ro, .. })=> {
                 let new_borrow_count = borrow_count - 1;
                 // check if it resumes to full privilege    
                 if borrow_count - 1 == 0 {
@@ -821,8 +844,14 @@ impl Visualizable for VisualizationData {
             (State::PartialPrivilege{ .. }, Event::RefGoOutOfScope) =>
                 State::OutOfScope,
 
-            (State::RevokedPrivilege{ .. }, Event::MutableReacquire{ .. }) =>
-                State::FullPrivilege,
+            (State::RevokedPrivilege{ prev_state: p,.. }, Event::MutableReacquire{ .. }) => {
+              *p.clone()
+            }
+
+            (State::FullPrivilege, Event::StaticDie { .. }) | 
+            (State::FullPrivilege, Event::StaticBorrow { .. }) => {
+              State::FullPrivilege
+            }
             (_, Event::Duplicate { to: ResourceTy::Caller,..}) => State::OutOfScope,
             (_, Event::Duplicate { .. }) => (*previous_state).clone(),
 
@@ -984,11 +1013,11 @@ impl Visualizable for VisualizationData {
                     ResourceTy::Deref(ro_is) | ResourceTy::Value(ro_is) => {
                         if ro_is.is_mutref() {
                             maybe_append_event(self, &from_ro.clone(), Event::MutableDie { to: ResourceTy::Anonymous, is: from_ro.clone() }, &line_number);
-                            maybe_append_event(self, &to_ro.clone(), Event::MutableReacquire { from: from_ro, is: to_ro }, &line_number);
+                            //maybe_append_event(self, &to_ro.clone(), Event::MutableReacquire { from: from_ro, is: to_ro }, &line_number);
                         }
                         else {
                             maybe_append_event(self, &from_ro.clone(), Event::StaticDie { to: ResourceTy::Anonymous, is: from_ro.clone() }, &line_number);
-                            maybe_append_event(self, &to_ro.clone(), Event::StaticReacquire { from: from_ro, is: to_ro }, &line_number);
+                            maybe_append_event(self, &to_ro.clone(), Event::RefDie { from: from_ro, is: to_ro }, &line_number);
                         }
                     }
                     _ => panic!("not possible")

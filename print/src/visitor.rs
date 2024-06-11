@@ -9,7 +9,7 @@ use rustc_middle::{
   mir::Body,
   ty::{TyCtxt,Ty, adjustment::*},
 };
-use std::collections::HashSet;
+use std::collections::{HashSet, BTreeMap};
 
 // these are the visitor trait itself
 // the visitor will walk through the hir
@@ -26,7 +26,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       PatKind::Binding(binding_annotation, _ann_hirid, ident, _op_pat) =>{
         let name: String = ident.to_string();
         if ty.is_ref() {
-          self.add_ref(name.clone(), bool_of_mut(ty.ref_mutability().unwrap()),bool_of_mut(binding_annotation.1), line_num, ResourceTy::Anonymous);
+          self.add_ref(name.clone(), bool_of_mut(ty.ref_mutability().unwrap()),bool_of_mut(binding_annotation.1), line_num, ResourceTy::Anonymous, BTreeMap::new());
         }
         else if ty.is_adt() && !self.ty_is_special_owner(ty){ // kind of weird given we don't have a InitStructParam
           let owner_hash = self.rap_hashes as u64;
@@ -147,42 +147,68 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let line_num = self.expr_to_line(&lhs_expr);
         let lhs_rty = self.resource_of_lhs(lhs_expr);
         let lhs_rap = self.raps.get(&lhs_rty.real_name()).unwrap().0.clone();
-        let is_ref = self.borrow_map.contains_key(lhs_rap.name());
-        let tycheck_results = self.tcx.typeck(lhs_expr.hir_id.owner);
-        let lhs_ty = tycheck_results.node_type(lhs_expr.hir_id);
-        if is_ref && lhs_ty.is_ref() {
-          let (lender, _lifetime, ref_mut) = self.borrow_map.get(lhs_rap.name()).unwrap().clone();
-          let to_ro = match lender {
-            ResourceTy::Anonymous => ResourceTy::Deref(lhs_rap.clone()),
-            _ => lender.clone()
-          };
-          println!("lenders {:#?}", self.lenders);
-          let num_borrowers = self.lenders.get(&lender.name()).unwrap().len();
-          if num_borrowers > 1 {
-            self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro });
-            self.lenders.get_mut(lhs_rap.name()).unwrap().remove(&lhs_rty);
-          }
-          else {
-            match ref_mut {
-              true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone()),
-              false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone())
+        let lhs_ty = self.tcx.typeck(lhs_expr.hir_id.owner).node_type(lhs_expr.hir_id);
+        if lhs_rty.is_ref() && lhs_ty.is_ref() { // need to check type to avoid *ref = 8 
+          match lhs_rty {
+            ResourceTy::Value(_) => {
+              self.update_ref_data_lhs(lhs_rty.clone(), rhs_expr, line_num);
             }
-            self.lenders.remove(lhs_rap.name());
-          }
-          let new_lender = self.find_lender(&rhs_expr);
-          let (lender, lifetime, ref_mut) = self.borrow_map.get_mut(lhs_rap.name()).unwrap();
-          println!("lhs_ty {:#?}", lhs_ty);
-          println!("new ref mutability {}", bool_of_mut(lhs_ty.ref_mutability().unwrap()));
-          *lender = new_lender.clone();
-          *lifetime = line_num;
-          *ref_mut = bool_of_mut(lhs_ty.ref_mutability().unwrap()); // TECHNICALLY THIS HAS TO BE THE SAME AS PREVIOUS BORROW
-          match new_lender {
-            ResourceTy::Anonymous => {}
-            _ => {
-              self.lenders.entry(new_lender.name()).
-                and_modify(|v| {v.insert(lhs_rty.clone());}).
-                  or_insert(HashSet::from([lhs_rty.clone()]));
+            ResourceTy::Deref(_) => {
+              let num_derefs = self.num_derefs(lhs_expr);
+              let new_lender = self.find_lender(&rhs_expr);
+              println!("new lender {}", new_lender.name());
+              let ref_data = self.borrow_map.get(&lhs_rty.real_name()).unwrap().clone();
+              let modified_ref = ref_data.aliasing.get(&num_derefs).unwrap().to_owned();
+              let modified_ref_data = self.borrow_map.get(&modified_ref).unwrap().clone();
+              let new_data = self.new_aliasing_data(self.fetch_rap(&rhs_expr));
+
+              // new underlying lender changes for all aliases above the ref we are mutating
+              for (k, alias) in ref_data.aliasing.iter() {
+                if *k <= num_derefs {
+                  self.lender_update(new_lender.clone(), ResourceTy::Value(self.raps.get(alias).unwrap().0.clone()));
+                  let old_alias_data = self.borrow_map.get(alias).unwrap().aliasing.clone();
+                  let offset = num_derefs - *k;
+                  for (k2, _) in old_alias_data.iter() { // remove everything below on the chain
+                    if *k2 >= offset {
+                      self.borrow_map.get_mut(alias).unwrap().aliasing.remove(k2);
+                    }
+                  }
+                  self.update_aliasing_data(alias, &new_data, offset);
+                }
+                else { // no longer alias anything below mutated reference 
+                  self.borrow_map.get_mut(&lhs_rty.real_name()).unwrap().aliasing.remove(k);
+                }
+              }
+              let num_borrowers = self.lenders.get(&ref_data.lender.name())
+              .unwrap_or(&HashSet::from([ResourceTy::Anonymous])).len(); // determine how many references are currently live for this resource
+
+              let to_ro = match ref_data.lender {
+                ResourceTy::Anonymous => ResourceTy::Deref(lhs_rap.clone()),
+                _ => ref_data.lender.clone()
+              };
+              println!("old lenders: {:#?}", self.lenders);
+              
+
+              if num_borrowers > 1 { // if there are more than one, do not return the resource
+                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro });
+                self.lenders.get_mut(&ref_data.lender.name()).unwrap().remove(&lhs_rty);
+              }
+              else { // if we are the only borrower then return the resource
+                match modified_ref_data.ref_mutability {
+                  true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone()),
+                  false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone())
+                }
+                println!("getting here");
+                self.lenders.remove(&ref_data.lender.name());
+              }
+
+              // add new underlying lender
+              self.borrow_map.get_mut(&lhs_rty.real_name()).unwrap().lender = new_lender.clone();
+              self.lenders.get_mut(&new_lender.name()).unwrap().insert(lhs_rty.clone());
+
+              println!("new lenders: {:#?}", self.lenders);
             }
+            _ => panic!("not possible")
           }
         }
 
