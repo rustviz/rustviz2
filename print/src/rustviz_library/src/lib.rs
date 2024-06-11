@@ -4,6 +4,7 @@ mod parse;
 use rustviz_lib::svg_frontend::svg_generation;
 use rustviz_lib::data::{ExternalEvent, ResourceAccessPoint, VisualizationData};
 
+use core::num;
 use std::collections::BTreeMap;
 
 pub struct Rustviz{
@@ -12,7 +13,7 @@ pub struct Rustviz{
 }
 
 impl Rustviz {
-  pub fn new(a_src_str: &str, src_str: &str, p_evts: Vec<(usize, ExternalEvent)> , ev_map: BTreeMap<usize, Vec<ExternalEvent>>) -> Result<Rustviz>{
+  pub fn new(a_src_str: &str, src_str: &str, p_evts: Vec<(usize, ExternalEvent)> , ev_map: BTreeMap<usize, Vec<ExternalEvent>>, num_raps: usize) -> Result<Rustviz>{
     /* ******************************************
             --- Parse main.rs file ---
     ****************************************** */
@@ -25,7 +26,8 @@ impl Rustviz {
       timelines: BTreeMap::new(),
       external_events: Vec::new(),
       preprocess_external_events: p_evts,
-      event_line_map: ev_map
+      event_line_map: ev_map,
+      num_valid_raps: num_raps
     };
     // parse::add_events(&mut vd, var_map, events)?;
     /* ******************************************

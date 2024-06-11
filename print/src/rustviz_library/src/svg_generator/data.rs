@@ -634,6 +634,8 @@ pub struct VisualizationData {
     pub preprocess_external_events: Vec<(usize, ExternalEvent)>,
     //line_info
     pub event_line_map: BTreeMap<usize, Vec<ExternalEvent>>,
+
+    pub num_valid_raps: usize,
 }
 
 #[allow(non_snake_case)]
@@ -974,6 +976,19 @@ impl Visualizable for VisualizationData {
             }
         }
 
+        fn maybe_append_event_from(vd: &mut VisualizationData, resource_ty: &ResourceTy, event: Event, line_number : &usize) {
+            match resource_ty {
+                ResourceTy::Caller => {}
+                ResourceTy::Deref(r) | ResourceTy::Value(r) => {
+                    vd._append_event(&r, event, line_number)
+                }
+                ResourceTy::Anonymous => {
+                    let dummy_r = ResourceAccessPoint::Owner(Owner { name: String::from("anonymous owner"), hash: vd.num_valid_raps as u64, is_mut: false });
+                    vd._append_event(&dummy_r, event, line_number);
+                }
+            }
+        }
+
         match event {
             // eg let ro_to = String::from("");
             ExternalEvent::Move{from: from_ro, to: to_ro} => {
@@ -988,7 +1003,7 @@ impl Visualizable for VisualizationData {
             // eg: let x : i64 = y as i64;
             ExternalEvent::Copy{from: from_ro, to: to_ro} => {
                 maybe_append_event(self, &to_ro.clone(), Event::Copy{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, &line_number);
+                maybe_append_event_from(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, &line_number);
             },
             ExternalEvent::StaticBorrow{from: from_ro, to: to_ro} => {
                 maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned(), is: to_ro.clone()}, &line_number);

@@ -121,6 +121,29 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
       self.annotate_src(ident.to_string(), ident.span, false, *self.id_map.get(ident.as_str()).unwrap() as u64);
       self.annotate_expr(exp);
     }
+    ExprKind::DropTemps(exp) => {
+      self.annotate_expr(&exp);
+    }
+    ExprKind::If(guard_expr, if_expr, else_expr) => {
+      println!("annotating guard");
+      self.annotate_expr(&guard_expr);
+      self.annotate_expr(&if_expr);
+      match else_expr {
+        Some(e) => self.annotate_expr(&e),
+        None => {}
+      }
+    }
+    ExprKind::Match(match_expr, arms, _) => {
+      self.annotate_expr(&match_expr);
+      for arm in arms {
+        match &arm.guard {
+          Some(g) => {
+            //self.annotate_expr(&g);
+          }
+          None => {}
+        }
+      }
+    }
     _ => {}
   }
 }

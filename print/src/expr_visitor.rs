@@ -577,7 +577,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           panic!("lhs union not implemented yet")
         },
         AdtKind::Enum => {
-          panic!("lhs enum not implemented yet")
+          self.add_owner(lhs_name, lhs_mutability);
         }
       }
     }
@@ -716,7 +716,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           None => {}
         }
       }
-
       ExprKind::Unary(option, expr) => {
         match option {
           rustc_hir::UnOp::Deref => {
@@ -813,6 +812,16 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           None => {}
         }
       },
+      ExprKind::If(_, if_block, else_block) => {
+        self.match_rhs(lhs.clone(), &if_block);
+        match else_block {
+          Some(e) => self.match_rhs(lhs, &e),
+          None => {}
+        }
+      }
+      ExprKind::DropTemps(exp) => {
+        self.match_rhs(lhs, &exp);
+      }
       _ => {
         println!("unmatched rhs {:#?}", rhs);
       }

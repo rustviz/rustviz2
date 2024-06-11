@@ -588,10 +588,16 @@ fn render_arrows_string_external_events_version(
                     output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
                 }
             },
-            (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(to_function)), _) => { // (Some(variable), Some(function), _)
+            (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(to_function)), _e) => { // (Some(variable), Some(function), _)
                 let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
                 //  ro1 (to_function) <- ro2 (from_variable)
-                let x2 = resource_owners_layout[from_variable.hash()].x_val - 5;
+                println!("e {:#?}", _e);
+                let hash = match from_variable {
+                    ResourceTy::Anonymous => visualization_data.num_valid_raps as u64,
+                    _ => from_variable.hash().to_owned()
+                };
+                println!("rap layout {:#?}", resource_owners_layout);
+                let x2 = resource_owners_layout[&hash].x_val - 5;
                 let x1 = x2 - arrow_length;
                 let y1 = get_y_axis_pos(*line_number);
                 let y2 = get_y_axis_pos(*line_number);
@@ -606,11 +612,11 @@ fn render_arrows_string_external_events_version(
                     title: styled_fn_name,
                 };
 
-                if resource_owners_layout[from_variable.hash()].is_struct_group {
-                    if resource_owners_layout[from_variable.hash()].is_member {
-                        output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+                if resource_owners_layout[&hash].is_struct_group {
+                    if resource_owners_layout[&hash].is_member {
+                        output.get_mut(&(resource_owners_layout[&hash].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
                     } else {
-                        output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+                        output.get_mut(&(resource_owners_layout[&hash].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
                     }
                 }
                 else {

@@ -228,7 +228,7 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
   println!("LINE MAP {:#?}", line_map2);
 
   // TESTING HELPER STUFF
-  match testing_helper.generate_vis(line_map2, pre_events, &a_line_map) {
+  match testing_helper.generate_vis(line_map2, pre_events, &a_line_map, rap_map.len() + 1) {
     Ok(_) => {}
     Err(e) => {
       eprintln!("{}", e);

@@ -242,6 +242,17 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let line_num = self.span_to_line(&p.span);
         self.update_rap(r, line_num);
       }
+      ExprKind::DropTemps(exp) => {
+        self.visit_expr(exp);
+      }
+      ExprKind::If(guard_expr, if_expr, else_expr) => {
+        self.visit_expr(&guard_expr);
+        self.visit_expr(&if_expr);
+        match else_expr {
+          Some(e) => self.visit_expr(e),
+          None => {}
+        }
+      }
       
       _ => {
         intravisit::walk_expr(self, expr);
