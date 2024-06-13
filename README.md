@@ -1,33 +1,21 @@
 # rustviz_draft
 * Usage:
-  
-  * build the compiler and run the test in `/test-crate` by
-  
-  ```bash
-  cd print
-  cargo install --path .
-  cd test-crate
-  touch src/lib.rs  
-  cargo print-all-items > ../../output
-  ```
-  
-  * `touch src/lib.rs` is used to make sure the test file is modified. Otherwise, the compiler would not be used
+  * install the plugin with: cargo install --path . --locked
+  * Modify (or save) `/test-crate/lib.rs`
+  * Run the plugin by navigating to `/test-crate/` and run cargo rv-plugin > output.txt
+  * To see the resulting svg files use the `test-ex.sh` script
   
   * You can use `python3 runtest.py` to run the set of tests in `/tests`. 
   
     You can build test cases by adding a file named *`testXXX.rs`* and its corresponding output in the file named *`outXXX.rs`* in `/tests`
-  
-* Issues:
-  * Our primary goal is to support the basic examples in the rustviz tutorial. However, as there are much more possible syntax that will appear in a snippet of rust code, you might find some of them interesting which haven't been analyzed. Feel free to bring up new issues. 
-    - [ ] variable name shadowing waits to be design and implement 
-    - [ ] if else / other logic relationship
-    - [ ] Mutable References (*x) 
-    - [ ] tuple
 
-to fix:
+to fix/implement:
 
-- [ ] sequence to output the same operation - testShadow
-- [ ] move at plain line e.g., x*x
+- [ ] Implement hoverable anonymous owner interactions in code panel
+- [ ] Reference aliasing
+- [ ] Fix annotated source gen to handle `</>` characters 
+- [ ] Let-if/match expressions (new conditional move event)
+- [ ] Conditional lifetime logic and visualization
 
 Note: 
 

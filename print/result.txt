@@ -1,7 +1,0 @@
-[libffi-sys 2.3.0] cargo:rustc-link-lib=dylib=ffi
-[miri 0.1.0] cargo:rerun-if-changed=build.rs
-[miri 0.1.0] cargo:rustc-env=TARGET=x86_64-unknown-linux-gnu
-[camino 1.1.4] cargo:rustc-cfg=path_buf_capacity
-[camino 1.1.4] cargo:rustc-cfg=shrink_to
-[camino 1.1.4] cargo:rustc-cfg=try_reserve_2
-[camino 1.1.4] cargo:rustc-cfg=path_buf_deref_mut

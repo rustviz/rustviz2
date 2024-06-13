@@ -1,0 +1,30 @@
+[package]
+name = "rv-plugin"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package.metadata.rust-analyzer]
+rustc_private = true
+
+
+
+[dependencies]
+rustviz_library = {path = "src/rustviz_library"}
+rustviz-svg = {path = "src/rustviz_library/src/svg_generator/"}
+env_logger = "0.10"
+clap = {version = "3", features = ["derive"]}
+serde = {version = "1", features = ["derive"]}
+anyhow = "1.0.0"
+log = "0.4"
+itertools = "0.10.5"
+ts-rs = "6.2"
+regex = "1"
+fluid-let = "1.0"
+rustc_utils = {version = "0.10.0-nightly-2024-05-20", features = ["graphviz", "ts-rs", "serde", "test"]}
+rustc_plugin = {version = "0.10.0-nightly-2024-05-20"}
+
+# testing utils
+lazy_static = { version = "1.4", optional = true }
+
