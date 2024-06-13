@@ -19,6 +19,47 @@ use std::collections::{HashSet, BTreeMap};
 // See ExprKind at : https://doc.rust-lang.org/stable/nightly-rustc/rustc_hir/hir/enum.ExprKind.html
 // See StmtKind at : https://doc.rust-lang.org/stable/nightly-rustc/rustc_hir/hir/enum.StmtKind.html
 impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
+  fn visit_body(&mut self, body: &'tcx rustc_hir::Body<'tcx>) {
+    self.current_scope = self.tcx.sess.source_map().lookup_char_pos(body.value.span.hi()).line;
+    for param in body.params {
+      self.visit_param(param);
+    }
+    self.visit_expr(body.value); // visit fn body
+    match body.value { // handle return expression if there is one
+      Expr{kind: ExprKind::Block(b, _), ..} => {
+        match b.expr {
+          Some(e) => {
+            let tycheck_results = self.tcx.typeck(e.hir_id.owner);
+            let lhs_ty = tycheck_results.node_type(e.hir_id);
+            let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(e.hir_id.owner));
+            let evt = if lhs_ty.is_ref() {
+              match lhs_ty.ref_mutability().unwrap() {
+                Mutability::Not => Evt::Copy,
+                Mutability::Mut => Evt::Move,
+              }
+            } else {
+              match is_copyable {
+                true => Evt::Copy, 
+                false => Evt::Move
+              }
+            };
+
+            let to_ro = ResourceTy::Caller;
+            let from_ro = self.get_rap(e);
+            let line_num = self.expr_to_line(e);
+            self.add_ev(line_num, evt, to_ro, from_ro);
+          }
+          _ => {}
+        }
+      }
+      _ => {
+        println!("unexpected fn body");
+      }
+    }
+    self.annotate_expr(body.value); // then annotate the body
+  } 
+
+
   fn visit_param(&mut self, param: &'tcx Param<'tcx>){
     let line_num=self.span_to_line(&param.span);
     let ty = self.tcx.typeck(param.hir_id.owner).pat_ty(param.pat);
@@ -64,7 +105,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                           Expr{kind: ExprKind::Call(_, format_args), ..} => {
                             let fn_name: String = String::from("println!");
                             for arg in format_args.iter() {
-                              self.match_args(&arg, fn_name.clone());
+                              self.visit_expr(&arg);
+                              self.match_arg(&arg, fn_name.clone());
+                              //self.match_args(&arg, fn_name.clone());
                             }
                           }
                           _ => {
@@ -82,7 +125,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                 let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
                 self.add_fn(fn_name.clone());
                 for arg in args.iter(){
-                  self.match_args(&arg, fn_name.clone());
+                  self.visit_expr(&arg);
+                  self.match_arg(&arg, fn_name.clone());
+                  // self.match_args(&arg, fn_name.clone());
                 }
               }
             }
@@ -91,7 +136,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
             self.add_fn(fn_name.clone());
             for arg in args.iter(){
-              self.match_args(&arg, fn_name.clone());
+              self.visit_expr(&arg);
+              self.match_arg(&arg, fn_name.clone());
+              //self.match_args(&arg, fn_name.clone());
             }
           }
         }
@@ -132,7 +179,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         }
 
         for arg in args.iter(){
-          self.match_args(&arg, fn_name.clone());
+          self.visit_expr(&arg);
+          self.match_arg(&arg, fn_name.clone());
+          //self.match_args(&arg, fn_name.clone());
         }
       }
       ExprKind::Binary(_, expra, exprb) => { // don't know if this is necessary
@@ -148,15 +197,30 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let lhs_rty = self.resource_of_lhs(lhs_expr);
         let lhs_rap = self.raps.get(&lhs_rty.real_name()).unwrap().0.clone();
         let lhs_ty = self.tcx.typeck(lhs_expr.hir_id.owner).node_type(lhs_expr.hir_id);
+        let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(lhs_expr.hir_id.owner));
+        let e = if lhs_ty.is_ref() {
+          match lhs_ty.ref_mutability().unwrap() {
+            Mutability::Not => Evt::Copy,
+            Mutability::Mut => Evt::Move,
+          }
+        } else {
+          match is_copyable {
+            true => Evt::Copy, 
+            false => Evt::Move
+          }
+        };
         if lhs_rty.is_ref() && lhs_ty.is_ref() { // need to check type to avoid *ref = 8 
           match lhs_rty {
             ResourceTy::Value(_) => {
+              // return resource to alias next in line (unless it is still being referenced)
+              
+              
               self.update_ref_data_lhs(lhs_rty.clone(), rhs_expr, line_num);
             }
             ResourceTy::Deref(_) => {
               let num_derefs = self.num_derefs(lhs_expr);
               let new_lender = self.find_lender(&rhs_expr);
-              println!("new lender {}", new_lender.name());
+              //println!("new lender {}", new_lender.name());
               let ref_data = self.borrow_map.get(&lhs_rty.real_name()).unwrap().clone();
               let modified_ref = ref_data.aliasing.get(&num_derefs).unwrap().to_owned();
               let modified_ref_data = self.borrow_map.get(&modified_ref).unwrap().clone();
@@ -212,7 +276,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           }
         }
 
-        self.match_rhs(lhs_rty.clone(), rhs_expr);
+        self.match_rhs(lhs_rty.clone(), rhs_expr, e);
       }
 
       // The function body block
@@ -225,8 +289,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         // handle the return expr (if there is one)
         match block.expr {
           Some(expr) => {
-            self.annotate_expr(expr);
-            self.match_rhs(ResourceTy::Caller, expr); // this probably needs to be fixed
+            //self.annotate_expr(expr);
+            self.visit_expr(expr);
+            //self.match_rhs(ResourceTy::Caller, expr); // this probably needs to be fixed
             //self.match_rhs(AccessPoint {mutability: Mutability::Not, name: "None".to_owned(), members: None}, expr, false);
           }
           None => {}
@@ -267,7 +332,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           self.visit_expr(expression)
       }
     }
-    self.annotate_stmt(statement);
   }
 
   // locals are let statements: let <pat>:<ty> = <expr>
@@ -277,7 +341,20 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let lhs_var:String = ident.to_string();
         let tycheck_results = self.tcx.typeck(ann_hirid.owner);
         let lhs_ty = tycheck_results.node_type(ann_hirid);
+        let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(local.hir_id.owner));
+        let e = if lhs_ty.is_ref() {
+          match lhs_ty.ref_mutability().unwrap() {
+            Mutability::Not => Evt::Copy,
+            Mutability::Mut => Evt::Move,
+          }
+        } else {
+          match is_copyable {
+            true => Evt::Copy, 
+            false => Evt::Move
+          }
+        };
         // println!("TY OF LHS: {:#?}", tycheck_results.node_type(ann_hirid));
+        // println!("is copyable {}", is_copyable);
         // println!("sorted lhs string {:#?}", tycheck_results.node_type(ann_hirid).sort_string(self.tcx));
         // println!("sorted lhs string {:#?}", tycheck_results.node_type(ann_hirid).prefix_string(self.tcx));
         // annotate left side of let statement
@@ -286,19 +363,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           Some(expr) => {
             self.visit_expr(expr);
             self.define_lhs(lhs_var.clone(), bool_of_mut(binding_annotation.1), expr, lhs_ty);
-            self.match_rhs(ResourceTy::Value(self.raps.get(&lhs_var).unwrap().0.to_owned()), expr);
-            // println!("lhs RAP :{:#?}", self.raps.get(&lhs_var).unwrap());
-              // self.visit_expr(expr); -- may not be a bad idea to visit rhs expr then match it
-              //self.match_rhs(AccessPoint { mutability: binding_annotation.1, name: lhs_var, members: None}, expr, false);
-              // match expr.kind {
-              //   ExprKind::Path(_) => {},
-              //   ExprKind::Block(..)=>{},
-              //   _=>{
-              //     // if RHS is more than just a path (variable) we need to walk it to possibly append
-              //     // additionaly events to the line
-              //     self.visit_expr(expr);
-              //   }
-              // }
+            self.match_rhs(ResourceTy::Value(self.raps.get(&lhs_var).unwrap().0.to_owned()), expr, e);
           }
            _ => {} // in the case of a declaration ex: let a; nothing happens
         }

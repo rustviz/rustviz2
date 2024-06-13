@@ -4,6 +4,7 @@ use rustc_middle::{
   };
   use rustc_hir::{Expr, ExprKind, QPath, Path, Mutability, UnOp};
 use rustc_utils::mir::mutability;
+use rustc_utils::MutabilityExt;
   use std::cell::Ref;
 use std::collections::{HashMap, BTreeMap, HashSet};
   use rustc_span::Span;
@@ -32,6 +33,7 @@ pub enum AccessPointUsage{
   Function(String),
 }
 
+#[derive(Debug, Clone)]
 pub enum Evt {
   Bind,
   Copy,
@@ -104,10 +106,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn is_return_type_struct(&self, fn_expr: &Expr) -> bool {
-    false
-  }
-
   pub fn is_return_type_copyable(&self,fn_expr:&Expr)->bool{
     if let Some(return_type)=self.return_type_of(fn_expr){
       if return_type.walk().fold(false,|flag,item|{flag||item.expect_ty().is_ref()}) {
@@ -129,12 +127,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       self.update_lifetime(r, line);
     }
   }
-
-  // pub fn add_access_point(&mut self, a: AccessPointUsage, name: String) {
-  //   self.access_points.insert(a.clone(), self.current_scope);
-  //   self.name_to_access_point.insert(name.to_owned(), a.clone());
-  //   self.owners.push(a);
-  // }
 
   pub fn add_owner(&mut self, name: String, mutability: bool) {
     self.add_rap(ResourceAccessPoint::Owner(Owner{name: name, hash: self.rap_hashes as u64, is_mut: mutability}));
@@ -245,7 +237,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn resource_of_lhs(&mut self, expr: &'tcx Expr) -> ResourceTy{
+  pub fn resource_of_lhs(&mut self, expr: &'tcx Expr) -> ResourceTy {
     match expr.kind {
       ExprKind::Path(QPath::Resolved(_, p)) => {
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
@@ -271,9 +263,96 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
           None => { ResourceTy::Anonymous }
         }
-
       }
       _ => panic!("invalid lhs")
+    }
+  }
+
+  pub fn get_lenders(&self) -> HashMap<String, HashSet<String>> {
+    let b_map = self.borrow_map.clone();
+    let mut res: HashMap<String, HashSet<String>> = HashMap::new();
+    for (k, v) in b_map.iter() {
+      let lender = v.lender.real_name();
+      res.entry(lender.clone()).and_modify(|lendees| { lendees.insert(k.to_owned()); }).or_insert(HashSet::from([k.to_owned()]));
+    }
+    res
+  }
+
+  pub fn get_lender(&self, borrower: &String) -> HashSet<String> {
+    let lender = self.borrow_map.get(borrower).unwrap().lender.clone();
+    let mut res:HashSet<String> = HashSet::new();
+    for (k, v) in self.borrow_map.iter() {
+      if v.lender == lender {
+        res.insert(k.to_string());
+      }
+    } 
+    res
+  }
+
+  pub fn get_rap(&self, expr: &'tcx Expr) -> ResourceTy {
+    match expr.kind {
+      ExprKind::Path(QPath::Resolved(_,p)) => {
+        let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+        ResourceTy::Value(self.raps.get(&name).unwrap().0.to_owned())
+      }
+      ExprKind::Unary(rustc_hir::UnOp::Deref, expr) => {
+        let rhs_rap = self.fetch_rap(&expr);
+        match rhs_rap {
+          Some(x) => {
+            ResourceTy::Deref(x)
+          }
+          None => ResourceTy::Anonymous
+        }
+      }
+      ExprKind::AddrOf(_, _, expr) | ExprKind::Unary(_, expr) => self.get_rap(expr),
+      ExprKind::Call(fn_expr, _) => {
+        let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+        ResourceTy::Value(self.raps.get(&fn_name).unwrap().0.to_owned())
+      }
+      ExprKind::MethodCall(name_and_generic_args, ..) => {
+        let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
+        ResourceTy::Value(self.raps.get(&fn_name).unwrap().0.to_owned())
+      }
+      ExprKind::Block(b, _) => {
+        match b.expr {
+          Some(expr) => { self.get_rap(expr) }
+          None => { panic!("invalid expr for getting rap") }
+        }
+      }
+      ExprKind::Field(expr, ident) => {
+        match expr {
+          Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
+            let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+            let field_name: String = ident.as_str().to_owned();
+            let total_name = format!("{}.{}", name, field_name);
+            ResourceTy::Value(self.raps.get(&total_name).unwrap().0.to_owned())
+          }
+          _ => { panic!("unexpected field expr") }
+        } 
+      }
+      _ => ResourceTy::Anonymous
+    }
+  }
+
+  pub fn match_arg(&mut self, arg: &'tcx Expr, fn_name: String) {
+    self.add_fn(fn_name.clone());
+    let line_num = self.expr_to_line(&arg);
+    let tycheck_results = self.tcx.typeck(arg.hir_id.owner);
+    let arg_ty = tycheck_results.node_type(arg.hir_id);
+    let is_copyable = arg_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(arg.hir_id.owner));
+    let from_ro = self.get_rap(arg);
+    let to_ro = ResourceTy::Value(self.raps.get(&fn_name).unwrap().0.to_owned());
+    if arg_ty.is_ref() {
+      match arg_ty.ref_mutability().unwrap() {
+        Mutability::Not => self.add_ev(line_num, Evt::PassBySRef, to_ro, from_ro),
+        Mutability::Mut => self.add_ev(line_num, Evt::PassByMRef, to_ro, from_ro)
+      }
+    }
+    else {
+      match is_copyable {
+        true => self.add_ev(line_num, Evt::Copy, to_ro, from_ro),
+        false => self.add_ev(line_num, Evt::Move, to_ro, from_ro)
+      }
     }
   }
 
@@ -425,7 +504,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         match expr {
           Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
             let mut name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-            let name = format!("{}.{}", name, ident.as_str());
+            name = format!("{}.{}", name, ident.as_str());
             if self.borrow_map.contains_key(&name) {
               self.borrow_map.get(&name).unwrap().to_owned().lender
             }
@@ -471,7 +550,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ResourceTy::Anonymous => ResourceTy::Deref(lhs_rap.clone()),
       _ => ref_data.lender.clone()
     };
-    println!("HERE {:#?}", self.lenders);
+
     let num_borrowers = self.lenders.get(&ref_data.lender.name())
       .unwrap_or(&HashSet::from([ResourceTy::Anonymous])).len(); // determine how many references are currently live for this resource
 
@@ -636,23 +715,24 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr){
+  pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr, evt: Evt){
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let line_num = self.span_to_line(&p.span);
         let rhs_name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
         let rhs_rap = self.raps.get(&rhs_name).unwrap().0.to_owned();
         self.update_rap(&rhs_rap, line_num);
-        let boundary= self.boundary_map.get(&p.span.lo());
-        // This if statement checks: Is something the path p actually happening here - see aquascope/analysis/boundaries/mod.rs for more info
-        if let Some(boundary) = boundary {
-          if boundary.expected.drop { // if a resource is being dropped
-            self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
-          }
-          else {
-            self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
-          }
-        }   
+        self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
+        // let boundary= self.boundary_map.get(&p.span.lo());
+        // // This if statement checks: Is something the path p actually happening here - see aquascope/analysis/boundaries/mod.rs for more info
+        // if let Some(boundary) = boundary {
+        //   if boundary.expected.drop { // if a resource is being dropped
+        //     self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
+        //   }
+        //   else {
+        //     self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
+        //   }
+        // }   
       },
       // fn_expr: resolves to function itself (Path)
       // second arg, is a list of args to the function
@@ -660,12 +740,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let line_num = self.span_to_line(&fn_expr.span);
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
         let rhs_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
-        if self.is_return_type_copyable(fn_expr) {
-          self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
-        }
-        else {
-          self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
-        }
+        self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
+        // if self.is_return_type_copyable(fn_expr) {
+        //   self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
+        // }
+        // else {
+        //   self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
+        // }
       },
       
       ExprKind::Lit(_) | ExprKind::Binary(..) | // Any type of literal on RHS implies a bind
@@ -673,12 +754,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Unary(UnOp::Not, _) // !<expr>
       => {
         let line_num = self.span_to_line(&rhs.span);
-        if let ResourceTy::Caller = lhs {
-          self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Anonymous);
-        }
-        else {
-          self.add_ev(line_num, Evt::Bind, lhs, ResourceTy::Anonymous);
-        }
+        // if let ResourceTy::Caller = lhs {
+        //   self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Anonymous);
+        // }
+        // else {
+        self.add_ev(line_num, Evt::Bind, lhs, ResourceTy::Anonymous);
+        //}
       }
       // ex : &<expr> or &mut <expr>
       ExprKind::AddrOf(_, _,expr) => {
@@ -711,7 +792,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         // then, if the block has a return expr
         match block.expr {
           Some(res_expr) => {
-            self.match_rhs(lhs.clone(), res_expr);
+            self.match_rhs(lhs.clone(), res_expr, evt);
           }
           None => {}
         }
@@ -730,19 +811,20 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 ResourceTy::Anonymous
               }
             };
-            // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not pat
-            let boundary=self.boundary_map.get(&rhs.span.lo());
-            if let Some(boundary) = boundary {
-              if boundary.expected.drop { 
-                self.add_ev(line_num, Evt::Move, lhs, res);
-              }
-              else {
-                self.add_ev(line_num, Evt::Copy, lhs, res);
-              }
-            }
-            else {
-              panic!("unable to grab boundary map for Unary expr")
-            }
+            self.add_ev(line_num, evt, lhs, res);
+            // // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not pat
+            // let boundary=self.boundary_map.get(&rhs.span.lo());
+            // if let Some(boundary) = boundary {
+            //   if boundary.expected.drop { 
+            //     self.add_ev(line_num, Evt::Move, lhs, res);
+            //   }
+            //   else {
+            //     self.add_ev(line_num, Evt::Copy, lhs, res);
+            //   }
+            // }
+            // else {
+            //   panic!("unable to grab boundary map for Unary expr")
+            // }
           },
           _ => {}
         }
@@ -750,33 +832,47 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::MethodCall(name_and_generic_args, rcvr, _,  _) => {
         let line_num = self.span_to_line(&rcvr.span);
         let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
-        let type_check = self.tcx.typeck(name_and_generic_args.hir_id.owner);
+        //let type_check = self.tcx.typeck(name_and_generic_args.hir_id.owner);
         let rhs_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
+        self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
 
-        if let Some(return_type) = type_check.node_type_opt(rhs.hir_id){
-          if return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(name_and_generic_args.hir_id.owner)) {
-            self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
-          }
-          else {
-            self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
-          }
-        }
+        // if let Some(return_type) = type_check.node_type_opt(rhs.hir_id){
+        //   if return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(name_and_generic_args.hir_id.owner)) {
+        //     self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
+        //   }
+        //   else {
+        //     self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
+        //   }
+        // }
       }
       // Struct intializer list:
       // ex struct = {a: <expr>, b: <expr>, c: <expr>}
       ExprKind::Struct(_qpath, expr_fields, _base) => { 
         let line_num = self.span_to_line(&rhs.span);
-        if let ResourceTy::Caller = lhs {
-          self.add_ev(line_num, Evt::Move, lhs.clone(), ResourceTy::Anonymous); // weird to do here    
-        }
-        else {
+        // if let ResourceTy::Caller = lhs {
+        //   self.add_ev(line_num, Evt::Move, lhs.clone(), ResourceTy::Anonymous); // weird to do here    
+        // }
+        // else {
           self.add_ev(line_num, Evt::Bind, lhs.clone(), ResourceTy::Anonymous);
           for field in expr_fields.iter() {
               let new_lhs_name = format!("{}.{}", lhs.name(), field.ident.as_str());
               let field_rap = self.raps.get(&new_lhs_name).unwrap().0.to_owned();
-              self.match_rhs(ResourceTy::Value(field_rap), field.expr);
+              let field_ty = self.tcx.typeck(field.expr.hir_id.owner).node_type(field.expr.hir_id);
+              let is_copyable = field_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(field.expr.hir_id.owner));
+              let e = if field_ty.is_ref() {
+                match field_ty.ref_mutability().unwrap() {
+                  Mutability::Not => Evt::Copy,
+                  Mutability::Mut => Evt::Move,
+                }
+              } else {
+                match is_copyable {
+                  true => Evt::Copy, 
+                  false => Evt::Move
+                }
+              };
+              self.match_rhs(ResourceTy::Value(field_rap), field.expr, e);
           }
-        }
+        // }
       },
 
       ExprKind::Field(expr, id) => {
@@ -788,15 +884,16 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             let total_name = format!("{}.{}", name, id.as_str());
             let rhs_rap = self.raps.get(&total_name).unwrap().0.to_owned();
-            if let Some(boundary) = boundary {
-              let expected=boundary.expected;
-              if expected.drop {
-                self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
-              }
-              else {
-                self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
-              }
-            }
+            self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
+            // if let Some(boundary) = boundary {
+            //   let expected=boundary.expected;
+            //   if expected.drop {
+            //     self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
+            //   }
+            //   else {
+            //     self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
+            //   }
+            // }
           }
           _ => panic!("unexpected field expr")
         }
@@ -806,27 +903,29 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Ret(ret) => {
         match ret {
           Some(ret_expr) => {
-            self.match_rhs(lhs, ret_expr);
+            self.match_rhs(lhs, ret_expr, evt);
           }
           // returning void, nothing happens
           None => {}
         }
       },
       ExprKind::If(_, if_block, else_block) => {
-        self.match_rhs(lhs.clone(), &if_block);
+        self.match_rhs(lhs.clone(), &if_block, evt.clone());
         match else_block {
-          Some(e) => self.match_rhs(lhs, &e),
+          Some(e) => self.match_rhs(lhs, &e, evt),
           None => {}
         }
       }
       ExprKind::DropTemps(exp) => {
-        self.match_rhs(lhs, &exp);
+        self.match_rhs(lhs, &exp, evt);
       }
       _ => {
         println!("unmatched rhs {:#?}", rhs);
       }
     }
   }
+
+  // pub fn handle_ret(&mut self, )
   
   pub fn print_out_of_scope(&mut self){
     for (_, rap) in self.raps.clone().iter() {
@@ -845,6 +944,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     //let lifetime_map = self.lifetime_map.clone();
     let mut ultimate_refs: HashSet<String> = HashSet::new();
     let mut res_to_ref: HashMap<String, (usize, String)> = HashMap::new();
+    let lenders = self.get_lenders();
     for (k, RefData {lender: r, lifetime: lifetime, ..}) in &self.borrow_map {
       match r {
         ResourceTy::Anonymous => {}
@@ -872,8 +972,11 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     println!("ultimate refs {:#?}", ultimate_refs);
     let b_map = self.borrow_map.clone();
 
+    let mut vec: Vec<(String, RefData)> = b_map.into_iter().collect();
+    vec.sort_by(|a, b| b.1.aliasing.len().cmp(&a.1.aliasing.len()));
+
     // loop through all 'active' references
-    for (k, RefData {lender: r_ty, lifetime: lifetime, ref_mutability: ref_mut, aliasing: alia}) in &b_map {
+    for (k, RefData {lender: r_ty, lifetime: lifetime, ref_mutability: ref_mut, aliasing: alia}) in &vec {
       let from_ro = self.raps.get(k).unwrap().0.to_owned();
       let mut to_ro = match r_ty {
         ResourceTy::Anonymous => ResourceTy::Deref(from_ro.clone()),

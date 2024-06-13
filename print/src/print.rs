@@ -184,7 +184,7 @@ pub fn print_all_items(tcx: TyCtxt, _args: &PrintAllItemsPluginArgs) {
               tcx, 
               mir_body:body, 
               boundary_map,
-              current_scope: pos,
+              current_scope: 0,
               borrow_map: HashMap::new(), // TODO turn this to mut ref
               lenders: HashMap::new(),
               raps: &mut rap_map,

@@ -1003,11 +1003,11 @@ impl Visualizable for VisualizationData {
             // eg: let x : i64 = y as i64;
             ExternalEvent::Copy{from: from_ro, to: to_ro} => {
                 maybe_append_event(self, &to_ro.clone(), Event::Copy{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event_from(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, &line_number);
+                maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, &line_number);
             },
             ExternalEvent::StaticBorrow{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &to_ro, Event::StaticBorrow{from : from_ro.to_owned(), is: from_ro}, &line_number);
+                maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro}, &line_number);
                 
             },
             ExternalEvent::StaticDie{from: from_ro, to: to_ro} => {
@@ -1015,8 +1015,8 @@ impl Visualizable for VisualizationData {
                 maybe_append_event(self, &from_ro.clone(), Event::StaticDie{to : to_ro.to_owned(), is: from_ro}, &line_number);
             },
             ExternalEvent::MutableBorrow{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro, Event::MutableLend{to : to_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &to_ro, Event::MutableBorrow{from : from_ro.to_owned(), is: from_ro}, &line_number);
+                maybe_append_event(self, &from_ro, Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro}, &line_number);
                 
             },
             ExternalEvent::MutableDie{from: from_ro, to: to_ro} => {

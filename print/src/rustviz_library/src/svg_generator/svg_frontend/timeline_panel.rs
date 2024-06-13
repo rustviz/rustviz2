@@ -507,7 +507,8 @@ fn render_arrows_string_external_events_version(
         let arrow_length = 20;
         // render title
         match (from, to, external_event) {
-            (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_)), _) => {
+            (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_)), _) 
+            | (ResourceTy::Anonymous, ResourceTy::Value(ResourceAccessPoint::Function(_)), _)=> {
                 // do nothing for case: from = function
                 // it is easier to exclude this case than list all possible cases for when ResourceAccessPoint is a variable
             },
