@@ -1,6 +1,5 @@
 use anyhow::{Result, anyhow};
 use rustviz_lib::data::ExternalEvent;
-use crate::expr_visitor::AccessPointUsage;
 use std::collections::{HashMap, BTreeMap};
 use std::{path::PathBuf, fs};
 use std::env::current_dir;
@@ -147,69 +146,4 @@ pub fn generate_annotated_src(annotated_line_map: &BTreeMap<usize, Vec<String>>)
     annotated_str.push('\n');
   }
   annotated_str.replace("&", "&amp;")
-}
-
-
-// for now not a very viable solution
-pub fn generate_annotated_src_scuffed(source_str: String, access_points: &HashMap<AccessPointUsage, usize>) -> String {
-  let mut annotated_src_str = source_str;
-  let mut num_hashes: usize = 1;
-  // let mut fn_hashes: usize = 1;
-  for (point,_) in access_points {
-    let nombre: String;
-    let mut fn_flag: bool = false;
-    match point {
-      AccessPointUsage::Owner(p)=>{
-        nombre = p.name.clone();
-      }
-      AccessPointUsage::StaticRef(p)=>{
-        nombre = p.name.clone();
-      }
-      AccessPointUsage::MutRef(p)=>{
-        nombre = p.name.clone();
-      }
-      AccessPointUsage::Function(name)=>{
-        nombre = name.clone();
-        fn_flag = true;
-      }
-      AccessPointUsage::Struct(p, fields)=>{
-        let field_names: Vec<String> = 
-          fields.iter().
-          map(|s| 
-            if let Some(dot_index) = s.name.find('.') {
-              s.name[dot_index + 1..].to_string()
-            } else {
-                println!("No dot found in the string.");
-              s.name.clone()
-            }).collect::<Vec<String>>();
-        for i in 0..fields.len() {
-          // replace identifier definitions in struct {<a>:i32, <b>:i32}
-          let replace_with: String = format!("<tspan data-hash=\"{}\">{}</tspan>", num_hashes, field_names[i]);
-          annotated_src_str = annotated_src_str.replace(&field_names[i], &replace_with);
-
-          num_hashes += 1;
-
-        }
-        // struct instance name
-        nombre = p.name.clone(); 
-      }
-    }
-
-    if fn_flag{
-      let replace_with: String = format!("<tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\">{}</tspan>", 0, num_hashes, nombre);
-      annotated_src_str = annotated_src_str.replace(&nombre, &replace_with);
-    }
-    else{
-      let replace_with: String = format!("<tspan data-hash=\"{}\">{}</tspan>", num_hashes, nombre);
-      annotated_src_str = annotated_src_str.replace(&nombre, &replace_with);
-    }
-
-    if num_hashes < 9 {
-      num_hashes += 1;
-    }
-  }
-
-  // handle amp
-  annotated_src_str = annotated_src_str.replace("&", "&amp;");
-  annotated_src_str
 }

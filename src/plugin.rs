@@ -11,7 +11,7 @@ use rustc_utils::{
   mir::borrowck_facts,
 };
 use rustviz_lib::data::ResourceAccessPoint;
-use crate::expr_visitor::{AccessPointUsage, ExprVisitor};
+use crate::expr_visitor::ExprVisitor;
 use crate::RVPluginArgs;
 use crate::utils::RV1Helper;
 

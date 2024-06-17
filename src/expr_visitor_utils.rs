@@ -1,4 +1,4 @@
-use crate::expr_visitor::{ExprVisitor, AccessPoint, AccessPointUsage};
+use crate::expr_visitor::ExprVisitor;
 use rustc_hir::Mutability;
 
 // A small helper function
@@ -37,15 +37,6 @@ pub fn match_op(op: rustc_hir::BinOpKind) -> String {
     Ge => ">=".to_owned(),
     Gt => ">".to_owned()
   }
-}
-  
-pub fn string_of_access_point(a: &AccessPointUsage) -> String {
-    match a {
-        AccessPointUsage::Function(f) => { f.to_string() },
-        AccessPointUsage::MutRef(b) | AccessPointUsage::Owner(b) | 
-        AccessPointUsage::StaticRef(b) => { b.name.clone() },
-        AccessPointUsage::Struct(b, _) => { b.name.clone() }
-    }
 }
 
 pub fn bool_of_mut (m: Mutability) -> bool {

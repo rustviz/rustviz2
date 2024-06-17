@@ -6,7 +6,7 @@ use rustc_middle::{
 use rustc_utils::mir::mutability;
 use rustc_utils::MutabilityExt;
   use std::cell::Ref;
-use std::collections::{HashMap, BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
   use rustc_span::Span;
   // use aquascope::analysis::boundaries::PermissionsBoundary;
   use rustc_hir::{intravisit::Visitor, hir_id::HirId};
@@ -15,22 +15,6 @@ use std::collections::{HashMap, BTreeMap, HashSet};
   use crate::expr_visitor_utils::*;
   use rustviz_lib::data::*;
 
-
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
-pub struct AccessPoint {
-  pub mutability: Mutability,
-  pub name:String,
-  pub members: Option<Vec<AccessPoint>>,
-}
-
-#[derive(Eq, PartialEq,Hash, Clone, Debug)]
-pub enum AccessPointUsage{
-  Owner(AccessPoint), 
-  MutRef(AccessPoint),
-  StaticRef(AccessPoint),
-  Struct(AccessPoint, Vec<AccessPoint>),
-  Function(String),
-}
 
 #[derive(Debug, Clone)]
 pub enum Evt {
@@ -50,7 +34,7 @@ pub struct RefData {
   pub lender: ResourceTy,
   pub lifetime: usize,
   pub ref_mutability: bool,
-  pub aliasing: BTreeMap<usize, String>
+  pub aliasing: VecDeque<String>
 }
 
 
@@ -120,9 +104,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
 
   pub fn update_lifetime(&mut self, name: &String, line:usize){
+    println!("updating lifetime of {}", name);
     self.borrow_map.get_mut(name).unwrap().lifetime = line;
     let aliasing = self.borrow_map.get(name).unwrap().aliasing.clone();
-    for (_, r) in aliasing.iter() {
+    for r in aliasing.iter() {
       self.update_lifetime(r, line);
     }
   }
@@ -131,7 +116,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     self.add_rap(ResourceAccessPoint::Owner(Owner{name: name, hash: self.rap_hashes as u64, is_mut: mutability}));
   }
 
-  pub fn add_ref(&mut self, name: String, ref_mutability: bool, lhs_mut: bool, line_num: usize, lender: ResourceTy, alia: BTreeMap<usize, String>) {
+  pub fn add_ref(&mut self, name: String, ref_mutability: bool, lhs_mut: bool, line_num: usize, lender: ResourceTy, alia: VecDeque<String>) {
     match ref_mutability {
       true => {
         self.add_mut_ref(name.clone(), lhs_mut);
@@ -141,13 +126,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       }
     }
     self.borrow_map.insert(name.clone(), RefData { lender: lender.clone(), lifetime: line_num, ref_mutability: ref_mutability, aliasing: alia });
-    match lender {
-      ResourceTy::Anonymous => {}
-      _ => {
-        let borrower = ResourceTy::Value(self.raps.get(&name).unwrap().0.clone());
-        self.lenders.entry(lender.name()).and_modify(|v| {v.insert(borrower.clone());}).or_insert(HashSet::from([borrower]));
-      }
-    }
   }
   
   pub fn add_static_ref(&mut self, name: String, mutability: bool) {
@@ -267,25 +245,35 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn get_lenders(&self) -> HashMap<String, HashSet<String>> {
+  pub fn get_non_anon_lenders(&self) -> HashMap<String, HashSet<String>> {
     let b_map = self.borrow_map.clone();
     let mut res: HashMap<String, HashSet<String>> = HashMap::new();
     for (k, v) in b_map.iter() {
-      let lender = v.lender.real_name();
-      res.entry(lender.clone()).and_modify(|lendees| { lendees.insert(k.to_owned()); }).or_insert(HashSet::from([k.to_owned()]));
+      match v.lender {
+        ResourceTy::Anonymous => {},
+        _ => {
+          let lender = v.lender.real_name();
+          res.entry(lender.clone()).and_modify(|lendees| { lendees.insert(k.to_owned()); }).or_insert(HashSet::from([k.to_owned()]));
+        }
+      }
     }
     res
   }
 
-  pub fn get_lender(&self, borrower: &String) -> HashSet<String> {
+  pub fn get_borrowers(&self, borrower: &String) -> HashSet<String> {
     let lender = self.borrow_map.get(borrower).unwrap().lender.clone();
-    let mut res:HashSet<String> = HashSet::new();
-    for (k, v) in self.borrow_map.iter() {
-      if v.lender == lender {
-        res.insert(k.to_string());
+    match lender {
+      ResourceTy::Anonymous | ResourceTy::Caller => HashSet::from([borrower.to_owned()]),
+      _ => {
+        let mut res:HashSet<String> = HashSet::new();
+        for (k, v) in self.borrow_map.iter() {
+          if v.lender == lender {
+            res.insert(k.to_string());
+          }
+        } 
+        res
       }
-    } 
-    res
+    }
   }
 
   pub fn get_rap(&self, expr: &'tcx Expr) -> ResourceTy {
@@ -559,11 +547,11 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       self.lenders.get_mut(&ref_data.lender.name()).unwrap().remove(&lhs_rty);
       if let Some(lender) = self.lenders.get(&ref_data.lender.name()).unwrap().iter().next() {
         let mut temp = false;
-        for (_, v) in self.borrow_map.get(&lender.real_name()).unwrap().aliasing.iter() {
-          if *v == lhs_rty.name() {
-            temp = true;
-          }
-        }
+        // for (_, v) in self.borrow_map.get(&lender.real_name()).unwrap().aliasing.iter() {
+        //   if *v == lhs_rty.name() {
+        //     temp = true;
+        //   }
+        // }
         temp
       }
       else {
@@ -587,7 +575,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 
     new_ref_data.lender = new_lender.clone();
     new_ref_data.lifetime = line_num;
-    new_ref_data.aliasing = new_aliases; // all aliases get wiped and replaced to whatever the new reference is
+    //snew_ref_data.aliasing = new_aliases; // all aliases get wiped and replaced to whatever the new reference is
     
     match new_lender {
       ResourceTy::Anonymous => {}
@@ -606,9 +594,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         if r.is_ref() {
           aliasing.insert(1, r.name().to_owned());
           println!("r {:#?}", r);
-          for (k, v) in self.borrow_map.get(r.name()).unwrap().aliasing.iter() {
-            aliasing.insert(*k + 1, v.to_owned());
-          }
+          // for (k, v) in self.borrow_map.get(r.name()).unwrap().aliasing.iter() {
+          //   aliasing.insert(*k + 1, v.to_owned());
+          // }
         }
       }
       None => println!("aliasing something unknown"),
@@ -623,22 +611,57 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn define_lhs(&mut self, lhs_name: String, lhs_mutability: bool, rhs_expr: &'tcx Expr, lhs_ty: Ty <'tcx>) {
-    //println!("NODE TYPES {:#?}", tycheck_results.node_types().items_in_stable_order());
-    if lhs_ty.is_ref() {
-      // println!("lhs name {}, ty: {:#?}", lhs_name, lhs_ty);
-      // println!("deref ty {:#?}", lhs_ty.builtin_deref(false));
-      let aliasing = if lhs_ty.builtin_deref(false).unwrap().is_ref() { // if referencing another reference
-        self.new_aliasing_data(self.fetch_rap(&rhs_expr))
+  pub fn is_addr(&self, expr: &'tcx Expr) -> bool { // todo, probably a better way to do this using the typechecker
+    match expr.kind {
+      ExprKind::AddrOf(..) => true,
+      _ => false
+    }
+  }
+
+  pub fn get_aliasing_data(&self, r: &ResourceTy) -> VecDeque<String> {
+    match r {
+      ResourceTy::Anonymous | ResourceTy::Caller => VecDeque::new(),
+      ResourceTy::Value(x) | ResourceTy::Deref(x) => {
+        match self.borrow_map.get(x.name()) {
+          Some(r_data) => r_data.aliasing.to_owned(),
+          None => VecDeque::new()
+        }
       }
-      else {
-        BTreeMap::new()
-      };
+    }
+  }
+
+  pub fn get_ref_data(&self, expr: &'tcx Expr) -> (ResourceTy, VecDeque<String>){
+    // ex:
+    // let a = &b (where b has type &&i32)
+    // a's aliases consist of a -> (b -> ... -> ...)
+    if self.is_addr(&expr) {
+      let lender = self.get_rap(&expr); // in this case we are borrowing from b
+      let mut aliasing = self.get_aliasing_data(&lender);
+      // TODO: if expr has type ref ref --> 
+      match &lender {
+        ResourceTy::Anonymous | ResourceTy::Caller => { (lender, aliasing) }
+        ResourceTy::Value(x) | ResourceTy::Deref(x) => {
+          aliasing.push_front(x.name().to_owned()); // here the lender is added to the list of aliases 
+          (lender, aliasing)
+        }
+      }
+    }
+    else { // if we are copying a reference (ie let a = b (where b is ref))
+      // in this case we are borrowing to whatever b refers to
+      // likewise, aliasing data is just copied here
+      let lender = self.find_lender(&expr);
+      (self.find_lender(&expr), self.get_aliasing_data(&lender))
+    }
+  }
+
+  pub fn define_lhs(&mut self, lhs_name: String, lhs_mutability: bool, rhs_expr: &'tcx Expr, lhs_ty: Ty <'tcx>) {
+    if lhs_ty.is_ref() {
+      let (lender, aliasing) = self.get_ref_data(&rhs_expr);
       self.add_ref(lhs_name.clone(), 
       bool_of_mut(lhs_ty.ref_mutability().unwrap()), 
       lhs_mutability, 
       self.expr_to_line(&rhs_expr),
-      self.find_lender(&rhs_expr),
+      lender,
       aliasing);
     }
     else if lhs_ty.is_adt() && !self.ty_is_special_owner(lhs_ty) {
@@ -939,63 +962,54 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   pub fn print_lifetimes(&mut self){
     //println!("LIFETIME MAP: {:#?}", self.lifetime_map);
     println!("BORROW MAP {:#?}", self.borrow_map);
-    println!("lenders {:#?}", self.lenders);
     //let lifetime_map = self.lifetime_map.clone();
     let mut ultimate_refs: HashSet<String> = HashSet::new();
-    let mut res_to_ref: HashMap<String, (usize, String)> = HashMap::new();
-    let lenders = self.get_lenders();
-    for (k, RefData {lender: r, lifetime: lifetime, ..}) in &self.borrow_map {
-      match r {
-        ResourceTy::Anonymous => {}
-        ResourceTy::Caller => {panic!("bruh not possible")}
-        ResourceTy::Deref(ro) | ResourceTy::Value(ro) => {
-          if res_to_ref.contains_key(ro.name()) {
-            if res_to_ref.get(ro.name()).unwrap().0 < *lifetime {
-              ultimate_refs.remove(&res_to_ref.get(ro.name()).unwrap().1);
-              *res_to_ref.get_mut(ro.name()).unwrap() = (*lifetime, k.to_owned());
-              ultimate_refs.insert(k.to_owned());
-            }
-          }
-          else {
-            res_to_ref.insert(r.name().to_owned(), (*lifetime, k.to_owned()));
-            ultimate_refs.insert(k.to_owned());
-          }
+    let lender_to_refs = self.get_non_anon_lenders();
+
+    // loop through each lender's 'active' references and get the ultimate reference (the one with the longest lifetime)
+    for (_, refs) in lender_to_refs.iter() {
+      let mut max_lifetime = 0;
+      let mut ultimate_ref: &str = &String::from("");
+      for r in refs {
+        let lifetime = self.raps.get(r).unwrap().1;
+        if lifetime > max_lifetime {
+          max_lifetime = lifetime;
+          ultimate_ref = r;
         }
+      }
+      ultimate_refs.insert(ultimate_ref.to_owned());
+    }
+
+    // if a reference borrowed from an anonymous owner then it must be an ultimate ref
+    for (name, ref_data) in self.borrow_map.iter() {
+      match ref_data.lender {
+        ResourceTy::Anonymous => {
+          ultimate_refs.insert(name.to_owned());
+        }
+        _ => {}
       }
     }
 
-    // test-case: r and *r are both references
-    // test-case r points to multiple references one of which has multiple borrowers
-
-    println!("res refs {:#?}", res_to_ref);
     println!("ultimate refs {:#?}", ultimate_refs);
     let b_map = self.borrow_map.clone();
 
+    // sort by number of aliases so events are ordered in a proper cascading fashion
     let mut vec: Vec<(String, RefData)> = b_map.into_iter().collect();
     vec.sort_by(|a, b| b.1.aliasing.len().cmp(&a.1.aliasing.len()));
 
-    // loop through all 'active' references
-    for (k, RefData {lender: r_ty, lifetime: lifetime, ref_mutability: ref_mut, aliasing: alia}) in &vec {
+    // Add events
+    for (k, RefData {lender: r_ty, lifetime, ref_mutability: ref_mut, aliasing: _}) in &vec {
       let from_ro = self.raps.get(k).unwrap().0.to_owned();
-      let mut to_ro = match r_ty {
+      let to_ro = match r_ty {
         ResourceTy::Anonymous => ResourceTy::Deref(from_ro.clone()),
         _ => r_ty.clone()
       };
-      if !alia.is_empty() {
-        to_ro = ResourceTy::Value(self.raps.get(&alia[&1]).unwrap().0.clone());
-        match ref_mut {
-          true => {
-            self.add_ev(*lifetime, Evt::MDie, to_ro, ResourceTy::Value(from_ro));
-          }
-          false => {
-            self.add_ev(*lifetime, Evt::SDie, to_ro, ResourceTy::Value(from_ro));
-          }
-        }
-      }
-      else if !ultimate_refs.contains(k) {
+      // if ref is not an ultimate ref then it dies without returning a resource
+      if !ultimate_refs.contains(k) { 
         self.add_external_event(*lifetime, ExternalEvent::RefDie { from: ResourceTy::Value(from_ro), to: to_ro });
       }
       else {
+        // otherwise it does return a resource
         match ref_mut {
           true => {
             self.add_ev(*lifetime, Evt::MDie, to_ro, ResourceTy::Value(from_ro));

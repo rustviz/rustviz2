@@ -9,7 +9,7 @@ use rustc_middle::{
   mir::Body,
   ty::{TyCtxt,Ty, adjustment::*},
 };
-use std::collections::{HashSet, BTreeMap};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 
 // these are the visitor trait itself
 // the visitor will walk through the hir
@@ -45,7 +45,11 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             };
 
             let to_ro = ResourceTy::Caller;
-            let from_ro = self.get_rap(e);
+            let from_ro = match self.fetch_rap(e) {
+              Some(r) => ResourceTy::Value(r), // todo, technically need to check for deref here
+              None => ResourceTy::Anonymous
+            };
+            
             let line_num = self.expr_to_line(e);
             self.add_ev(line_num, evt, to_ro, from_ro);
           }
@@ -67,7 +71,10 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       PatKind::Binding(binding_annotation, _ann_hirid, ident, _op_pat) =>{
         let name: String = ident.to_string();
         if ty.is_ref() {
-          self.add_ref(name.clone(), bool_of_mut(ty.ref_mutability().unwrap()),bool_of_mut(binding_annotation.1), line_num, ResourceTy::Anonymous, BTreeMap::new());
+          self.add_ref(name.clone(), 
+          bool_of_mut(ty.ref_mutability().unwrap()),
+          bool_of_mut(binding_annotation.1), line_num, 
+          ResourceTy::Anonymous, VecDeque::new());
         }
         else if ty.is_adt() && !self.ty_is_special_owner(ty){ // kind of weird given we don't have a InitStructParam
           let owner_hash = self.rap_hashes as u64;
@@ -209,68 +216,74 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             false => Evt::Move
           }
         };
-        if lhs_rty.is_ref() && lhs_ty.is_ref() { // need to check type to avoid *ref = 8 
+        if lhs_ty.is_ref() { // if we are pointing at a new piece of data
           match lhs_rty {
+            // ex:
+            // let mut a = &b (where b is &&i32)
+            // a = &c (where c is &&i32)
             ResourceTy::Value(_) => {
-              // return resource to alias next in line (unless it is still being referenced)
-
-              
-              self.update_ref_data_lhs(lhs_rty.clone(), rhs_expr, line_num);
-            }
-            ResourceTy::Deref(_) => {
-              let num_derefs = self.num_derefs(lhs_expr);
-              let new_lender = self.find_lender(&rhs_expr);
-              //println!("new lender {}", new_lender.name());
-              let ref_data = self.borrow_map.get(&lhs_rty.real_name()).unwrap().clone();
-              let modified_ref = ref_data.aliasing.get(&num_derefs).unwrap().to_owned();
-              let modified_ref_data = self.borrow_map.get(&modified_ref).unwrap().clone();
-              let new_data = self.new_aliasing_data(self.fetch_rap(&rhs_expr));
-
-              // new underlying lender changes for all aliases above the ref we are mutating
-              for (k, alias) in ref_data.aliasing.iter() {
-                if *k <= num_derefs {
-                  self.lender_update(new_lender.clone(), ResourceTy::Value(self.raps.get(alias).unwrap().0.clone()));
-                  let old_alias_data = self.borrow_map.get(alias).unwrap().aliasing.clone();
-                  let offset = num_derefs - *k;
-                  for (k2, _) in old_alias_data.iter() { // remove everything below on the chain
-                    if *k2 >= offset {
-                      self.borrow_map.get_mut(alias).unwrap().aliasing.remove(k2);
-                    }
-                  }
-                  self.update_aliasing_data(alias, &new_data, offset);
-                }
-                else { // no longer alias anything below mutated reference 
-                  self.borrow_map.get_mut(&lhs_rty.real_name()).unwrap().aliasing.remove(k);
-                }
-              }
-              let num_borrowers = self.lenders.get(&ref_data.lender.name())
-              .unwrap_or(&HashSet::from([ResourceTy::Anonymous])).len(); // determine how many references are currently live for this resource
-
+              let ref_data = self.borrow_map.get(lhs_rap.name()).unwrap().clone();
               let to_ro = match ref_data.lender {
                 ResourceTy::Anonymous => ResourceTy::Deref(lhs_rap.clone()),
                 _ => ref_data.lender.clone()
               };
-              println!("old lenders: {:#?}", self.lenders);
-              
 
-              if num_borrowers > 1 { // if there are more than one, do not return the resource
+              // add event
+              let borrowers = self.get_borrowers(&lhs_rty.real_name());
+              if borrowers.len() > 1 { // there is another active reference at this point, the resource cannot be returned
                 self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro });
-                self.lenders.get_mut(&ref_data.lender.name()).unwrap().remove(&lhs_rty);
               }
-              else { // if we are the only borrower then return the resource
-                match modified_ref_data.ref_mutability {
+              else {
+                match ref_data.ref_mutability {
                   true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone()),
                   false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone())
                 }
-                println!("getting here");
-                self.lenders.remove(&ref_data.lender.name());
               }
 
-              // add new underlying lender
-              self.borrow_map.get_mut(&lhs_rty.real_name()).unwrap().lender = new_lender.clone();
-              self.lenders.get_mut(&new_lender.name()).unwrap().insert(lhs_rty.clone());
+              // update lhs_rty with new lender information
+              let (new_lender, new_aliasing) = self.get_ref_data(&rhs_expr);
+              let r = self.borrow_map.get_mut(&lhs_rty.real_name()).unwrap();
+              r.aliasing = new_aliasing;
+              r.lender = new_lender;
+            }
 
-              println!("new lenders: {:#?}", self.lenders);
+            // ex:
+            // let a = & mut b (where b is &i32)
+            // *a = &c (where c is &i32)
+            ResourceTy::Deref(_) => {
+              let ref_data = self.borrow_map.get(lhs_rap.name()).unwrap().clone();
+              let mut deref_index = self.num_derefs(&rhs_expr) - 1;
+              // return resource to nth alias in the chain
+              let to_ro = match ref_data.aliasing.get(deref_index) {
+                Some(name) => {
+                  // Todo: can technically return resource to deref, would have to change borrow map
+                  ResourceTy::Value(self.raps.get(name).unwrap().0.clone())
+                }
+                None => { panic!("messed up deref logic") }
+              };
+              
+              // add event
+              let borrowers = self.get_borrowers(&lhs_rty.real_name());
+              if borrowers.len() > 1 { // there is another active reference at this point, the resource cannot be returned
+                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro });
+              }
+              else {
+                match ref_data.ref_mutability {
+                  true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone()),
+                  false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone())
+                }
+              }
+
+              // update lender and aliasing data
+              let (new_lender, new_aliasing) = self.get_ref_data(&rhs_expr);
+              let r = self.borrow_map.get_mut(&lhs_rty.real_name()).unwrap();
+              let old_aliasing = r.aliasing.clone();
+              r.aliasing = new_aliasing;
+              while deref_index > 0 {
+                r.aliasing.push_front(old_aliasing[deref_index].clone());
+                deref_index -= 1;
+              }
+              r.lender = new_lender;
             }
             _ => panic!("not possible")
           }
@@ -289,10 +302,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         // handle the return expr (if there is one)
         match block.expr {
           Some(expr) => {
-            //self.annotate_expr(expr);
             self.visit_expr(expr);
-            //self.match_rhs(ResourceTy::Caller, expr); // this probably needs to be fixed
-            //self.match_rhs(AccessPoint {mutability: Mutability::Not, name: "None".to_owned(), members: None}, expr, false);
           }
           None => {}
         }
