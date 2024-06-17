@@ -104,7 +104,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
 
   pub fn update_lifetime(&mut self, name: &String, line:usize){
-    println!("updating lifetime of {}", name);
     self.borrow_map.get_mut(name).unwrap().lifetime = line;
     let aliasing = self.borrow_map.get(name).unwrap().aliasing.clone();
     for r in aliasing.iter() {
@@ -530,63 +529,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn update_ref_data_lhs(&mut self, lhs_rty: ResourceTy, rhs_expr: &'tcx Expr, line_num: usize) {
-    let lhs_rap = self.raps.get(&lhs_rty.real_name()).unwrap().0.clone();
-    let ref_data = self.borrow_map.get(lhs_rap.name()).unwrap().clone();
-    let to_ro = match ref_data.lender {
-      ResourceTy::Anonymous => ResourceTy::Deref(lhs_rap.clone()),
-      _ => ref_data.lender.clone()
-    };
-
-    let num_borrowers = self.lenders.get(&ref_data.lender.name())
-      .unwrap_or(&HashSet::from([ResourceTy::Anonymous])).len(); // determine how many references are currently live for this resource
-
-    let is_aliased: bool = if num_borrowers != 2 {
-      false
-    } else {
-      self.lenders.get_mut(&ref_data.lender.name()).unwrap().remove(&lhs_rty);
-      if let Some(lender) = self.lenders.get(&ref_data.lender.name()).unwrap().iter().next() {
-        let mut temp = false;
-        // for (_, v) in self.borrow_map.get(&lender.real_name()).unwrap().aliasing.iter() {
-        //   if *v == lhs_rty.name() {
-        //     temp = true;
-        //   }
-        // }
-        temp
-      }
-      else {
-        panic!("erm this can't happen")
-      }
-    };
-    if num_borrowers > 1 && !is_aliased { // if there are more than one, do not return the resource
-      self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro });
-      self.lenders.get_mut(&ref_data.lender.name()).unwrap().remove(&lhs_rty);
-    }
-    else { // if we are the only borrower then return the resource
-      match ref_data.ref_mutability {
-        true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone()),
-        false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone())
-      }
-      self.lenders.remove(&ref_data.lender.name());
-    }
-    let new_lender = self.find_lender(&rhs_expr);
-    let new_aliases = self.new_aliasing_data(self.fetch_rap(rhs_expr));
-    let new_ref_data = self.borrow_map.get_mut(lhs_rap.name()).unwrap();
-
-    new_ref_data.lender = new_lender.clone();
-    new_ref_data.lifetime = line_num;
-    //snew_ref_data.aliasing = new_aliases; // all aliases get wiped and replaced to whatever the new reference is
-    
-    match new_lender {
-      ResourceTy::Anonymous => {}
-      _ => {
-        self.lenders.entry(new_lender.name()).
-          and_modify(|v| {v.insert(lhs_rty.clone());}).
-            or_insert(HashSet::from([lhs_rty.clone()]));
-      }
-    }
-  }
-
   pub fn new_aliasing_data(&self, r: Option<ResourceAccessPoint>) -> BTreeMap<usize, String> {
     let mut aliasing: BTreeMap<usize, String> = BTreeMap::new();
     match r {
@@ -637,13 +579,19 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     if self.is_addr(&expr) {
       let lender = self.get_rap(&expr); // in this case we are borrowing from b
       let mut aliasing = self.get_aliasing_data(&lender);
-      // TODO: if expr has type ref ref --> 
-      match &lender {
-        ResourceTy::Anonymous | ResourceTy::Caller => { (lender, aliasing) }
-        ResourceTy::Value(x) | ResourceTy::Deref(x) => {
-          aliasing.push_front(x.name().to_owned()); // here the lender is added to the list of aliases 
-          (lender, aliasing)
+      // if expr has type &&
+      let ty = self.tcx.typeck(expr.hir_id.owner).node_type(expr.hir_id);
+      if ty.builtin_deref(false).unwrap().is_ref() {
+        match &lender {
+          ResourceTy::Anonymous | ResourceTy::Caller => { (lender, aliasing) }
+          ResourceTy::Value(x) | ResourceTy::Deref(x) => {
+            aliasing.push_front(x.name().to_owned()); // here the lender is added to the list of aliases 
+            (lender, aliasing)
+          }
         }
+      }
+      else {
+        (lender, aliasing)
       }
     }
     else { // if we are copying a reference (ie let a = b (where b is ref))
@@ -965,13 +913,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     //let lifetime_map = self.lifetime_map.clone();
     let mut ultimate_refs: HashSet<String> = HashSet::new();
     let lender_to_refs = self.get_non_anon_lenders();
+    println!("lender to refs {:#?}", lender_to_refs);
 
     // loop through each lender's 'active' references and get the ultimate reference (the one with the longest lifetime)
     for (_, refs) in lender_to_refs.iter() {
       let mut max_lifetime = 0;
       let mut ultimate_ref: &str = &String::from("");
       for r in refs {
-        let lifetime = self.raps.get(r).unwrap().1;
+        let lifetime = self.borrow_map.get(r).unwrap().lifetime;
         if lifetime > max_lifetime {
           max_lifetime = lifetime;
           ultimate_ref = r;
@@ -1006,7 +955,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       };
       // if ref is not an ultimate ref then it dies without returning a resource
       if !ultimate_refs.contains(k) { 
-        self.add_external_event(*lifetime, ExternalEvent::RefDie { from: ResourceTy::Value(from_ro), to: to_ro });
+        self.add_external_event(*lifetime, ExternalEvent::RefDie { 
+          from: ResourceTy::Value(from_ro.clone()), to: to_ro, num_curr_borrowers: self.get_borrowers(from_ro.name()).len() - 1 });
       }
       else {
         // otherwise it does return a resource

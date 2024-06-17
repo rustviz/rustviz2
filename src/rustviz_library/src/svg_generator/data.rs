@@ -266,7 +266,8 @@ pub enum ExternalEvent {
 
     RefDie {
         from: ResourceTy,
-        to: ResourceTy
+        to: ResourceTy,
+        num_curr_borrowers: usize
     },
     // a use of the Owner, happens when var pass by reference
     // its really borrow and return but happens on the same line,
@@ -379,7 +380,8 @@ pub enum Event {
 
     RefDie {
       from: ResourceTy,
-      is: ResourceTy
+      is: ResourceTy,
+      num_curr_borrowers: usize
     },
     // this happens when a owner is returned this line,
     // or if this owner's scope ends at this line. The data must be dropped. 
@@ -580,7 +582,7 @@ impl Event {
                 safe_message(hover_messages::event_dot_acquire, &self.deref_name(my_name), from)
             }
             Copy{ from ,..} => {
-                safe_message(hover_messages::event_dot_copy_from, my_name, from)
+                safe_message(hover_messages::event_dot_copy_from, &self.deref_name(my_name), from)
             }
             MutableBorrow{ from ,..} => {
                 hover_messages::event_dot_mut_borrow(&self.deref_name(my_name), &from.name())
@@ -822,8 +824,8 @@ impl Visualizable for VisualizationData {
             (State::PartialPrivilege{ .. }, Event::StaticDie{ .. }) =>
                 State::OutOfScope,
 
-            (State::PartialPrivilege{ borrow_count, borrow_to }, Event::StaticReacquire{ from: ro ,..}) 
-            | (State::PartialPrivilege { borrow_count, borrow_to }, Event::RefDie { from: ro, .. })=> {
+            // TODO: checking borrow count in states is unecessary, update later
+            (State::PartialPrivilege{ borrow_count, borrow_to }, Event::StaticReacquire{ from: ro ,..}) => {
                 let new_borrow_count = borrow_count - 1;
                 // check if it resumes to full privilege    
                 if borrow_count - 1 == 0 {
@@ -839,6 +841,10 @@ impl Visualizable for VisualizationData {
                         }
                     }
                 }
+
+            (State::PartialPrivilege { borrow_count, borrow_to }, Event::RefDie { from: ro, num_curr_borrowers, .. })=> {
+              State::PartialPrivilege { borrow_count: *num_curr_borrowers as u32, borrow_to: borrow_to.clone()}
+            }
 
             (State::PartialPrivilege{ .. }, Event::OwnerGoOutOfScope) =>
                 State::OutOfScope,
@@ -1023,7 +1029,7 @@ impl Visualizable for VisualizationData {
                 maybe_append_event(self, &to_ro.clone(), Event::MutableReacquire{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
                 maybe_append_event(self, &from_ro.clone(), Event::MutableDie{to : to_ro.to_owned(), is: from_ro}, &line_number);
             },
-            ExternalEvent::RefDie { from: from_ro, to: to_ro } => { // need Ref Event to avoid drawing redundant arrows when rendering timelines
+            ExternalEvent::RefDie { from: from_ro, to: to_ro , num_curr_borrowers} => { // need Ref Event to avoid drawing redundant arrows when rendering timelines
                 match from_ro.clone() {
                     ResourceTy::Deref(ro_is) | ResourceTy::Value(ro_is) => {
                         if ro_is.is_mutref() {
@@ -1032,7 +1038,7 @@ impl Visualizable for VisualizationData {
                         }
                         else {
                             maybe_append_event(self, &from_ro.clone(), Event::StaticDie { to: ResourceTy::Anonymous, is: from_ro.clone() }, &line_number);
-                            maybe_append_event(self, &to_ro.clone(), Event::RefDie { from: from_ro, is: to_ro }, &line_number);
+                            maybe_append_event(self, &to_ro.clone(), Event::RefDie { from: from_ro, is: to_ro, num_curr_borrowers}, &line_number);
                         }
                     }
                     _ => panic!("not possible")

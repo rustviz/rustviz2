@@ -195,10 +195,14 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         self.visit_expr(expra);
         self.visit_expr(exprb);
       }
+      //       ExprKind::AddrOf(_, _, inner) if inner.is_syntactic_place_expr() && !inner.span.from_expansion() => {}
 
-      ExprKind::AddrOf(_, _, inner) if inner.is_syntactic_place_expr() && !inner.span.from_expansion() => {}
+      ExprKind::AddrOf(_, _, exp) => {
+        self.visit_expr(exp);
+      }
 
       ExprKind::Assign(lhs_expr, rhs_expr, _,) | ExprKind::AssignOp(_, lhs_expr, rhs_expr) => {
+        self.visit_expr(lhs_expr);
         self.visit_expr(rhs_expr); // visit rhs side first to order moves?
         let line_num = self.expr_to_line(&lhs_expr);
         let lhs_rty = self.resource_of_lhs(lhs_expr);
@@ -231,7 +235,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               // add event
               let borrowers = self.get_borrowers(&lhs_rty.real_name());
               if borrowers.len() > 1 { // there is another active reference at this point, the resource cannot be returned
-                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro });
+                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro, num_curr_borrowers: borrowers.len() - 1 });
               }
               else {
                 match ref_data.ref_mutability {
@@ -252,38 +256,50 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             // *a = &c (where c is &i32)
             ResourceTy::Deref(_) => {
               let ref_data = self.borrow_map.get(lhs_rap.name()).unwrap().clone();
-              let mut deref_index = self.num_derefs(&rhs_expr) - 1;
+              let deref_index = self.num_derefs(&lhs_expr) - 1;
+              let modified_ref_name = ref_data.aliasing.get(deref_index).unwrap();
+              let modified_ref_data = self.borrow_map.get(modified_ref_name).unwrap().clone();
+              // println!("lhs_rty {:#?}", lhs_rty);
+              // println!("deref index {}", deref_index);
               // return resource to nth alias in the chain
-              let to_ro = match ref_data.aliasing.get(deref_index) {
-                Some(name) => {
-                  // Todo: can technically return resource to deref, would have to change borrow map
-                  ResourceTy::Value(self.raps.get(name).unwrap().0.clone())
-                }
-                None => { panic!("messed up deref logic") }
-              };
+              let to_ro =  self.borrow_map.get(modified_ref_name).unwrap().lender.to_owned();
               
               // add event
               let borrowers = self.get_borrowers(&lhs_rty.real_name());
               if borrowers.len() > 1 { // there is another active reference at this point, the resource cannot be returned
-                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro });
+                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro, num_curr_borrowers: borrowers.len() - 1 });
               }
               else {
-                match ref_data.ref_mutability {
+                match modified_ref_data.ref_mutability {
                   true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone()),
                   false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone())
                 }
               }
 
-              // update lender and aliasing data
+              // update modified (derefed) reference's lender and aliasing data
               let (new_lender, new_aliasing) = self.get_ref_data(&rhs_expr);
-              let r = self.borrow_map.get_mut(&lhs_rty.real_name()).unwrap();
-              let old_aliasing = r.aliasing.clone();
-              r.aliasing = new_aliasing;
-              while deref_index > 0 {
-                r.aliasing.push_front(old_aliasing[deref_index].clone());
-                deref_index -= 1;
-              }
+              let r = self.borrow_map.get_mut(modified_ref_name).unwrap();
+              r.aliasing = new_aliasing.clone();
               r.lender = new_lender;
+
+              let old_aliasing_data = self.borrow_map.get(&lhs_rty.real_name()).unwrap().aliasing.clone();
+              // update other aliases' aliasing data 
+              for i in 0..deref_index {
+                let ref_name = old_aliasing_data[i].clone();
+                let offset = deref_index - i;
+                let r = self.borrow_map.get_mut(&ref_name).unwrap();
+                r.aliasing.drain(offset..r.aliasing.len()); // remove old aliasing data
+                for (j, s) in new_aliasing.iter().enumerate() {
+                  r.aliasing.insert(offset + j, s.to_owned());
+                }
+              }
+
+              // update parent's aliasing data
+              let r = self.borrow_map.get_mut(&lhs_rty.real_name()).unwrap();
+              r.aliasing.drain(deref_index + 1..r.aliasing.len()); // remove old aliasing data
+              for (j, s) in new_aliasing.iter().enumerate() {
+                r.aliasing.insert(deref_index + 1 + j, s.to_owned());
+              }
             }
             _ => panic!("not possible")
           }
@@ -312,6 +328,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
 
       ExprKind::Unary(UnOp::Deref, exp) => { self.visit_expr(exp) }
       ExprKind::Path(QPath::Resolved(_,p)) => {
+
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
         let r = &self.raps.get(&name).unwrap().0.clone();
         let line_num = self.span_to_line(&p.span);
