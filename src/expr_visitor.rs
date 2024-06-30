@@ -2,7 +2,7 @@ use rustc_middle::{
     mir::Body,
     ty::*,
   };
-  use rustc_hir::{Expr, ExprKind, QPath, Path, Mutability, UnOp};
+  use rustc_hir::{Expr, ExprKind, QPath, Path, Mutability, UnOp, StmtKind, Stmt,};
 use rustc_utils::mir::mutability;
 use rustc_utils::MutabilityExt;
   use std::cell::Ref;
@@ -342,112 +342,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  // pub fn match_args(&mut self, arg: &'tcx Expr, fn_name:String) {
-  //   let line_num = self.span_to_line(&arg.span);
-  //   // add callee no matter what
-  //   self.add_fn(fn_name.clone());
-  //   let fn_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
-  //   match arg.kind {
-  //     // arg is variable
-  //     ExprKind::Path(QPath::Resolved(_,p))=>{
-  //       let name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-  //       let arg_rap = self.raps.get(&name).unwrap().0.to_owned();
-  //       self.update_rap(&arg_rap, line_num);
-  //       let boundary=self.boundary_map.get(&p.span.lo());
-  //       if let Some(boundary) = boundary {
-  //         let expected=boundary.expected;
-  //         if expected.drop{
-  //           self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
-  //         }
-  //         else if expected.write{           
-  //           self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
-  //         }
-  //         else if expected.read{
-  //           self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
-  //         }
-  //       }
-  //     }
-  //     ExprKind::AddrOf(_,_,expr)=>{        
-  //       self.match_args(expr, fn_name);
-  //     }
-  //     ExprKind::Call(fn_expr, fn_args) => { //functions can be parameters too
-  //       let callee_name= self.hirid_to_var_name(fn_expr.hir_id).unwrap();
-  //       self.add_fn(callee_name.clone());
-  //       for a in fn_args.iter() {
-  //         self.match_args(a, callee_name.clone());
-  //       }
-  //       if self.is_return_type_copyable(fn_expr) {
-  //         self.add_ev(line_num, Evt::Copy, ResourceTy::Value(fn_rap), ResourceTy::Anonymous);
-  //       }
-  //       else {
-  //         self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Anonymous);
-  //         //self.add_event(line_num, format!("Move({}()->{}())", callee_name, fn_name));
-  //       }
-  //     }
-  //     ExprKind::Unary(option, expr) => {
-  //       match option {
-  //         rustc_hir::UnOp::Deref => {
-  //           let line_num = self.expr_to_line(&expr);
-  //           let rhs_rap = self.fetch_rap(&expr);
-  //           let res = match rhs_rap {
-  //             Some(x) => {
-  //               self.update_rap(&x, line_num);
-  //               ResourceTy::Deref(x)
-  //             }
-  //             None => ResourceTy::Anonymous
-  //           };
-  //           // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not pat
-  //           let boundary=self.boundary_map.get(&arg.span.lo());
-  //           if let Some(boundary) = boundary {
-  //             if boundary.expected.drop { //TODO: will have to update with a new type of RAP, maybe a DEREF{Option<RAP>}
-  //               self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), res);
-  //             }
-  //             else if boundary.expected.write{
-  //               self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), res);
-  //             }
-  //             else if boundary.expected.read {
-  //               self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), res)
-  //             }
-  //           }
-  //           else {
-  //             panic!("unable to grab boundary map for Unary expr")
-  //           }
-  //         }
-  //         _ => {
-  //           self.match_args( expr, fn_name);
-  //         }
-  //       }
-  //     },
-  //     ExprKind::Field(expr, id) => {
-  //       match expr {
-  //         Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
-  //           let bytepos=arg.span.lo(); // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not path
-  //           let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-  //           let mem_name = format!("{}.{}", name, id.as_str());
-  //           let arg_rap = self.raps.get(&mem_name).unwrap().0.to_owned();
-  //           self.update_rap(&arg_rap, line_num);
-  //           let boundary=self.boundary_map.get(&bytepos);
-  //           if let Some(boundary) = boundary {
-  //             let expected=boundary.expected;
-              
-  //             if expected.drop{
-  //               self.add_ev(line_num, Evt::Move, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
-  //             }
-  //             else if expected.write{           
-  //               self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
-  //             }
-  //             else if expected.read{
-  //               self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap), ResourceTy::Value(arg_rap));
-  //             }
-  //           }
-  //         }
-  //         _ => { println!("wacky struct expr")}
-  //       }
-  //     }
-  //     _=>{ }
-  //   }
-  // }
-
   pub fn find_lender(&self, rhs: &'tcx Expr) -> ResourceTy {
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
@@ -667,6 +561,131 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  pub fn get_live_of_expr(&self, expr: &'tcx Expr) -> HashSet<ResourceAccessPoint> {
+    match expr.kind {
+      ExprKind::Path(QPath::Resolved(_,p)) => {
+        let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+        HashSet::from([self.raps.get(&name).unwrap().0.to_owned()])
+      }
+      ExprKind::Field(expr, ident) => {
+        match expr {
+          Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
+            let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+            let field_name: String = ident.as_str().to_owned();
+            let total_name = format!("{}.{}", name, field_name);
+            HashSet::from([self.raps.get(&total_name).unwrap().0.to_owned()])
+          }
+          _ => { panic!("unexpected field expr") }
+        } 
+      }
+      ExprKind::AddrOf(_, _, exp) | ExprKind::Unary(_, exp) 
+      | ExprKind::DropTemps(exp) => {
+        self.get_live_of_expr(exp)
+      }
+      ExprKind::Binary(_, lhs_expr, rhs_expr) | ExprKind::Assign(lhs_expr, rhs_expr, _) | ExprKind::AssignOp(_, lhs_expr, rhs_expr) => {
+        let lhs = self.get_live_of_expr(lhs_expr);
+        let rhs = self.get_live_of_expr(&rhs_expr);
+        let res = lhs.union(&rhs).cloned().collect();
+        res
+      }
+      ExprKind::Call(fn_expr, args) => {
+        let mut res = HashSet::new();
+        match fn_expr.kind {
+          // Match onto println! macro
+          ExprKind::Path(QPath::Resolved(_,rustc_hir::Path{res: rustc_hir::def::Res::Def(_, id), ..})) 
+          if !id.is_local() => {
+            match args {
+              [Expr{kind: ExprKind::Call(_, a),..}] => {
+                match a {
+                  [_, Expr{kind: ExprKind::AddrOf(_, _, 
+                    Expr{kind: ExprKind::Array(x),..}),..}] => {
+                      for exp in x.iter() {
+                        match exp {
+                          Expr{kind: ExprKind::Call(_, format_args), ..} => {
+                            for a_expr in format_args.iter() {
+                              res = res.union(&self.get_live_of_expr(&a_expr)).cloned().collect();
+                            }
+                          }
+                          _ => {
+                            println!("getting here to the println 1");
+                          }
+                        }
+                      }
+                    }
+                  _ => {
+                    println!("getting here to the println 2");
+                  }
+                }
+              }
+              _ => {
+                for a_expr in args.iter() {
+                  res = res.union(&self.get_live_of_expr(&a_expr)).cloned().collect();
+                }
+              }
+            }
+          }
+          _ => {
+            for a_expr in args.iter() {
+              res = res.union(&self.get_live_of_expr(&a_expr)).cloned().collect();
+            }
+          }
+        }
+        res
+      }
+      ExprKind::MethodCall(_, rcvr, args, _) => {
+        let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
+        let mut res = HashSet::from([self.raps.get(&rcvr_name).unwrap().0.to_owned()]);
+        for a_expr in args.iter() {
+          res = res.union(&self.get_live_of_expr(&a_expr)).cloned().collect();
+        }
+        res
+      }
+      ExprKind::Block(b, _) => {
+        let mut res: HashSet<ResourceAccessPoint> = HashSet::new();
+        for stmt in b.stmts.iter() {
+          res = res.union(&self.get_live_of_stmt(&stmt)).cloned().collect();
+        }
+        match b.expr {
+          Some(exp) => {
+            res = res.union(&self.get_live_of_expr(exp)).cloned().collect();
+          }
+          None => {}
+        }
+        res
+      }
+      _ => {
+        // TODO: what to do with nested branches? (just care about guard?)
+        HashSet::new()
+      }
+    }
+  }
+
+  pub fn get_live_of_stmt(&self, stmt: &'tcx Stmt) -> HashSet<ResourceAccessPoint> {
+    match stmt.kind {
+      StmtKind::Let(ref local) => {
+        match local.init {
+          Some(expr) => {
+            self.get_live_of_expr(&expr)
+          }
+          None => HashSet::new()
+        }
+      }
+      StmtKind::Item(_item) => panic!("not yet able to handle this"),
+      StmtKind::Expr(ref expression) | StmtKind::Semi(ref expression) => {
+          self.get_live_of_expr(expression)
+      }
+    }
+  }
+
+  pub fn filter_ev(&self, (line_num, _ev): &(usize, ExternalEvent), split: usize, merge: usize) -> bool {
+    if *line_num <= merge && *line_num >= split {
+      true
+    }
+    else {
+      false
+    }
+  }
+ 
   pub fn fetch_mutability(&self, expr: &'tcx Expr) -> Option<Mutability> {
     match expr.kind {
       ExprKind::Block(b, _) => {
@@ -693,16 +712,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let rhs_rap = self.raps.get(&rhs_name).unwrap().0.to_owned();
         self.update_rap(&rhs_rap, line_num);
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
-        // let boundary= self.boundary_map.get(&p.span.lo());
-        // // This if statement checks: Is something the path p actually happening here - see aquascope/analysis/boundaries/mod.rs for more info
-        // if let Some(boundary) = boundary {
-        //   if boundary.expected.drop { // if a resource is being dropped
-        //     self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
-        //   }
-        //   else {
-        //     self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
-        //   }
-        // }   
       },
       // fn_expr: resolves to function itself (Path)
       // second arg, is a list of args to the function
@@ -711,12 +720,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
         let rhs_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
-        // if self.is_return_type_copyable(fn_expr) {
-        //   self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
-        // }
-        // else {
-        //   self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
-        // }
       },
       
       ExprKind::Lit(_) | ExprKind::Binary(..) | // Any type of literal on RHS implies a bind
@@ -724,12 +727,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Unary(UnOp::Not, _) // !<expr>
       => {
         let line_num = self.span_to_line(&rhs.span);
-        // if let ResourceTy::Caller = lhs {
-        //   self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Anonymous);
-        // }
-        // else {
         self.add_ev(line_num, Evt::Bind, lhs, ResourceTy::Anonymous);
-        //}
       }
       // ex : &<expr> or &mut <expr>
       ExprKind::AddrOf(_, _,expr) => {
@@ -756,8 +754,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let prev_scope = self.current_scope;
         let new_scope = self.tcx.sess.source_map().lookup_char_pos(rhs.span.hi()).line;
         self.current_scope = new_scope;
-        //self.visit_block(block);
-        // lhs of block exists in prev scope
         self.current_scope = prev_scope;
         // then, if the block has a return expr
         match block.expr {
@@ -782,19 +778,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               }
             };
             self.add_ev(line_num, evt, lhs, res);
-            // // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not pat
-            // let boundary=self.boundary_map.get(&rhs.span.lo());
-            // if let Some(boundary) = boundary {
-            //   if boundary.expected.drop { 
-            //     self.add_ev(line_num, Evt::Move, lhs, res);
-            //   }
-            //   else {
-            //     self.add_ev(line_num, Evt::Copy, lhs, res);
-            //   }
-            // }
-            // else {
-            //   panic!("unable to grab boundary map for Unary expr")
-            // }
           },
           _ => {}
         }
@@ -805,65 +788,40 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         //let type_check = self.tcx.typeck(name_and_generic_args.hir_id.owner);
         let rhs_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
-
-        // if let Some(return_type) = type_check.node_type_opt(rhs.hir_id){
-        //   if return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(name_and_generic_args.hir_id.owner)) {
-        //     self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
-        //   }
-        //   else {
-        //     self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
-        //   }
-        // }
       }
       // Struct intializer list:
       // ex struct = {a: <expr>, b: <expr>, c: <expr>}
       ExprKind::Struct(_qpath, expr_fields, _base) => { 
         let line_num = self.span_to_line(&rhs.span);
-        // if let ResourceTy::Caller = lhs {
-        //   self.add_ev(line_num, Evt::Move, lhs.clone(), ResourceTy::Anonymous); // weird to do here    
-        // }
-        // else {
-          self.add_ev(line_num, Evt::Bind, lhs.clone(), ResourceTy::Anonymous);
-          for field in expr_fields.iter() {
-              let new_lhs_name = format!("{}.{}", lhs.name(), field.ident.as_str());
-              let field_rap = self.raps.get(&new_lhs_name).unwrap().0.to_owned();
-              let field_ty = self.tcx.typeck(field.expr.hir_id.owner).node_type(field.expr.hir_id);
-              let is_copyable = field_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(field.expr.hir_id.owner));
-              let e = if field_ty.is_ref() {
-                match field_ty.ref_mutability().unwrap() {
-                  Mutability::Not => Evt::Copy,
-                  Mutability::Mut => Evt::Move,
-                }
-              } else {
-                match is_copyable {
-                  true => Evt::Copy, 
-                  false => Evt::Move
-                }
-              };
-              self.match_rhs(ResourceTy::Value(field_rap), field.expr, e);
-          }
-        // }
+        self.add_ev(line_num, Evt::Bind, lhs.clone(), ResourceTy::Anonymous);
+        for field in expr_fields.iter() {
+            let new_lhs_name = format!("{}.{}", lhs.name(), field.ident.as_str());
+            let field_rap = self.raps.get(&new_lhs_name).unwrap().0.to_owned();
+            let field_ty = self.tcx.typeck(field.expr.hir_id.owner).node_type(field.expr.hir_id);
+            let is_copyable = field_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(field.expr.hir_id.owner));
+            let e = if field_ty.is_ref() {
+              match field_ty.ref_mutability().unwrap() {
+                Mutability::Not => Evt::Copy,
+                Mutability::Mut => Evt::Move,
+              }
+            } else {
+              match is_copyable {
+                true => Evt::Copy, 
+                false => Evt::Move
+              }
+            };
+            self.match_rhs(ResourceTy::Value(field_rap), field.expr, e);
+        }
       },
 
       ExprKind::Field(expr, id) => {
         match expr {
           Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
             let line_num = self.span_to_line(&p.span);
-            let bytepos=p.span.lo(); // small discrepancy with boundary map, bytePos corresponds to bytePos of deref operator not path
-            //let boundary=self.boundary_map.get(&bytepos);
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             let total_name = format!("{}.{}", name, id.as_str());
             let rhs_rap = self.raps.get(&total_name).unwrap().0.to_owned();
             self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
-            // if let Some(boundary) = boundary {
-            //   let expected=boundary.expected;
-            //   if expected.drop {
-            //     self.add_ev(line_num, Evt::Move, lhs, ResourceTy::Value(rhs_rap));
-            //   }
-            //   else {
-            //     self.add_ev(line_num, Evt::Copy, lhs, ResourceTy::Value(rhs_rap));
-            //   }
-            // }
           }
           _ => panic!("unexpected field expr")
         }

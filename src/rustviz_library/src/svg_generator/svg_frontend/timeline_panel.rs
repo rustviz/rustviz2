@@ -11,14 +11,14 @@ use std::cmp;
 static SPAN_BEGIN : &'static str = "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;";
 static SPAN_END : &'static str = "&lt;/span&gt;";
 #[derive(Debug)]
-struct TimelineColumnData {
-    name: String,
-    x_val: i64,
-    title: String,
-    is_ref: bool,
-    is_struct_group: bool,
-    is_member: bool,
-    owner: u64
+pub struct TimelineColumnData {
+    pub name: String,
+    pub x_val: i64,
+    pub title: String,
+    pub is_ref: bool,
+    pub is_struct_group: bool,
+    pub is_member: bool,
+    pub owner: u64
 }
 
 #[derive(Serialize)]

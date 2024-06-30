@@ -340,10 +340,40 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       ExprKind::If(guard_expr, if_expr, else_expr) => {
         self.visit_expr(&guard_expr);
         self.visit_expr(&if_expr);
-        match else_expr {
-          Some(e) => self.visit_expr(e),
-          None => {}
-        }
+        let else_live = match else_expr {
+          Some(e) => {
+            self.visit_expr(e);
+            self.get_live_of_expr(e)
+          }
+          None => { HashSet::new() }
+        };
+        // compute liveness
+        let if_live = self.get_live_of_expr(if_expr);
+        let liveness:HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
+
+        // compute split and merge points
+        let line_num = self.expr_to_line(&guard_expr);
+        let split = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.lo()).line;
+        let if_end = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.hi()).line;
+        let merge = match else_expr {
+          Some(e) => self.tcx.sess.source_map().lookup_char_pos(e.span.hi()).line,
+          None => self.tcx.sess.source_map().lookup_char_pos(if_expr.span.hi()).line
+        };
+
+        // filter events that happened in the if/else block
+        let if_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, split, if_end)).cloned().collect();
+        let else_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, if_end, merge)).cloned().collect();
+        self.preprocessed_events.retain(|(l, _)| 
+          if *l <= merge && *l >= split {
+            false
+          }
+          else {
+            true
+          }
+        );
+
+        // add if/else branch
+        self.add_external_event(line_num, ExternalEvent::Branch { live_vars: liveness, branches: vec![if_ev, else_ev], branch_type: BranchType::If, split_point: split, merge_point: merge })
       }
       
       _ => {
@@ -380,12 +410,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             false => Evt::Move
           }
         };
-        // println!("TY OF LHS: {:#?}", tycheck_results.node_type(ann_hirid));
-        // println!("is copyable {}", is_copyable);
-        // println!("sorted lhs string {:#?}", tycheck_results.node_type(ann_hirid).sort_string(self.tcx));
-        // println!("sorted lhs string {:#?}", tycheck_results.node_type(ann_hirid).prefix_string(self.tcx));
-        // annotate left side of let statement
-        //self.mutability_map.insert(lhs_var.clone(), binding_annotation.1);
         match local.init { // init refers to RHS of let
           Some(expr) => {
             self.visit_expr(expr);

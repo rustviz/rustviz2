@@ -54,7 +54,7 @@ pub fn render_svg(
             }
         }
         let final_line_num = line_number.clone() + extra_line;
-        visualization_data.append_processed_external_event(event, final_line_num);
+        visualization_data.append_processed_external_event(event, final_line_num, & mut None);
     }
     //-----------------------update event_line_map line number------------------
     let mut event_line_map_replace: BTreeMap<usize, Vec<ExternalEvent>> = BTreeMap::new();

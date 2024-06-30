@@ -1,0 +1,88 @@
+
+
+ExternalEvent::Branch {   
+  live_vars: HashSet<ResourceTy> // excluding functions  
+  branches: Vec<Vec<ExternalEvent>>
+  type: (Loop, If/Else, match)
+  split_point: u32
+  merge_point: u32
+}
+
+match expr.kind {
+    ExprKind::If(guard_expr, if_expr, else_expr) => {
+    self.visit_expr(&guard_expr);
+    self.visit_expr(&if_expr);
+    match else_expr {
+      Some(e) => self.visit_expr(e),
+      None => {}
+    }
+    // get live variables in if/else
+    let liveness = get_live(if_expr) (union) get_live(else_expr) // don't care about what's in the guard_expr
+    // get the span of the if/else block
+    let starting_line = &if_expr.span.lo().to_line()
+    let ending_line = &if_expr.span.lo().to_line()
+    // get rid of if / else events from preprocessed events and pacakge them into a single event 
+    let if_events = self.p_events.drain_with(|e| {starting_line <= e.line_num <= ending_line});
+    let else_events = match else_expr {
+      Some(e) => {
+        let starting_line = &else_expr.span.lo.to_line
+        let ending_line = &else_expr.span.hi.to_line
+        self.p_events.drain_with(|ev| {starting_line <= ev.line_num <= ending_line});
+      }
+      None => Vec::new()
+    }
+    self.add_external_event(ExternalEvent::Branch{live_vars: liveness, branches = vec![if_events, else_events], type: IF})
+  }
+}
+
+
+// Adding events to event line_map: 
+Add to event_line_map -- figure out specifics later
+
+
+Event::Branch {
+  is: ResourceTy,
+  branch_history: Vec<Vec<(usize, Event)>>,
+  type: {If/Else/Match/Loop},
+  split_point: u32,
+  merge_point: u32
+}
+
+// add events
+ExternalEvent::Branch{ live_vars, branches, type, split_point, merge_point } => {
+
+  for each var in live_vars {
+    let branch_history: Vec<Vec<(usize, Event)>> = vec::new();
+    let is = var;
+    for each branch in branches {
+      let cleaned_events: Vec<(usize, Event)> = clean_events(branch, is) // match to and from, resourceTy (write a Eq that just checks for underlying names)
+      branch_history.push(cleaned_events);
+    }
+  }
+
+  // type, split_point, and merge_point trickle down
+
+}
+
+// Rendering SVG timeline: 
+
+1. make a new SVG branch template, (split and merge template)
+2. compute column layout
+  - mutate x offset based on width of tree
+
+for each (hash, timeline) in timelines {
+  let max_nodes = 0;
+  for event in timeline {
+    match event {
+      Event::Branch { is, branch_history, type, split_point, merge_point } => {
+        let 
+      }
+      _ => {}
+    }
+  }
+  ...
+}
+if history contains a branch: 
+ 
+
+

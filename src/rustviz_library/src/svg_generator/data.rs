@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
 use crate::data::Event::*;
 use crate::hover_messages;
+use crate::svg_frontend::timeline_panel::TimelineColumnData;
 /*
  * Basic Data Structure Needed by Lifetime Visualization
  */
@@ -26,7 +27,7 @@ pub trait Visualizable {
     fn _append_event(&mut self, resource_access_point: &ResourceAccessPoint, event: Event, line_number: &usize);
     
     // add an event to the Visualizable data structure
-    fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize);
+    fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize, collection: & mut Option<Vec<(usize, Event)>>);
     
     // preprocess externa event information for arrow overlapping issue
     fn append_external_event(&mut self, event: ExternalEvent, line_number: &usize);
@@ -95,7 +96,7 @@ pub struct Function {
     pub hash: u64,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ResourceTy {
     Anonymous, // an anonymous resource holder
     Deref(ResourceAccessPoint), // Dereferencing a RAP
@@ -134,6 +135,12 @@ impl ResourceTy {
         _ => false
       }
     }
+}
+
+impl Hash for ResourceTy {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    self.real_name().hash(state);
+  }
 }
 
 impl ResourceAccessPoint {
@@ -230,7 +237,14 @@ impl ResourceAccessPoint {
     }
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
+pub enum BranchType {
+  If,
+  Loop,
+  Match
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ExternalEvent {
     /* let binding, e.g.: let x = 1 */
     Bind {
@@ -287,9 +301,21 @@ pub enum ExternalEvent {
     InitRefParam {
         param: ResourceAccessPoint,
     },
+
+    Branch {
+      live_vars: HashSet<ResourceAccessPoint>,
+      branches: Vec<Vec<(usize, ExternalEvent)>>,
+      branch_type: BranchType,
+      split_point: usize,
+      merge_point: usize
+    }
 }
 
-
+#[derive(Debug)]
+pub struct BranchData {
+  t_data: TimelineColumnData,
+  e_data: Vec<(usize, Event)>
+}
 // ASSUMPTION: a reference must return resource before borrow;
 //
 // An Event describes the acquisition or release of a
@@ -345,6 +371,15 @@ pub enum Event {
         to: ResourceTy,
         is: ResourceTy
     },
+
+    Branch {
+      is: ResourceTy,
+      branch_history: Vec<BranchData>,
+      ty: BranchType,
+      split_point: usize,
+      merge_point: usize
+    },
+
     MutableLend {
         to: ResourceTy,
         is: ResourceTy
@@ -517,6 +552,9 @@ impl Display for Event {
             Event::RefDie { from, .. } => {
               write!(f, "{} reference dies", from.name())
             }
+            Event::Branch { is, .. } => {
+              write!(f, "{} branch occuring ", is.real_name())
+            }
         }
     }
 }
@@ -598,6 +636,9 @@ impl Event {
             }
             RefDie {..} => {
               panic!("should never be calling this function with this event");
+            },
+            Branch { .. } => {
+              String::from("branching")
             }
         } 
     }
@@ -969,76 +1010,93 @@ impl Visualizable for VisualizationData {
 
     // store them in external_events, and call append_events
     // default way to record events
-    fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize) {
+    fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize, collection: & mut Option<Vec<(usize, Event)>>) {
         self.external_events.push((line_number, event.clone()));
         
         // append_event if resource_access_point is not null
-        fn maybe_append_event(vd: &mut VisualizationData, resource_ty: &ResourceTy, event: Event, line_number : &usize) {
-            match resource_ty {
-                ResourceTy::Anonymous | ResourceTy::Caller => {}
-                ResourceTy::Deref(r) | ResourceTy::Value(r) => {
-                    vd._append_event(&r, event, line_number)
-                }
+        fn maybe_append_event (vd: & mut VisualizationData, resource_ty: &ResourceTy, event: Event, line_number: usize, collection: & mut Option<Vec<(usize, Event)>>){
+          match resource_ty {
+            ResourceTy::Anonymous | ResourceTy::Caller => {}
+            ResourceTy::Deref(r) | ResourceTy::Value(r) => {
+              match collection {
+                Some(v) => v.push((line_number, event)),
+                None => vd._append_event(&r, event, &line_number)
+              }
             }
-        }
-
-        fn maybe_append_event_from(vd: &mut VisualizationData, resource_ty: &ResourceTy, event: Event, line_number : &usize) {
-            match resource_ty {
-                ResourceTy::Caller => {}
-                ResourceTy::Deref(r) | ResourceTy::Value(r) => {
-                    vd._append_event(&r, event, line_number)
-                }
-                ResourceTy::Anonymous => {
-                    let dummy_r = ResourceAccessPoint::Owner(Owner { name: String::from("anonymous owner"), hash: vd.num_valid_raps as u64, is_mut: false });
-                    vd._append_event(&dummy_r, event, line_number);
-                }
-            }
-        }
+          }
+        };
 
         match event {
             // eg let ro_to = String::from("");
             ExternalEvent::Move{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro.clone(), Event::Acquire{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &from_ro.clone(), Event::Move{to : to_ro.to_owned(), is: from_ro}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::Acquire{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &from_ro.clone(), Event::Move{to : to_ro.to_owned(), is: from_ro}, line_number, collection);
             },
             // eg: let ro_to = 5;
             ExternalEvent::Bind{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro.clone(), Event::Acquire{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::Acquire{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, line_number, collection);
             },
             // eg: let x : i64 = y as i64;
             ExternalEvent::Copy{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro.clone(), Event::Copy{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::Copy{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, line_number, collection);
             },
+            ExternalEvent::Branch { live_vars, branches, branch_type, split_point, merge_point } => {
+              for var in live_vars.iter() {
+                let is = ResourceTy::Value(var.clone());
+                let could_be = ResourceTy::Deref(var.clone());
+                let mut branch_history: Vec<BranchData> = Vec::new();
+                for branch in branches.iter() { // for each branch
+                  let mut  branch_h: Option<Vec<(usize, Event)>> = Some(Vec::new());
+                  for (l, ev) in branch.iter() { // for each event in each branch
+                    let (from, to) = ResourceAccessPoint_extract(ev);
+                    if *from == is || *to == is || *from == could_be || *to == could_be {
+                      // append each of the events in a branch related to given live var
+                      self.append_processed_external_event(ev.clone(), *l, & mut branch_h);
+                    }
+                  }
+                  branch_history.push(BranchData { t_data: TimelineColumnData { // produce some dummy timeline data for now
+                    name: "".to_owned(),
+                    x_val: -1,
+                    title: "".to_owned(),
+                    is_ref: false,
+                    is_struct_group: false,
+                    is_member: false, 
+                    owner: 0
+                  }, e_data: branch_h.unwrap() });
+                }
+                maybe_append_event(self, &is.clone(), Event::Branch { is: is, branch_history: branch_history, ty: branch_type, split_point: split_point, merge_point: merge_point}, line_number, collection);
+              }
+            }
             ExternalEvent::StaticBorrow{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
-                maybe_append_event(self, &to_ro.clone(), Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro}, &line_number);
+                maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &to_ro.clone(), Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro}, line_number, collection);
                 
             },
             ExternalEvent::StaticDie{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro.clone(), Event::StaticReacquire{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &from_ro.clone(), Event::StaticDie{to : to_ro.to_owned(), is: from_ro}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::StaticReacquire{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &from_ro.clone(), Event::StaticDie{to : to_ro.to_owned(), is: from_ro}, line_number, collection);
             },
             ExternalEvent::MutableBorrow{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro, Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
-                maybe_append_event(self, &to_ro.clone(), Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro}, &line_number);
+                maybe_append_event(self, &from_ro, Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &to_ro.clone(), Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro}, line_number, collection);
                 
             },
             ExternalEvent::MutableDie{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &to_ro.clone(), Event::MutableReacquire{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &from_ro.clone(), Event::MutableDie{to : to_ro.to_owned(), is: from_ro}, &line_number);
+                maybe_append_event(self, &to_ro.clone(), Event::MutableReacquire{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &from_ro.clone(), Event::MutableDie{to : to_ro.to_owned(), is: from_ro}, line_number, collection);
             },
             ExternalEvent::RefDie { from: from_ro, to: to_ro , num_curr_borrowers} => { // need Ref Event to avoid drawing redundant arrows when rendering timelines
                 match from_ro.clone() {
                     ResourceTy::Deref(ro_is) | ResourceTy::Value(ro_is) => {
                         if ro_is.is_mutref() {
-                            maybe_append_event(self, &from_ro.clone(), Event::MutableDie { to: ResourceTy::Anonymous, is: from_ro.clone() }, &line_number);
+                            maybe_append_event(self, &from_ro.clone(), Event::MutableDie { to: ResourceTy::Anonymous, is: from_ro.clone() }, line_number, collection);
                             //maybe_append_event(self, &to_ro.clone(), Event::MutableReacquire { from: from_ro, is: to_ro }, &line_number);
                         }
                         else {
-                            maybe_append_event(self, &from_ro.clone(), Event::StaticDie { to: ResourceTy::Anonymous, is: from_ro.clone() }, &line_number);
-                            maybe_append_event(self, &to_ro.clone(), Event::RefDie { from: from_ro, is: to_ro, num_curr_borrowers}, &line_number);
+                            maybe_append_event(self, &from_ro.clone(), Event::StaticDie { to: ResourceTy::Anonymous, is: from_ro.clone() }, line_number, collection);
+                            maybe_append_event(self, &to_ro.clone(), Event::RefDie { from: from_ro, is: to_ro, num_curr_borrowers}, line_number, collection);
                         }
                     }
                     _ => panic!("not possible")
@@ -1047,27 +1105,27 @@ impl Visualizable for VisualizationData {
 
             // TODO do we really need to add these events, since pass by ref does not change the state?
             ExternalEvent::PassByStaticReference{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro.to_owned(), Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
-                maybe_append_event(self, &to_ro.to_owned(), Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &from_ro, Event::StaticReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
-                maybe_append_event(self, &to_ro.clone(), Event::StaticDie{to : from_ro.to_owned(), is: to_ro}, &line_number);
+                maybe_append_event(self, &from_ro.to_owned(), Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &to_ro.to_owned(), Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &from_ro, Event::StaticReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &to_ro.clone(), Event::StaticDie{to : from_ro.to_owned(), is: to_ro}, line_number, collection);
             },
             ExternalEvent::PassByMutableReference{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro.clone(), Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
-                maybe_append_event(self, &to_ro.clone(), Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, &line_number);
-                maybe_append_event(self, &from_ro.clone(), Event::MutableReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, &line_number);
-                maybe_append_event(self, &to_ro.clone(), Event::MutableDie{to : from_ro.to_owned(), is: to_ro}, &line_number);
+                maybe_append_event(self, &from_ro.clone(), Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &to_ro.clone(), Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &from_ro.clone(), Event::MutableReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                maybe_append_event(self, &to_ro.clone(), Event::MutableDie{to : from_ro.to_owned(), is: to_ro}, line_number, collection);
             },
             ExternalEvent::InitRefParam{param: ro} => {
-                maybe_append_event(self, &ResourceTy::Value(ro.clone()), Event::InitRefParam{param : ro.to_owned()}, &line_number);
+                maybe_append_event(self, &ResourceTy::Value(ro.clone()), Event::InitRefParam{param : ro.to_owned()}, line_number, collection);
             },
             ExternalEvent::GoOutOfScope{ro} => {
                 match ro {
                     ResourceAccessPoint::Owner(..) | ResourceAccessPoint::Struct(..) => {
-                        maybe_append_event(self, &ResourceTy::Value(ro), Event::OwnerGoOutOfScope, &line_number);
+                        maybe_append_event(self, &ResourceTy::Value(ro), Event::OwnerGoOutOfScope, line_number, collection);
                     },
                     ResourceAccessPoint::MutRef(..) | ResourceAccessPoint::StaticRef(..)=> {
-                        maybe_append_event(self, &ResourceTy::Value(ro), Event::RefGoOutOfScope, &line_number);
+                        maybe_append_event(self, &ResourceTy::Value(ro), Event::RefGoOutOfScope, line_number, collection);
                     },
                     ResourceAccessPoint::Function(func) => {
                         panic!(
