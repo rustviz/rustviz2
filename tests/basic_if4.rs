@@ -1,13 +1,14 @@
 fn main () {
     let mut x = 5;
+
     if x > 4 {
 
-      x += 5;
+      let y = x;
     }
     else {
 
-      x += 6;
+        x += 2;
     }
-    
-    x += 7;
-  }
+
+    println!("");
+}

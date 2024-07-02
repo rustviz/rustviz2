@@ -246,7 +246,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
 
   pre_events.sort_by_key(|k| k.0);
   println!("EVENTS: {:#?}", pre_events);
-  println!("LINE MAP {:#?}", line_map2);
+  // println!("LINE MAP {:#?}", line_map2);
 
   // TESTING HELPER STUFF
   match testing_helper.generate_vis(line_map2, pre_events, &a_line_map, rap_map.len() + 1) {

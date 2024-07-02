@@ -660,6 +660,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // TODO: will probably need to subtract the set of variables that are bound inside a block and those from the set of live variables
   pub fn get_live_of_stmt(&self, stmt: &'tcx Stmt) -> HashSet<ResourceAccessPoint> {
     match stmt.kind {
       StmtKind::Let(ref local) => {

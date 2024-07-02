@@ -2,10 +2,10 @@ use std::collections::{HashSet, BTreeMap};
 use std::vec::Vec;
 use std::fmt::{Formatter, Result, Display};
 use std::hash::{Hash, Hasher};
-use std::borrow::Borrow;
 use crate::data::Event::*;
 use crate::hover_messages;
 use crate::svg_frontend::timeline_panel::TimelineColumnData;
+use std::cmp::Ordering;
 /*
  * Basic Data Structure Needed by Lifetime Visualization
  */
@@ -20,7 +20,7 @@ pub trait Visualizable {
     
     // for querying states of a resource owner using its hash
     //                                         start line, end line, state
-    fn get_states(&self, hash: &u64) -> Vec::<(usize,      usize,    State)>;
+    fn get_states(&self, hash: &u64,  history: & Vec<(usize, Event)>, prev_state: Option<State>, range: Option<(usize, usize)>) -> Vec::<(usize,      usize,    State)>;
 
     // WARNING do not call this when making visualization!! 
     // use append_external_event instead
@@ -29,8 +29,6 @@ pub trait Visualizable {
     // add an event to the Visualizable data structure
     fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize, collection: & mut Option<Vec<(usize, Event)>>);
     
-    // preprocess externa event information for arrow overlapping issue
-    fn append_external_event(&mut self, event: ExternalEvent, line_number: &usize);
     // if resource_access_point with hash is mutable
     fn is_mut(&self, hash: &u64 ) -> bool;
     // if resource_access_point with hash is a function
@@ -135,6 +133,15 @@ impl ResourceTy {
         _ => false
       }
     }
+
+    pub fn extract_rap(&self) -> &ResourceAccessPoint {
+        match self {
+            ResourceTy::Anonymous | ResourceTy::Caller => panic!("don't call this function unless certain that resourceTy is val or deref"),
+            ResourceTy::Deref(r) | ResourceTy::Value(r) => r
+        }
+    }
+
+    
 }
 
 impl Hash for ResourceTy {
@@ -237,11 +244,19 @@ impl ResourceAccessPoint {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum BranchType {
-  If,
-  Loop,
-  Match
+  If(Vec<String>),
+  Loop(Vec<String>),
+  Match(Vec<String>)
+}
+
+pub fn string_of_branch(b: &BranchType, index: usize) -> String {
+    match b {
+        BranchType::If(x) | BranchType::Loop(x) | BranchType::Match(x) => {
+            x.get(index).unwrap().clone()
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -311,17 +326,18 @@ pub enum ExternalEvent {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BranchData {
-  t_data: TimelineColumnData,
-  e_data: Vec<(usize, Event)>
+  pub t_data: TimelineColumnData,
+  pub e_data: Vec<(usize, Event)>,
+  pub width: usize
 }
 // ASSUMPTION: a reference must return resource before borrow;
 //
 // An Event describes the acquisition or release of a
 // resource ownership by a Owner on any given line.
 // There are six types of them.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Event {
     // this happens when a variable is initiated, it should obtain
     // its resource from either another variable or from a
@@ -527,6 +543,42 @@ impl State {
     }
 }
 
+impl PartialOrd for State {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for State {
+    fn cmp(&self, other: &Self) -> Ordering {
+        use State::*;
+        
+        fn rank(s: &State) -> u8 {
+            match s {
+                ResourceMoved { .. } | RevokedPrivilege { .. } => 0,
+                PartialPrivilege { .. } => 1,
+                FullPrivilege => 2,
+                Invalid | OutOfScope => 3,
+            }
+        }
+
+        let self_rank = rank(self);
+        let other_rank = rank(other);
+
+        self_rank.cmp(&other_rank)
+    }
+}
+
+impl PartialEq for State {
+    fn eq(&self, other: &State) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for State {}
+
+
+
 // provide string output for usages like format!("{}", eventA)
 impl Display for Event {
     fn fmt(&self, f: &mut Formatter) -> Result {       
@@ -638,7 +690,7 @@ impl Event {
               panic!("should never be calling this function with this event");
             },
             Branch { .. } => {
-              String::from("branching")
+              format!("{} is live in a conditional expression ", my_name)
             }
         } 
     }
@@ -698,6 +750,39 @@ pub fn ResourceAccessPoint_extract (external_event : &ExternalEvent) -> (&Resour
     (from, to)
 }
 
+pub fn string_of_external_event(e: &ExternalEvent) -> String {
+    match e {
+        ExternalEvent::Bind{ .. } => {
+            String::from("Bind")
+        },
+        ExternalEvent::Copy{ .. } => {
+            String::from("Copy")
+        },
+        ExternalEvent::Move{ .. } => {
+          String::from("Move")
+        },
+        ExternalEvent::StaticBorrow{ .. } => {
+            String::from("Immutable borrow")
+        },
+        ExternalEvent::StaticDie{ .. } => {
+            String::from("Return immutably borrowed resource")
+        },
+        ExternalEvent::MutableBorrow{ .. } => {
+            String::from("Mutable borrow")
+        },
+        ExternalEvent::MutableDie{ .. } => {
+           String::from("Return mutably borrowed resource")
+        },
+        ExternalEvent::PassByMutableReference{ .. } => {
+            String::from("Pass by mutable reference")
+        },
+        ExternalEvent::PassByStaticReference{ .. } => {
+            String::from("Pass by immutable reference")
+        },
+        _ => unreachable!(),
+    }
+}
+
 // fulfills the promise that we can support all the methods that a
 // frontend would need.
 impl Visualizable for VisualizationData {
@@ -723,6 +808,7 @@ impl Visualizable for VisualizationData {
     }
 
     // a Function does not have a State, so we assume previous_state is always for Variables
+    // TODO: get rid of borrowing logic here, backend handles all of it
     fn calc_state(&self, previous_state: & State, event: & Event, event_line: usize, hash: &u64) -> State {
         /* a Variable cannot borrow or return resource from Functions, 
         but can 'lend' or 'reaquire' to Functions (pass itself by reference and take it back); */
@@ -752,6 +838,7 @@ impl Visualizable for VisualizationData {
                             }
                             else {
                                 let mut prev_state = State::OutOfScope;
+                                // TODO: this will break inside of branches (doesn't this have to always be PartialPrivilege???)
                                 for (line_number, event) in self.timelines[r.hash()].history.iter() {
                                     prev_state = self.calc_state(&prev_state, &event, *line_number, hash);
                                     if event_line == *line_number {
@@ -904,25 +991,104 @@ impl Visualizable for VisualizationData {
             (_, Event::Duplicate { to: ResourceTy::Caller,..}) => State::OutOfScope,
             (_, Event::Duplicate { .. }) => (*previous_state).clone(),
 
+            // Branching logic
+
+            //
+            (_, Event::Branch { .. }) => {
+                State::OutOfScope
+                // let mut branch_states: Vec<State> = Vec::new();
+                // // get the last state in each of the branches
+                // for branch in branch_history {
+                //     let last_state = self.get_states(hash, &branch.e_data, Some(previous_state.clone())).last().unwrap().2.clone();
+                //     branch_states.push(last_state);
+                // }
+
+                // // compute the least upper bound of all the last states
+                // (*previous_state).clone()
+            }
+            
+
             (_, _) => State::Invalid,
         }
     }
 
-    fn get_states(&self, hash: &u64) -> Vec::<(usize, usize, State)> {
-        let mut states = Vec::<(usize, usize, State)>::new();
-        let mut previous_line_number: usize = 1;
-        let mut prev_state = State::OutOfScope;
-        for (line_number, event) in self.timelines[hash].history.iter() {
-            states.push(
-                (previous_line_number, *line_number, prev_state.clone())
-            );
-            prev_state = self.calc_state(&prev_state, &event, *line_number, hash);
-            previous_line_number = *line_number;
+    fn get_states(&self, hash: &u64, 
+        history: & Vec<(usize, Event)>, 
+        p_state: Option<State>, 
+        range: Option<(usize, usize)>) -> Vec::<(usize, usize, State)> {
+        match history.is_empty() {
+            false => {
+                let mut states = Vec::<(usize, usize, State)>::new();
+                let mut previous_line_number: usize = 1;
+                let mut prev_state = match p_state.clone() {
+                    Some(p) => p, 
+                    None => State::OutOfScope
+                };
+                for (i, (line_number, event)) in history.iter().enumerate() {
+                    if i != 0 || p_state.is_none() {
+                        states.push(
+                            (previous_line_number, *line_number, prev_state.clone())
+                        );
+                    }
+                    match event {
+                        Event::Branch {branch_history,  split_point, merge_point, .. } => {
+                            // add a new state for when branch is merged
+                            states.push((*split_point, *merge_point, State::OutOfScope));
+                            // get the last state in each of the branches
+                            let mut branch_states: Vec<State> = Vec::new();
+                            for branch in branch_history {
+                                let last_state = 
+                                self.get_states(hash, &branch.e_data, Some(prev_state.clone()), Some((*split_point, *merge_point)))
+                                    .last().unwrap().2.clone();
+                                let b_states =  self.get_states(hash, &branch.e_data, Some(prev_state.clone()), Some((*split_point, *merge_point)));
+                                branch_states.push(last_state);
+                            }
+
+                            // compute the least upper bound across all of the previous states - this is the same as sorting
+                            branch_states.sort();
+                            prev_state = branch_states.first().unwrap().clone();
+                            previous_line_number = *merge_point + 1; // merge one line after the curly brace
+                        }
+                        _ => {
+                            prev_state = self.calc_state(&prev_state, &event, *line_number, hash);
+                            previous_line_number = *line_number;
+                        }
+                    }
+                }
+                // if this timeline is part of a branch we need to extend it to the merge point
+                match range {
+                    Some((s, m)) => {
+                        // likewise we need to extend the first state up to the split point
+                        if !states.is_empty() {
+                            states.first_mut().unwrap().0 = s + 1; // start timelines one line after opening curly brace
+                            states.push(
+                                (previous_line_number, m, prev_state.clone())
+                            );
+                        }
+                        else {
+                            states.push(
+                                (s + 1, m, prev_state.clone())
+                            );
+
+                        }
+                    }
+                    None => { // for when an owner goes out of scope normally 
+                        states.push(
+                            (previous_line_number, previous_line_number, prev_state.clone())
+                        );
+                    }
+                }
+                states
+            }
+            true => {
+                match range {
+                    Some((s, m)) => {
+                        vec![(s + 1, m, p_state.unwrap())]
+                    }
+                    None => panic!("shouldn't be here, a range must be specified")
+                }
+            }
         }
-        states.push(
-            (previous_line_number, previous_line_number, prev_state.clone())
-        );
-        states
     }
 
     fn get_state(&self, hash: &u64, _line_number: &usize) -> Option<State> {
@@ -933,47 +1099,6 @@ impl Visualizable for VisualizationData {
                 Some(State::OutOfScope)
             },
             _ => None
-        }
-    }
-
-    fn append_external_event(&mut self, event: ExternalEvent, line_number: &usize) {
-        // push in preprocess_external_events
-        self.preprocess_external_events.push((*line_number, event.clone()));
-        //------------------------construct external event line info----------------------
-        let resourceaccesspoint = ResourceAccessPoint_extract(&event);
-        match (resourceaccesspoint.0, resourceaccesspoint.1, &event) {
-            (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_)), _) => {
-                // do nothing case
-            },
-            (ResourceTy::Value(ResourceAccessPoint::Function(_)),_,  _) => {  
-                // (Some(function), Some(variable), _)
-            },
-            (_, ResourceTy::Value(ResourceAccessPoint::Function(_function)), 
-             ExternalEvent::PassByStaticReference{..}) => { 
-                 // (Some(variable), Some(function), PassByStatRef)
-            },
-            (_, ResourceTy::Value(ResourceAccessPoint::Function(_function)), 
-             ExternalEvent::PassByMutableReference{..}) => {  
-                 // (Some(variable), Some(function), PassByMutRef)
-            },
-            (_, ResourceTy::Value(ResourceAccessPoint::Function(_)), _) => { 
-                // (Some(variable), Some(function), _)
-            },
-            (ResourceTy::Anonymous, ResourceTy::Anonymous, _) | (_, ResourceTy::Caller, _) => {},
-            (ResourceTy::Value(_), ResourceTy::Value(_), _) 
-            | (ResourceTy::Deref(_), ResourceTy::Deref(_), _) 
-            | (ResourceTy::Value(_), ResourceTy::Deref(_), _)
-            | (ResourceTy::Deref(_), ResourceTy::Value(_), _) => {
-                if let Some(event_vec) = self.event_line_map.get_mut(&line_number) {
-                    // Q: do I have to dereference here? Only derefernece case is Box<>
-                    // Q: do I have to clone this? like store reference?
-                    event_vec.push(event);
-                } else {
-                    let vec = vec![event];
-                    self.event_line_map.insert(line_number.clone(), vec);
-                }
-            },
-            _ => ()
         }
     }
 
@@ -1011,7 +1136,9 @@ impl Visualizable for VisualizationData {
     // store them in external_events, and call append_events
     // default way to record events
     fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize, collection: & mut Option<Vec<(usize, Event)>>) {
-        self.external_events.push((line_number, event.clone()));
+        if collection.is_none() { // don't double count events inside of Branch blocks
+            self.external_events.push((line_number, event.clone()));
+        }
         
         // append_event if resource_access_point is not null
         fn maybe_append_event (vd: & mut VisualizationData, resource_ty: &ResourceTy, event: Event, line_number: usize, collection: & mut Option<Vec<(usize, Event)>>){
@@ -1024,7 +1151,7 @@ impl Visualizable for VisualizationData {
               }
             }
           }
-        };
+        }
 
         match event {
             // eg let ro_to = String::from("");
@@ -1064,9 +1191,9 @@ impl Visualizable for VisualizationData {
                     is_struct_group: false,
                     is_member: false, 
                     owner: 0
-                  }, e_data: branch_h.unwrap() });
+                  }, e_data: branch_h.unwrap(), width: 0 });
                 }
-                maybe_append_event(self, &is.clone(), Event::Branch { is: is, branch_history: branch_history, ty: branch_type, split_point: split_point, merge_point: merge_point}, line_number, collection);
+                maybe_append_event(self, &is.clone(), Event::Branch { is: is, branch_history: branch_history, ty: branch_type.clone(), split_point: split_point, merge_point: merge_point}, line_number, collection);
               }
             }
             ExternalEvent::StaticBorrow{from: from_ro, to: to_ro} => {
@@ -1105,16 +1232,16 @@ impl Visualizable for VisualizationData {
 
             // TODO do we really need to add these events, since pass by ref does not change the state?
             ExternalEvent::PassByStaticReference{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro.to_owned(), Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
-                maybe_append_event(self, &to_ro.to_owned(), Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
-                maybe_append_event(self, &from_ro, Event::StaticReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
-                maybe_append_event(self, &to_ro.clone(), Event::StaticDie{to : from_ro.to_owned(), is: to_ro}, line_number, collection);
+                // maybe_append_event(self, &from_ro.to_owned(), Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                // maybe_append_event(self, &to_ro.to_owned(), Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
+                // maybe_append_event(self, &from_ro, Event::StaticReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                // maybe_append_event(self, &to_ro.clone(), Event::StaticDie{to : from_ro.to_owned(), is: to_ro}, line_number, collection);
             },
             ExternalEvent::PassByMutableReference{from: from_ro, to: to_ro} => {
-                maybe_append_event(self, &from_ro.clone(), Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
-                maybe_append_event(self, &to_ro.clone(), Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
-                maybe_append_event(self, &from_ro.clone(), Event::MutableReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
-                maybe_append_event(self, &to_ro.clone(), Event::MutableDie{to : from_ro.to_owned(), is: to_ro}, line_number, collection);
+                // maybe_append_event(self, &from_ro.clone(), Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                // maybe_append_event(self, &to_ro.clone(), Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro.clone()}, line_number, collection);
+                // maybe_append_event(self, &from_ro.clone(), Event::MutableReacquire{from : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);
+                // maybe_append_event(self, &to_ro.clone(), Event::MutableDie{to : from_ro.to_owned(), is: to_ro}, line_number, collection);
             },
             ExternalEvent::InitRefParam{param: ro} => {
                 maybe_append_event(self, &ResourceTy::Value(ro.clone()), Event::InitRefParam{param : ro.to_owned()}, line_number, collection);

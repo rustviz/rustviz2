@@ -1,16 +1,17 @@
 extern crate handlebars;
 
-use crate::data::{StructsInfo, VisualizationData, Visualizable, ExternalEvent, State, ResourceAccessPoint, Event, LINE_SPACE, ResourceTy};
+use crate::data::{string_of_branch, string_of_external_event, BranchData, BranchType, Event, ExternalEvent, ResourceAccessPoint, ResourceAccessPoint_extract, ResourceTy, State, StructsInfo, Timeline, Visualizable, VisualizationData, LINE_SPACE};
 use crate::svg_frontend::line_styles::{RefDataLine, RefValueLine, OwnerLine};
 use handlebars::Handlebars;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use serde::Serialize;
 use std::cmp;
 
 // set style for code string
 static SPAN_BEGIN : &'static str = "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;";
 static SPAN_END : &'static str = "&lt;/span&gt;";
-#[derive(Debug)]
+static BRANCH_WEIGHT: i64 = 40;
+#[derive(Debug, Clone)]
 pub struct TimelineColumnData {
     pub name: String,
     pub x_val: i64,
@@ -91,9 +92,24 @@ struct VerticalLineData {
     line_class: String,
     hash: u64,
     x1: f64,
-    x2: i64,
+    x2: f64,
     y1: i64,
     y2: i64,
+    title: String
+}
+
+#[derive(Serialize, Clone)]
+struct HollowLineData {
+    line_class: String,
+    hash: u64,
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+    x3: f64,
+    y3: f64,
+    x4: f64,
+    y4: f64,
     title: String
 }
 
@@ -118,7 +134,7 @@ struct OutputStringData {
     struct_members: String
 }
 
-pub fn render_timeline_panel(visualization_data : &VisualizationData) -> (String, i32) {
+pub fn render_timeline_panel(visualization_data : & mut VisualizationData) -> (String, i32) {
     /* Template creation */
     let mut registry = Handlebars::new();
     prepare_registry(&mut registry);
@@ -198,6 +214,17 @@ fn prepare_registry(registry: &mut Handlebars) {
         "        <line data-hash=\"{{hash}}\" class=\"{{line_class}} tooltip-trigger\" x1=\"{{x1}}\" x2=\"{{x2}}\" y1=\"{{y1}}\" y2=\"{{y2}}\" data-tooltip-text=\"{{title}}\"/>\n";
     let hollow_line_template =
         "        <path data-hash=\"{{hash}}\" class=\"hollow tooltip-trigger\" style=\"fill:transparent;\" d=\"M {{x1}},{{y1}} V {{y2}} h 3.5 V {{y1}} h -3.5\" data-tooltip-text=\"{{title}}\"/>\n";
+    let new_hollow_line_template = "<path 
+        data-hash=\"{{hash}}\"
+        class=\"hollow tooltip-trigger\"
+        style=\"fill:transparent;\"
+        d=\"M {{x1}},{{y1}} L {{x2}},{{y2}} L {{x3}},{{y3}} L {{x4}},{{y4}} Z\"
+        data-tooltip-text=\"{{title}}\"/>";
+    let vertical_line_template2 =
+        "        <line data-hash=\"{{hash}}\" 
+                class=\"{{line_class}} tooltip-trigger\" x1=\"{{x1}}\" x2=\"{{x2}}\" y1=\"{{y1}}\" y2=\"{{y2}}\" 
+                style=\"fill:none; stroke-width:2\"
+                data-tooltip-text=\"{{title}}\"/>\n";
     let solid_ref_line_template =
         "        <path data-hash=\"{{hash}}\" class=\"mutref {{line_class}} tooltip-trigger\" style=\"fill:transparent; stroke-width: 2px !important;\" d=\"M {{x1}} {{y1}} l {{dx}} {{dy}} v {{v}} l -{{dx}} {{dy}}\" data-tooltip-text=\"{{title}}\"/>\n";
     let hollow_ref_line_template =
@@ -205,6 +232,12 @@ fn prepare_registry(registry: &mut Handlebars) {
     let box_template =
         "        <rect id=\"{{name}}\" x=\"{{x}}\" y=\"{{y}}\" rx=\"20\" ry=\"20\" width=\"{{w}}\" height=\"{{h}}\" style=\"fill:white;stroke:black;stroke-width:3;opacity:0.1\" pointer-events=\"none\" />\n";
 
+    assert!(
+        registry.register_template_string("new_hollow_line_template", new_hollow_line_template).is_ok()
+    );
+    assert!(
+        registry.register_template_string("vertical_line_template2", vertical_line_template2).is_ok()
+    );
     assert!(
         registry.register_template_string("struct_template", struct_template).is_ok()
     );
@@ -243,17 +276,76 @@ fn prepare_registry(registry: &mut Handlebars) {
     );
 }
 
+ 
+// computes a width coefficient for a resource, considering branches
+fn compute_width(events: & mut Vec<(usize, Event)>) -> usize {
+    let mut max_width = 0;
+    for (_, ev) in events {
+        match ev {
+            Event::Branch { branch_history, ..} => {
+                // DFS to calculate width of each branch
+                for branch in & mut *branch_history {
+                    let branch_w = compute_width(& mut branch.e_data);
+                    branch.width = branch_w; // store branch width for later DOES NOT INCLUDE PADDING BETWEEN BRANCHES AT SAME LEVEL
+                    max_width += branch_w;
+                }
+                let padding = (branch_history.len() - 1) * 2; // TODO: update for match expr
+                max_width += padding;
+            }
+            _ => {}
+        }
+    }
+    max_width
+}
+
+fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &TimelineColumnData) {
+    for (_, ev) in events {
+        match ev {
+            Event::Branch { branch_history, ty, ..} => {
+                for branch in & mut *branch_history {
+                    // copy the parent data
+                    branch.t_data = parent_data.clone();
+                }
+                // update the xvalue based on width
+                match ty {
+                    BranchType::Match(_) => {}
+                    _ => {
+                        let if_bw = branch_history.get(0).unwrap().width;
+                        let else_bw = branch_history.get(1).unwrap().width;
+                        let if_offset_coefficient: i64 = -1 * ((if_bw + 1) as i64); // + 1 for padding between branches
+                        let else_offset_coefficient: i64 = (else_bw + 1) as i64;
+
+                        branch_history.get_mut(0).unwrap().t_data.x_val = parent_data.x_val + (if_offset_coefficient * BRANCH_WEIGHT);
+                        branch_history.get_mut(1).unwrap().t_data.x_val = parent_data.x_val + (else_offset_coefficient * BRANCH_WEIGHT);
+                    }
+                }
+
+            }
+            _ => {}
+        }
+    }
+}
+
 // Returns: a binary tree map from the hash of the ResourceOwner to its Column information
 fn compute_column_layout<'a>(
-    visualization_data: &'a VisualizationData,
+    visualization_data: &'a mut VisualizationData,
     structs_info: &'a mut StructsInfo,
-) -> (BTreeMap<&'a u64, TimelineColumnData>, i32) {
+) -> (BTreeMap< u64, TimelineColumnData>, i32) {
     let mut resource_owners_layout = BTreeMap::new();
     let mut x = 0; // Right-most Column x-offset.
     let mut owner = -1;
     let mut owner_x = 0;
     let mut last_x = 0;
+    let mut w_map: HashMap<u64, i64> = HashMap::new();
+
+    // get all the widths of each timeline
+    for (h, timeline) in visualization_data.timelines.iter_mut() {
+        let width = compute_width(&mut timeline.history);
+        w_map.insert(*h, width as i64);
+    }
+    
     for (hash, timeline) in visualization_data.timelines.iter() {
+
         // only put variable in the column layout
         match timeline.resource_access_point {
             ResourceAccessPoint::Function(_) => {
@@ -266,7 +358,9 @@ fn compute_column_layout<'a>(
                     None => panic!("no matching resource owner for hash {}", hash),
                 };
                 let mut x_space = cmp::max(70, (&(name.len() as i64)-1)*13);
-                x = x + x_space;
+                let branch_width = *w_map.get(hash).unwrap() * BRANCH_WEIGHT;
+                let branch_offset = branch_width / 2;
+                x = x + x_space + branch_offset;
                 let title = match visualization_data.is_mut(hash) {
                     true => String::from("mutable"),
                     false => String::from("immutable"),
@@ -296,7 +390,7 @@ fn compute_column_layout<'a>(
                     last_x = 0;
                 }
 
-                resource_owners_layout.insert(hash, TimelineColumnData
+                resource_owners_layout.insert(*hash, TimelineColumnData
                     { 
                         name: name.clone(), 
                         x_val: x, 
@@ -306,15 +400,27 @@ fn compute_column_layout<'a>(
                         is_member: timeline.resource_access_point.is_member(),
                         owner: timeline.resource_access_point.get_owner(),
                     });
+                x += branch_offset;
             }
         }
     }
+    for (h, timeline) in visualization_data.timelines.iter_mut() {
+
+        match timeline.resource_access_point {
+            ResourceAccessPoint::Function(_) => {},
+            _ => {
+                let root_data = resource_owners_layout.get(h).unwrap();
+                update_timeline_data(& mut timeline.history, root_data);
+            }
+        }
+    }
+
     (resource_owners_layout, (x as i32)+100)
 }
 
 fn render_labels_string(
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
-    resource_owners_layout: &BTreeMap<&u64, TimelineColumnData>,
+    resource_owners_layout: &BTreeMap<u64, TimelineColumnData>,
     registry: &Handlebars
 ) {
     for (hash, column_data) in resource_owners_layout.iter() {
@@ -344,10 +450,129 @@ fn render_labels_string(
     }
 }
 
+fn append_dot(
+    dot_data: &EventDotData,
+    output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
+    timeline_data: &TimelineColumnData,
+    registry: &Handlebars
+) {
+    let column = timeline_data;
+    if column.is_struct_group {
+        if column.is_member {
+            output.get_mut(&(column.owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("dot_template", &dot_data).unwrap());
+        } else {
+            output.get_mut(&(column.owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("dot_template", &dot_data).unwrap());
+        }
+    }
+    else {
+        output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("dot_template", &dot_data).unwrap());
+    }
+}
+
+fn render_dot(
+    hash: &u64,
+    history: &Vec<(usize, Event)>,
+    timeline_data: &TimelineColumnData,
+    output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
+    visualization_data: &VisualizationData,
+    registry: &Handlebars
+) {
+    let mut resource_hold = false;
+    for (line_number, event) in history.iter() {
+        //matching the event
+        match event {
+            Event::Acquire{..} => {
+                resource_hold = true;
+            },
+            Event::Copy{..} => {
+                resource_hold = true;
+            },
+            Event::Move{..} => {
+                resource_hold = false;
+            },
+            Event::RefDie { .. } => {
+                continue;
+            }
+            Event::Branch { is, branch_history, ty, split_point, merge_point } => { 
+                // first append split dot
+                let b_data = EventDotData {
+                    hash: *hash as u64,
+                    dot_x: timeline_data.x_val,
+                    dot_y: get_y_axis_pos(*line_number),
+                    title: event.print_message_with_name(& mut is.real_name())
+                };
+                append_dot(&b_data, output, timeline_data, registry);
+
+                // render dots for each of the branches
+                for (i, branch) in branch_history.iter().enumerate() {
+                    // render a dot at the beginning of the timeline
+                    let split_data = EventDotData {
+                        hash: *hash as u64,
+                        dot_x: branch.t_data.x_val,
+                        dot_y: get_y_axis_pos(*split_point + 1),
+                        title: string_of_branch(ty, i)
+                    };
+                    append_dot(&split_data, output, &branch.t_data, registry);
+
+                    render_dot(hash, &branch.e_data, &branch.t_data, output, visualization_data, registry);
+
+                    // render a dot at the end of the timeline
+                    let merge_data = EventDotData {
+                        hash: *hash as u64,
+                        dot_x: branch.t_data.x_val,
+                        dot_y: get_y_axis_pos(*merge_point),
+                        title: string_of_branch(ty, i)
+                    };
+                    append_dot(&merge_data, output, &branch.t_data, registry);
+                }
+
+                // render merge dot
+                let m_data = EventDotData {
+                    hash: *hash as u64,
+                    dot_x: timeline_data.x_val,
+                    dot_y: get_y_axis_pos(*merge_point + 1),
+                    title: "merge".to_owned()
+                };
+                append_dot(&m_data, output, timeline_data, registry);
+                continue;
+            }
+            _ => {} //do nothing
+        }
+        
+        let mut data = EventDotData {
+            hash: *hash as u64,
+            dot_x: timeline_data.x_val,
+            dot_y: get_y_axis_pos(*line_number),
+            // default value if print_message_with_name() fails
+            title: "Unknown Resource Owner Value".to_owned()
+        };
+        if let Some(mut name) = visualization_data.get_name_from_hash(hash) {
+            match event {
+                Event::OwnerGoOutOfScope => {
+                    if !resource_hold {
+                        let resource_info: &str = ". No resource is dropped.";
+                        data.title = event.print_message_with_name(& mut name);
+                        data.title.push_str(resource_info);
+                    } else {
+                        let resource_info: &str = ". Its resource is dropped.";
+                        data.title = event.print_message_with_name(& mut name);
+                        data.title.push_str(resource_info);
+                    }
+                },
+                _ => {
+                    data.title = event.print_message_with_name(& mut name);
+                }
+            }
+        }
+        // push to individual timelines
+        append_dot(&data, output, timeline_data, registry);
+    }
+}
+
 fn render_dots_string(
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
     visualization_data: &VisualizationData,
-    resource_owners_layout: &BTreeMap<&u64, TimelineColumnData>,
+    resource_owners_layout: &BTreeMap<u64, TimelineColumnData>,
     registry: &Handlebars
 ){
     let timelines = &visualization_data.timelines;
@@ -359,64 +584,321 @@ fn render_dots_string(
             },
             ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) | ResourceAccessPoint::MutRef(_) | ResourceAccessPoint::StaticRef(_) =>
             {
-                let mut resource_hold = false;
-                for (line_number, event) in timeline.history.iter() {
-                    //matching the event
-                    match event {
-                        Event::Acquire{..} => {
-                            resource_hold = true;
-                        },
-                        Event::Copy{..} => {
-                            resource_hold = true;
-                        },
-                        Event::Move{..} => {
-                            resource_hold = false;
-                        },
-                        Event::RefDie { .. } => {
-                          continue;
-                        }
-                        _ => {} //do nothing
+                render_dot(hash, &timeline.history, &resource_owners_layout[hash], output, visualization_data, registry);
+            },
+        }
+    }
+}
+
+
+
+// leverage the fact that ExternalEvent Branch structure mirrors that of an Event Branch
+fn traverse_timeline<'a> (gep: & mut VecDeque<(usize, usize)>, history: & 'a Vec<(usize, Event)>) -> & 'a TimelineColumnData {
+    // get frequency (ith branch in history, and index of next branch)
+    let (freq, index) = gep.front().unwrap().clone();
+    gep.pop_front();
+    let mut found = 0;
+    for (_, e) in history.iter() {
+        match e {
+            Event::Branch { branch_history, .. } => {
+                found += 1;
+                if found == freq {
+                    if gep.is_empty() {
+                        return &branch_history.get(index).unwrap().t_data
                     }
-                    
-                    let mut data = EventDotData {
-                        hash: *hash as u64,
-                        dot_x: resource_owners_layout[hash].x_val,
-                        dot_y: get_y_axis_pos(*line_number),
-                        // default value if print_message_with_name() fails
-                        title: "Unknown Resource Owner Value".to_owned()
+                    else {
+                        return traverse_timeline(gep, &branch_history.get(index).unwrap().e_data)
+                    }
+                }
+                else {
+                    continue
+                }
+            }
+            _ => {}
+        }
+    }
+    unreachable!()
+}
+
+fn fetch_timeline<'a>(
+    hash: &u64, 
+    gep: & mut VecDeque<(usize, usize)>, 
+    vd: &'a VisualizationData, 
+    ro_layout: & 'a BTreeMap<u64, TimelineColumnData>) -> & 'a TimelineColumnData 
+    {
+    if gep.is_empty() {
+        &ro_layout[hash]
+    }
+    else {
+        let var_history = &vd.timelines.get(hash).unwrap().history;
+        traverse_timeline(& mut gep.clone(), var_history)
+    }
+}
+
+// render arrow
+fn render_arrow (
+    line_number : &usize,
+    external_event: &ExternalEvent,
+    branch_freq: & mut usize,
+    gep: & mut VecDeque<(usize, usize)>,
+    live_vars: &HashSet<ResourceAccessPoint>,
+    output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
+    visualization_data: &VisualizationData,
+    resource_owners_layout: &BTreeMap<u64, TimelineColumnData>,
+    registry: &Handlebars
+) {
+    match external_event {
+        ExternalEvent::Branch { live_vars, branches, .. } => {
+            *branch_freq = *branch_freq + 1;
+            // save the old branch freq since we are hopping onto different branches for the time being
+            let old_branch_freq = *branch_freq;
+            // render all the events in the branch
+            for (b_index, branch) in branches.iter().enumerate() {
+                gep.push_back((old_branch_freq, b_index));
+                for (l, e) in branch.iter() {
+                    // somewhat redundant but have to filter out external events here
+                    match e {
+                        ExternalEvent::Bind {..} | ExternalEvent::GoOutOfScope {..} | ExternalEvent::InitRefParam { .. }
+                        | ExternalEvent::RefDie {..} => {}
+                        _ => {
+                            render_arrow(l, e, & mut 0, gep, live_vars, output, visualization_data, resource_owners_layout, registry);
+                        }
+                    }
+                }
+                gep.pop_back(); // backtrack
+            }
+            *branch_freq = old_branch_freq;
+            println!(" gep after branch {:#?}", gep);
+        }
+        _ => {
+            // get the resource owners involved in the event
+            let (from, to) = ResourceAccessPoint_extract(external_event);
+            match (from, to) { // don't render arrow for anything to caller or anonymous or fn -> fn
+                (ResourceTy::Anonymous, _) | (_, ResourceTy::Caller) | (_, ResourceTy::Anonymous) 
+                | (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_))) => return,
+                _ => {}
+            }
+            let mut title = string_of_external_event(external_event);
+            // complete title
+            let styled_from_string = SPAN_BEGIN.to_string() + &from.name() + SPAN_END;
+            title = format!("{} from {}", title, styled_from_string);
+            let styled_to_string = SPAN_BEGIN.to_string() + &to.name() + SPAN_END;
+            title = format!("{} to {}", title, styled_to_string);
+
+            // order of points is to -> from
+            let mut data = ArrowData {
+                coordinates: Vec::new(),
+                coordinates_hbs: String::new(),
+                title: title
+            };
+
+            let arrow_length = 20;
+
+
+            match (from, to, external_event) {
+                (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _)  => {  // (Some(function), Some(variable), _)
+                    // ro1 (to_variable) <- ro2 (from_function)
+                    // arrow go from (x2, y2) -> (x1, y1)
+                    // get position of to_variable
+                    let to_timeline = fetch_timeline(to_variable.hash(), gep, visualization_data, resource_owners_layout);
+                    let x1 = to_timeline.x_val + 3; // adjust arrow head pos
+                    let x2 = x1 + arrow_length;
+                    let y1 = get_y_axis_pos(*line_number);
+                    let y2 = get_y_axis_pos(*line_number);
+                    data.coordinates.push((x1 as f64, y1 as f64));
+                    data.coordinates.push((x2 as f64, y2 as f64));
+    
+                    let function_data = FunctionLogoData {
+                        x: x2 + 3,
+                        y: y2 + 5,
+                        hash: from_function.hash.to_owned() as u64,
+                        title: SPAN_BEGIN.to_string() + &from_function.name + SPAN_END,
                     };
-                    if let Some(mut name) = visualization_data.get_name_from_hash(hash) {
-                        match event {
-                            Event::OwnerGoOutOfScope => {
-                                if !resource_hold {
-                                    let resource_info: &str = ". No resource is dropped.";
-                                    data.title = event.print_message_with_name(& mut name);
-                                    data.title.push_str(resource_info);
-                                } else {
-                                    let resource_info: &str = ". Its resource is dropped.";
-                                    data.title = event.print_message_with_name(& mut name);
-                                    data.title.push_str(resource_info);
-                                }
-                            },
-                            _ => {
-                                data.title = event.print_message_with_name(& mut name);
-                            }
-                        }
-                    }
-                    // push to individual timelines
-                    let column = &resource_owners_layout[hash];
-                    if column.is_struct_group {
-                        if column.is_member {
-                            output.get_mut(&(column.owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("dot_template", &data).unwrap());
+    
+                    if to_timeline.is_struct_group {
+                        if to_timeline.is_member {
+                            output.get_mut(&(to_timeline.owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
                         } else {
-                            output.get_mut(&(column.owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("dot_template", &data).unwrap());
+                            output.get_mut(&(to_timeline.owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
                         }
                     }
                     else {
-                        output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("dot_template", &data).unwrap());
+                        output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
                     }
                 }
-            },
+                (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), ExternalEvent::PassByStaticReference { .. }) 
+                | (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), ExternalEvent::PassByMutableReference { .. }) => { 
+                    // (Some(variable), Some(function), PassByRef)
+                    let styled_fn_name = SPAN_BEGIN.to_string() + &function.name + SPAN_END;
+                    let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
+
+                    // get position of to_variable
+                    let from_timeline = fetch_timeline(from_variable.hash(), gep, visualization_data, resource_owners_layout);
+
+                    let title_fn = match external_event {
+                        ExternalEvent::PassByStaticReference { .. } => " reads from ",
+                        ExternalEvent::PassByMutableReference { .. } => " reads from/writes to ",
+                        _ => unreachable!()
+                    };
+                    
+                    let function_dot_data = FunctionDotData {
+                        x: from_timeline.x_val,
+                        y: get_y_axis_pos(*line_number),
+                        title: styled_fn_name + title_fn + &styled_from_name,
+                        hash: from_variable.hash().to_owned() as u64,
+                    };
+
+                    if from_timeline.is_struct_group {
+                        if from_timeline.is_member {
+                            output.get_mut(&(from_timeline.owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
+                        } else {
+                            output.get_mut(&(from_timeline.owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
+                        }
+                    }
+                    else {
+                        output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
+                    }
+                }
+                (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(to_function)), _e) => { // (Some(variable), Some(function), _)
+                    let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
+                    //  ro1 (to_function) <- ro2 (from_variable)
+                    let from_timeline = fetch_timeline(from_variable.hash(), gep, visualization_data, resource_owners_layout);
+                    let x2 = from_timeline.x_val - 5;
+                    let x1 = x2 - arrow_length;
+                    let y1 = get_y_axis_pos(*line_number);
+                    let y2 = get_y_axis_pos(*line_number);
+                    data.coordinates.push((x1 as f64, y1 as f64));
+                    data.coordinates.push((x2 as f64, y2 as f64));
+    
+                    let function_data = FunctionLogoData {
+                        // adjust Function logo pos
+                        x: x1 - 10,  
+                        y: y1 + 5,
+                        hash: to_function.hash.to_owned() as u64,
+                        title: styled_fn_name,
+                    };
+    
+                    if from_timeline.is_struct_group {
+                        if from_timeline.is_member {
+                            output.get_mut(&(from_timeline.owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+                        } else {
+                            output.get_mut(&(from_timeline.owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+                        }
+                    }
+                    else {
+                        output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+                    }
+                },
+                (from_variable, to_variable, _e) => {
+                    let arrow_order = if gep.is_empty() {
+                        visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64
+                    }
+                    else {
+                        0 //TODO: FIX
+                    };
+                    
+
+                    // get from_variable info 
+                    let from_timeline = fetch_timeline(from_variable.hash(), gep, visualization_data, resource_owners_layout);
+
+                    // get to_variable info 
+                    // TODO: will probably need to fix this, depending on how conditionals are displayed
+                    let to_timeline = if live_vars.contains(to_variable.extract_rap()) {
+                        fetch_timeline(to_variable.hash(), gep, visualization_data, resource_owners_layout)
+                    }
+                    else {
+                        &resource_owners_layout[to_variable.hash()]
+                    };
+
+                    let x1 = to_timeline.x_val;
+                    let x2 = from_timeline.x_val;
+                    let y1 = get_y_axis_pos(*line_number);
+                    let y2 = get_y_axis_pos(*line_number);
+                    // if the arrow is pointing from left to right
+                    if arrow_order > 0 && x2 <= x1{
+                        let x3 = from_timeline.x_val + 20;
+                        let x4 = to_timeline.x_val - 20;
+                        let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
+                        let y4 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
+    
+                        data.coordinates.push((x1 as f64, y1 as f64));
+                        data.coordinates.push((x4 as f64, y4 as f64));
+                        data.coordinates.push((x3 as f64, y3 as f64));
+                        data.coordinates.push((x2 as f64, y2 as f64));
+    
+                    // if the arrow is pointing from right to left
+                    } else if arrow_order > 0 && x2 > x1 {
+                        let x3 = from_timeline.x_val - 20;
+                        let x4 = to_timeline.x_val + 20;
+                        let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
+                        let y4 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
+    
+                        data.coordinates.push((x1 as f64, y1 as f64));
+                        data.coordinates.push((x4 as f64, y4 as f64));
+                        data.coordinates.push((x3 as f64, y3 as f64));
+                        data.coordinates.push((x2 as f64, y2 as f64));
+    
+                    } else {
+                        data.coordinates.push((x1 as f64, y1 as f64));
+                        data.coordinates.push((x2 as f64, y2 as f64));
+                    }
+                }
+            }
+
+            // draw arrow only if data.x1 is not default value
+            if !data.coordinates.is_empty() {
+                let last_index = data.coordinates.len() - 1;
+
+                if data.coordinates.len() == 2 {
+                    // [0]     [last index]
+                    // <-------------------
+                    if data.coordinates[0].0 < data.coordinates[last_index].0 {
+
+                        data.coordinates[0].0 += 10 as f64;
+                    }
+                    // [last index]     [0]
+                    // ------------------->
+                    else {
+                        data.coordinates[0].0 -= 10 as f64;
+                    }
+                } else {
+
+                    if data.coordinates[0].0 < data.coordinates[last_index].0 {
+                        let hypotenuse = (((data.coordinates[1].0 - data.coordinates[0].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
+                        let cos_ratio = ((data.coordinates[1].0 - data.coordinates[0].0) as f64) / hypotenuse;
+                        let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
+                        data.coordinates[0].0 += cos_ratio*10 as f64;
+                        data.coordinates[0].1 += sin_ratio*10 as f64;
+                    }
+                    else {
+                        let hypotenuse = (((data.coordinates[0].0 - data.coordinates[1].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
+                        let cos_ratio = ((data.coordinates[0].0 - data.coordinates[1].0) as f64) / hypotenuse;
+                        let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
+                        data.coordinates[0].0 -= cos_ratio*10 as f64;
+                        data.coordinates[0].1 += sin_ratio*10 as f64;
+                    }
+                }
+
+                while !data.coordinates.is_empty() {
+                    let recent = data.coordinates.pop();
+                    data.coordinates_hbs.push_str(&recent.unwrap().0.to_string());
+                    data.coordinates_hbs.push_str(&String::from(" "));
+                    data.coordinates_hbs.push_str(&recent.unwrap().1.to_string());
+                    data.coordinates_hbs.push_str(&String::from(" "));
+                }
+
+                // will need to change this later for structs in conditionals
+                if resource_owners_layout.contains_key(from.hash()) && resource_owners_layout[from.hash()].is_struct_group {
+                    if resource_owners_layout[from.hash()].is_member {
+                        output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().1.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
+                    } else {
+                        output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
+                    }
+                }
+                else {
+                    output.get_mut(&-1).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
+                }
+            }
         }
     }
 }
@@ -425,295 +907,294 @@ fn render_dots_string(
 fn render_arrows_string_external_events_version(
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
     visualization_data: &VisualizationData,
-    resource_owners_layout: &BTreeMap<&u64, TimelineColumnData>,
+    resource_owners_layout: &BTreeMap<u64, TimelineColumnData>,
     registry: &Handlebars
 ){
+
+    println!("external events {:#?}", visualization_data.external_events);
     for (line_number, external_event) in &visualization_data.external_events {
-        let mut title = String::from("");
-        let (from, to) = match external_event {
-            ExternalEvent::Bind{ from: from_ro, to: to_ro } => {
-                title = String::from("Bind");
-                (from_ro, to_ro)
-            },
-            ExternalEvent::Copy{ from: from_ro, to: to_ro } => {
-                title = String::from("Copy");
-                (from_ro, to_ro)
-            },
-            ExternalEvent::Move{ from: from_ro, to: to_ro } => {
-                title = String::from("Move");
-                (from_ro, to_ro)
-            },
-            ExternalEvent::StaticBorrow{ from: from_ro, to: to_ro } => {
-                title = String::from("Immutable borrow");
-                (from_ro, to_ro)
-            },
-            ExternalEvent::StaticDie{ from: from_ro, to: to_ro } => {
-                title = String::from("Return immutably borrowed resource");
-                (from_ro, to_ro)
-            },
-            ExternalEvent::MutableBorrow{ from: from_ro, to: to_ro } => {
-                title = String::from("Mutable borrow");
-                (from_ro, to_ro)
-            },
-            ExternalEvent::MutableDie{ from: from_ro, to: to_ro } => {
-                title = String::from("Return mutably borrowed resource");
-                (from_ro, to_ro)
-            },
-            ExternalEvent::PassByMutableReference{ from: from_ro, to: to_ro } => {
-                title = String::from("Pass by mutable reference");
-                (from_ro, to_ro)
-            },
-            ExternalEvent::PassByStaticReference{ from: from_ro, to: to_ro } => {
-                title = String::from("Pass by immutable reference");
-                (from_ro, to_ro)
-            },
-            _ => (&ResourceTy::Anonymous, &ResourceTy::Anonymous),
-        };
-        // complete title
-        let styled_from_string = SPAN_BEGIN.to_string() + &from.name() + SPAN_END;
-        title = format!("{} from {}", title, styled_from_string);
-        let styled_to_string = SPAN_BEGIN.to_string() + &to.name() + SPAN_END;
-        title = format!("{} to {}", title, styled_to_string);
-        // if let Some(some_from) = from {
-        //     let from_string = match some_from {
-        //         ResourceAccessPoint::Owner(owner) => owner.name.to_owned(),
-        //         ResourceAccessPoint::Struct(stru) => stru.name.to_owned(),
-        //         ResourceAccessPoint::MutRef(mutref) => mutref.name.to_owned(),
-        //         ResourceAccessPoint::StaticRef(statref) => statref.name.to_owned(),
-        //         ResourceAccessPoint::Function(func) => func.name.to_owned(),
-        //     };
-        //     let styled_from_string = SPAN_BEGIN.to_string() + &from_string + SPAN_END;
-        //     title = format!("{} from {}", title, styled_from_string);
+        match external_event {
+            // events that should be skipped (we don't render arrows for them)
+            ExternalEvent::Bind {..} | ExternalEvent::GoOutOfScope {..} | ExternalEvent::InitRefParam { .. }
+            | ExternalEvent::RefDie {..} => {}
+
+            _ => {
+
+                // render external event arrow
+                render_arrow(line_number, 
+                    external_event,
+                    & mut 0, 
+                    & mut VecDeque::new(), 
+                    & HashSet::new(), 
+                    output, visualization_data, resource_owners_layout, registry)
+            }
+        }
+        
+        // let mut title = String::from("");
+        // let (from, to) = match external_event {
+        //     ExternalEvent::Bind{ from: from_ro, to: to_ro } => {
+        //         title = String::from("Bind");
+        //         (from_ro, to_ro)
+        //     },
+        //     ExternalEvent::Copy{ from: from_ro, to: to_ro } => {
+        //         title = String::from("Copy");
+        //         (from_ro, to_ro)
+        //     },
+        //     ExternalEvent::Move{ from: from_ro, to: to_ro } => {
+        //         title = String::from("Move");
+        //         (from_ro, to_ro)
+        //     },
+        //     ExternalEvent::StaticBorrow{ from: from_ro, to: to_ro } => {
+        //         title = String::from("Immutable borrow");
+        //         (from_ro, to_ro)
+        //     },
+        //     ExternalEvent::StaticDie{ from: from_ro, to: to_ro } => {
+        //         title = String::from("Return immutably borrowed resource");
+        //         (from_ro, to_ro)
+        //     },
+        //     ExternalEvent::MutableBorrow{ from: from_ro, to: to_ro } => {
+        //         title = String::from("Mutable borrow");
+        //         (from_ro, to_ro)
+        //     },
+        //     ExternalEvent::MutableDie{ from: from_ro, to: to_ro } => {
+        //         title = String::from("Return mutably borrowed resource");
+        //         (from_ro, to_ro)
+        //     },
+        //     ExternalEvent::PassByMutableReference{ from: from_ro, to: to_ro } => {
+        //         title = String::from("Pass by mutable reference");
+        //         (from_ro, to_ro)
+        //     },
+        //     ExternalEvent::PassByStaticReference{ from: from_ro, to: to_ro } => {
+        //         title = String::from("Pass by immutable reference");
+        //         (from_ro, to_ro)
+        //     },
+        //     _ => (&ResourceTy::Anonymous, &ResourceTy::Anonymous),
         // };
-        // if let Some(some_to) = to {
-        //     let to_string = match some_to {
-        //         ResourceAccessPoint::Owner(owner) => owner.name.to_owned(),
-        //         ResourceAccessPoint::Struct(stru) => stru.name.to_owned(),
-        //         ResourceAccessPoint::MutRef(mutref) => mutref.name.to_owned(),
-        //         ResourceAccessPoint::StaticRef(statref) => statref.name.to_owned(),
-        //         ResourceAccessPoint::Function(func) => func.name.to_owned(),
-        //     };
-        //     let styled_to_string = SPAN_BEGIN.to_string() + &to_string + SPAN_END;
-        //     title = format!("{} to {}", title, styled_to_string);
+        // // complete title
+        // let styled_from_string = SPAN_BEGIN.to_string() + &from.name() + SPAN_END;
+        // title = format!("{} from {}", title, styled_from_string);
+        // let styled_to_string = SPAN_BEGIN.to_string() + &to.name() + SPAN_END;
+        // title = format!("{} to {}", title, styled_to_string);
+
+        // // order of points is to -> from
+        // let mut data = ArrowData {
+        //     coordinates: Vec::new(),
+        //     coordinates_hbs: String::new(),
+        //     title: title
         // };
 
-        // order of points is to -> from
-        let mut data = ArrowData {
-            coordinates: Vec::new(),
-            coordinates_hbs: String::new(),
-            title: title
-        };
+        // let arrow_length = 20;
+        // // render title
+        // match (from, to, external_event) {
+        //     (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_)), _) 
+        //     | (ResourceTy::Anonymous, ResourceTy::Value(ResourceAccessPoint::Function(_)), _)=> {
+        //         // do nothing for case: from = function
+        //         // it is easier to exclude this case than list all possible cases for when ResourceAccessPoint is a variable
+        //     },
+        //     (_, _, ExternalEvent::Bind {..}) | (_, _, ExternalEvent::GoOutOfScope {..}) | (_, _, ExternalEvent::InitRefParam { .. }) | 
+        //     (_, ResourceTy::Caller, _) | (_, _, ExternalEvent::RefDie { .. }) | (_, _, ExternalEvent::Branch { .. })=> {}
+        //     (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _)  => {  // (Some(function), Some(variable), _)
+        //         // ro1 (to_variable) <- ro2 (from_function)
+        //         // arrow go from (x2, y2) -> (x1, y1)
+        //         let x1 = resource_owners_layout[to_variable.hash()].x_val + 3; // adjust arrow head pos
+        //         let x2 = x1 + arrow_length;
+        //         let y1 = get_y_axis_pos(*line_number);
+        //         let y2 = get_y_axis_pos(*line_number);
+        //         data.coordinates.push((x1 as f64, y1 as f64));
+        //         data.coordinates.push((x2 as f64, y2 as f64));
 
-        let arrow_length = 20;
-        // render title
-        match (from, to, external_event) {
-            (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_)), _) 
-            | (ResourceTy::Anonymous, ResourceTy::Value(ResourceAccessPoint::Function(_)), _)=> {
-                // do nothing for case: from = function
-                // it is easier to exclude this case than list all possible cases for when ResourceAccessPoint is a variable
-            },
-            (_, _, ExternalEvent::Bind {..}) | (_, _, ExternalEvent::GoOutOfScope {..}) | (_, _, ExternalEvent::InitRefParam { .. }) | 
-            (_, ResourceTy::Caller, _) | (_, _, ExternalEvent::RefDie { .. })=> {}
-            (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _)  => {  // (Some(function), Some(variable), _)
-                // ro1 (to_variable) <- ro2 (from_function)
-                // arrow go from (x2, y2) -> (x1, y1)
-                let x1 = resource_owners_layout[to_variable.hash()].x_val + 3; // adjust arrow head pos
-                let x2 = x1 + arrow_length;
-                let y1 = get_y_axis_pos(*line_number);
-                let y2 = get_y_axis_pos(*line_number);
-                data.coordinates.push((x1 as f64, y1 as f64));
-                data.coordinates.push((x2 as f64, y2 as f64));
+        //         let function_data = FunctionLogoData {
+        //             x: x2 + 3,
+        //             y: y2 + 5,
+        //             hash: from_function.hash.to_owned() as u64,
+        //             title: SPAN_BEGIN.to_string() + &from_function.name + SPAN_END,
+        //         };
 
-                let function_data = FunctionLogoData {
-                    x: x2 + 3,
-                    y: y2 + 5,
-                    hash: from_function.hash.to_owned() as u64,
-                    title: SPAN_BEGIN.to_string() + &from_function.name + SPAN_END,
-                };
-
-                if resource_owners_layout[to_variable.hash()].is_struct_group {
-                    if resource_owners_layout[to_variable.hash()].is_member {
-                        output.get_mut(&(resource_owners_layout[to_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-                    } else {
-                        output.get_mut(&(resource_owners_layout[to_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-                    }
-                }
-                else {
-                    output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-                }
-            },
-            (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), 
-             ExternalEvent::PassByStaticReference{..}) => { // (Some(variable), Some(function), PassByStatRef)
-                // get variable's position
-                let styled_fn_name = SPAN_BEGIN.to_string() + &function.name + SPAN_END;
-                let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
+        //         if resource_owners_layout[to_variable.hash()].is_struct_group {
+        //             if resource_owners_layout[to_variable.hash()].is_member {
+        //                 output.get_mut(&(resource_owners_layout[to_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+        //             } else {
+        //                 output.get_mut(&(resource_owners_layout[to_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+        //             }
+        //         }
+        //         else {
+        //             output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+        //         }
+        //     },
+        //     (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), 
+        //      ExternalEvent::PassByStaticReference{..}) => { // (Some(variable), Some(function), PassByStatRef)
+        //         // get variable's position
+        //         let styled_fn_name = SPAN_BEGIN.to_string() + &function.name + SPAN_END;
+        //         let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
                 
-                let function_dot_data = FunctionDotData {
-                    x: resource_owners_layout[from_variable.hash()].x_val,
-                    y: get_y_axis_pos(*line_number),
-                    title: styled_fn_name + " reads from " + &styled_from_name,
-                    hash: from_variable.hash().to_owned() as u64,
-                };
+        //         let function_dot_data = FunctionDotData {
+        //             x: resource_owners_layout[from_variable.hash()].x_val,
+        //             y: get_y_axis_pos(*line_number),
+        //             title: styled_fn_name + " reads from " + &styled_from_name,
+        //             hash: from_variable.hash().to_owned() as u64,
+        //         };
 
-                if resource_owners_layout[from_variable.hash()].is_struct_group {
-                    if resource_owners_layout[from_variable.hash()].is_member {
-                        output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-                    } else {
-                        output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-                    }
-                }
-                else {
-                    output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-                }
-            },
-            (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), 
-             ExternalEvent::PassByMutableReference{..}) => {  // (Some(variable), Some(function), PassByMutRef)
-                // get variable's position
-                let styled_fn_name = SPAN_BEGIN.to_string() + &function.name + SPAN_END;
-                let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
+        //         if resource_owners_layout[from_variable.hash()].is_struct_group {
+        //             if resource_owners_layout[from_variable.hash()].is_member {
+        //                 output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
+        //             } else {
+        //                 output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
+        //             }
+        //         }
+        //         else {
+        //             output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
+        //         }
+        //     },
+        //     (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), 
+        //      ExternalEvent::PassByMutableReference{..}) => {  // (Some(variable), Some(function), PassByMutRef)
+        //         // get variable's position
+        //         let styled_fn_name = SPAN_BEGIN.to_string() + &function.name + SPAN_END;
+        //         let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
 
-                let function_dot_data = FunctionDotData {
-                    x: resource_owners_layout[from_variable.hash()].x_val,
-                    y: get_y_axis_pos(*line_number),
-                    title: styled_fn_name + " reads from/writes to " + &styled_from_name,
-                    hash: from_variable.hash().to_owned() as u64,
-                };
-                if resource_owners_layout[from_variable.hash()].is_struct_group {
-                    if resource_owners_layout[from_variable.hash()].is_member {
-                        output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-                    } else {
-                        output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-                    }
-                }
-                else {
-                    output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-                }
-            },
-            (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(to_function)), _e) => { // (Some(variable), Some(function), _)
-                let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
-                //  ro1 (to_function) <- ro2 (from_variable)
-                println!("e {:#?}", _e);
-                let hash = match from_variable {
-                    ResourceTy::Anonymous => visualization_data.num_valid_raps as u64,
-                    _ => from_variable.hash().to_owned()
-                };
-                println!("rap layout {:#?}", resource_owners_layout);
-                let x2 = resource_owners_layout[&hash].x_val - 5;
-                let x1 = x2 - arrow_length;
-                let y1 = get_y_axis_pos(*line_number);
-                let y2 = get_y_axis_pos(*line_number);
-                data.coordinates.push((x1 as f64, y1 as f64));
-                data.coordinates.push((x2 as f64, y2 as f64));
+        //         let function_dot_data = FunctionDotData {
+        //             x: resource_owners_layout[from_variable.hash()].x_val,
+        //             y: get_y_axis_pos(*line_number),
+        //             title: styled_fn_name + " reads from/writes to " + &styled_from_name,
+        //             hash: from_variable.hash().to_owned() as u64,
+        //         };
+        //         if resource_owners_layout[from_variable.hash()].is_struct_group {
+        //             if resource_owners_layout[from_variable.hash()].is_member {
+        //                 output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
+        //             } else {
+        //                 output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
+        //             }
+        //         }
+        //         else {
+        //             output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
+        //         }
+        //     },
+        //     (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(to_function)), _e) => { // (Some(variable), Some(function), _)
+        //         let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
+        //         //  ro1 (to_function) <- ro2 (from_variable)
+        //         println!("e {:#?}", _e);
+        //         let hash = match from_variable {
+        //             ResourceTy::Anonymous => visualization_data.num_valid_raps as u64,
+        //             _ => from_variable.hash().to_owned()
+        //         };
+        //         println!("rap layout {:#?}", resource_owners_layout);
+        //         let x2 = resource_owners_layout[&hash].x_val - 5;
+        //         let x1 = x2 - arrow_length;
+        //         let y1 = get_y_axis_pos(*line_number);
+        //         let y2 = get_y_axis_pos(*line_number);
+        //         data.coordinates.push((x1 as f64, y1 as f64));
+        //         data.coordinates.push((x2 as f64, y2 as f64));
 
-                let function_data = FunctionLogoData {
-                    // adjust Function logo pos
-                    x: x1 - 10,  
-                    y: y1 + 5,
-                    hash: to_function.hash.to_owned() as u64,
-                    title: styled_fn_name,
-                };
+        //         let function_data = FunctionLogoData {
+        //             // adjust Function logo pos
+        //             x: x1 - 10,  
+        //             y: y1 + 5,
+        //             hash: to_function.hash.to_owned() as u64,
+        //             title: styled_fn_name,
+        //         };
 
-                if resource_owners_layout[&hash].is_struct_group {
-                    if resource_owners_layout[&hash].is_member {
-                        output.get_mut(&(resource_owners_layout[&hash].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-                    } else {
-                        output.get_mut(&(resource_owners_layout[&hash].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-                    }
-                }
-                else {
-                    output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-                }
-            },
-            (from_variable, to_variable, _e) => {
-                let arrow_order = visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
+        //         if resource_owners_layout[&hash].is_struct_group {
+        //             if resource_owners_layout[&hash].is_member {
+        //                 output.get_mut(&(resource_owners_layout[&hash].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+        //             } else {
+        //                 output.get_mut(&(resource_owners_layout[&hash].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+        //             }
+        //         }
+        //         else {
+        //             output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
+        //         }
+        //     },
+        //     (from_variable, to_variable, _e) => {
 
-                let x1 = resource_owners_layout[to_variable.hash()].x_val;
-                let x2 = resource_owners_layout[from_variable.hash()].x_val;
-                let y1 = get_y_axis_pos(*line_number);
-                let y2 = get_y_axis_pos(*line_number);
-                // if the arrow is pointing from left to right
-                if arrow_order > 0 && x2 <= x1{
-                    let x3 = resource_owners_layout[from_variable.hash()].x_val + 20;
-                    let x4 = resource_owners_layout[to_variable.hash()].x_val - 20;
-                    let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
-                    let y4 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
+        //         let arrow_order = visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
 
-                    data.coordinates.push((x1 as f64, y1 as f64));
-                    data.coordinates.push((x4 as f64, y4 as f64));
-                    data.coordinates.push((x3 as f64, y3 as f64));
-                    data.coordinates.push((x2 as f64, y2 as f64));
+        //         let x1 = resource_owners_layout[to_variable.hash()].x_val;
+        //         let x2 = resource_owners_layout[from_variable.hash()].x_val;
+        //         let y1 = get_y_axis_pos(*line_number);
+        //         let y2 = get_y_axis_pos(*line_number);
+        //         // if the arrow is pointing from left to right
+        //         if arrow_order > 0 && x2 <= x1{
+        //             let x3 = resource_owners_layout[from_variable.hash()].x_val + 20;
+        //             let x4 = resource_owners_layout[to_variable.hash()].x_val - 20;
+        //             let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
+        //             let y4 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
 
-                // if the arrow is pointing from right to left
-                } else if arrow_order > 0 && x2 > x1 {
-                    let x3 = resource_owners_layout[from_variable.hash()].x_val - 20;
-                    let x4 = resource_owners_layout[to_variable.hash()].x_val + 20;
-                    let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
-                    let y4 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
+        //             data.coordinates.push((x1 as f64, y1 as f64));
+        //             data.coordinates.push((x4 as f64, y4 as f64));
+        //             data.coordinates.push((x3 as f64, y3 as f64));
+        //             data.coordinates.push((x2 as f64, y2 as f64));
 
-                    data.coordinates.push((x1 as f64, y1 as f64));
-                    data.coordinates.push((x4 as f64, y4 as f64));
-                    data.coordinates.push((x3 as f64, y3 as f64));
-                    data.coordinates.push((x2 as f64, y2 as f64));
+        //         // if the arrow is pointing from right to left
+        //         } else if arrow_order > 0 && x2 > x1 {
+        //             let x3 = resource_owners_layout[from_variable.hash()].x_val - 20;
+        //             let x4 = resource_owners_layout[to_variable.hash()].x_val + 20;
+        //             let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
+        //             let y4 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
 
-                } else {
-                    data.coordinates.push((x1 as f64, y1 as f64));
-                    data.coordinates.push((x2 as f64, y2 as f64));
-                }
-            },
-            _ => (), // don't support other cases for now
-        }
-        // draw arrow only if data.x1 is not default value
-        if !data.coordinates.is_empty() {
-            let last_index = data.coordinates.len() - 1;
+        //             data.coordinates.push((x1 as f64, y1 as f64));
+        //             data.coordinates.push((x4 as f64, y4 as f64));
+        //             data.coordinates.push((x3 as f64, y3 as f64));
+        //             data.coordinates.push((x2 as f64, y2 as f64));
 
-            if data.coordinates.len() == 2 {
-                // [0]     [last index]
-                // <-------------------
-                if data.coordinates[0].0 < data.coordinates[last_index].0 {
+        //         } else {
+        //             unreachable!("deal with this later");
+        //             data.coordinates.push((x1 as f64, y1 as f64));
+        //             data.coordinates.push((x2 as f64, y2 as f64));
+        //         }
+        //     },
+        //     _ => (), // don't support other cases for now
+        // }
+        // // draw arrow only if data.x1 is not default value
+        // if !data.coordinates.is_empty() {
+        //     let last_index = data.coordinates.len() - 1;
 
-                    data.coordinates[0].0 += 10 as f64;
-                }
-                // [last index]     [0]
-                // ------------------->
-                else {
-                    data.coordinates[0].0 -= 10 as f64;
-                }
-            } else {
+        //     if data.coordinates.len() == 2 {
+        //         // [0]     [last index]
+        //         // <-------------------
+        //         if data.coordinates[0].0 < data.coordinates[last_index].0 {
 
-                if data.coordinates[0].0 < data.coordinates[last_index].0 {
-                    let hypotenuse = (((data.coordinates[1].0 - data.coordinates[0].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
-                    let cos_ratio = ((data.coordinates[1].0 - data.coordinates[0].0) as f64) / hypotenuse;
-                    let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
-                    data.coordinates[0].0 += cos_ratio*10 as f64;
-                    data.coordinates[0].1 += sin_ratio*10 as f64;
-                }
-                else {
-                    let hypotenuse = (((data.coordinates[0].0 - data.coordinates[1].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
-                    let cos_ratio = ((data.coordinates[0].0 - data.coordinates[1].0) as f64) / hypotenuse;
-                    let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
-                    data.coordinates[0].0 -= cos_ratio*10 as f64;
-                    data.coordinates[0].1 += sin_ratio*10 as f64;
-                }
-            }
+        //             data.coordinates[0].0 += 10 as f64;
+        //         }
+        //         // [last index]     [0]
+        //         // ------------------->
+        //         else {
+        //             data.coordinates[0].0 -= 10 as f64;
+        //         }
+        //     } else {
 
-            while !data.coordinates.is_empty() {
-                let recent = data.coordinates.pop();
-                data.coordinates_hbs.push_str(&recent.unwrap().0.to_string());
-                data.coordinates_hbs.push_str(&String::from(" "));
-                data.coordinates_hbs.push_str(&recent.unwrap().1.to_string());
-                data.coordinates_hbs.push_str(&String::from(" "));
-            }
-            if resource_owners_layout.contains_key(from.hash()) && resource_owners_layout[from.hash()].is_struct_group {
-                if resource_owners_layout[from.hash()].is_member {
-                    output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().1.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
-                } else {
-                    output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
-                }
-            }
-            else {
-                output.get_mut(&-1).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
-            }
-        }
+        //         if data.coordinates[0].0 < data.coordinates[last_index].0 {
+        //             let hypotenuse = (((data.coordinates[1].0 - data.coordinates[0].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
+        //             let cos_ratio = ((data.coordinates[1].0 - data.coordinates[0].0) as f64) / hypotenuse;
+        //             let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
+        //             data.coordinates[0].0 += cos_ratio*10 as f64;
+        //             data.coordinates[0].1 += sin_ratio*10 as f64;
+        //         }
+        //         else {
+        //             let hypotenuse = (((data.coordinates[0].0 - data.coordinates[1].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
+        //             let cos_ratio = ((data.coordinates[0].0 - data.coordinates[1].0) as f64) / hypotenuse;
+        //             let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
+        //             data.coordinates[0].0 -= cos_ratio*10 as f64;
+        //             data.coordinates[0].1 += sin_ratio*10 as f64;
+        //         }
+        //     }
+
+        //     while !data.coordinates.is_empty() {
+        //         let recent = data.coordinates.pop();
+        //         data.coordinates_hbs.push_str(&recent.unwrap().0.to_string());
+        //         data.coordinates_hbs.push_str(&String::from(" "));
+        //         data.coordinates_hbs.push_str(&recent.unwrap().1.to_string());
+        //         data.coordinates_hbs.push_str(&String::from(" "));
+        //     }
+        //     if resource_owners_layout.contains_key(from.hash()) && resource_owners_layout[from.hash()].is_struct_group {
+        //         if resource_owners_layout[from.hash()].is_member {
+        //             output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().1.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
+        //         } else {
+        //             output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
+        //         }
+        //     }
+        //     else {
+        //         output.get_mut(&-1).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
+        //     }
+        // }
     }
 }
 
@@ -731,51 +1212,41 @@ fn determine_owner_line_styles(
     }
 }
 
-// DEAD CODE
-fn _determine_stat_ref_line_styles(
-    rap: &ResourceAccessPoint,
-    state: &State
-) -> (RefDataLine, RefValueLine) {
-    match (state, rap.is_mut()) {
-        (State::FullPrivilege, _) => (
-            RefDataLine::Solid,
-            if rap.is_mut() {RefValueLine::Reassignable} else {RefValueLine::NotReassignable},
-        ),
-        (State::PartialPrivilege{..}, false) => (
-            RefDataLine::Hollow,
-            RefValueLine::NotReassignable,
-        ),
-        (State::PartialPrivilege{..}, true) => (
-            RefDataLine::Hollow,
-            RefValueLine::Reassignable,     // potentially wrong. Not taking second level 
-                                            // borrowing into account
-        ),
-        _ => (                              // TODO: not finished
-            RefDataLine::Hollow,
-            RefValueLine::NotReassignable,
-        )
-    }
-}
+fn compute_hollow_line_data(v_data: VerticalLineData, w: f64) -> HollowLineData{
+    // Direction vector components
+    let x1 = v_data.x1 as f64;
+    let x2 = v_data.x2 as f64;
+    let y1 = v_data.y1 as f64;
+    let y2 = v_data.y2 as f64;
+    let dx = x1 - x2;
+    let dy = y1 - y2;
+    
+    // Length of the direction vector
+    let d_length = (dx.powi(2) + dy.powi(2)).sqrt();
 
-// DEAD CODE
-fn _determine_mut_ref_line_styles(
-    rap: &ResourceAccessPoint,
-    state: &State
-) -> (RefDataLine, RefValueLine) {
-    match (state, rap.is_mut()) {
-        (State::FullPrivilege, false) => (
-            RefDataLine::Solid,
-            RefValueLine::NotReassignable,
-        ),
-        (State::FullPrivilege, true) => (
-            RefDataLine::Solid,
-            RefValueLine::Reassignable,
-        ),
-        _ => ( // TODO: not finished
-            RefDataLine::Hollow,
-            RefValueLine::NotReassignable,
-        )
-    }
+    let p_x = -dy / d_length * (-w / 2.0);
+    let p_y  = dx / d_length * (-w / 2.0);
+
+    // create new x and y coordinates
+    let x1 = x1 + p_x;
+    let x2 = x2 + p_x;
+    let y1 = y1 + p_y;
+    let y2 = y2 + p_y;
+    
+    // Perpendicular vector components, normalized and scaled by the width
+    let px = -dy / d_length * w;
+    let py = dx / d_length * w;
+
+    // Compute the remaining points
+    let x3 = x1 + px;
+    let y3 = y1 + py;
+    let x4 = x2 + px;
+    let y4 = y2 + py;
+
+    HollowLineData { line_class: v_data.line_class, 
+        hash: v_data.hash, 
+        x1: x1, x2: x2, x3: x4, x4: x3, 
+        y1: y1, y2: y2, y3: y4, y4: y3, title: v_data.title }
 }
 
 // generate a Owner Line string from the RAP and its State
@@ -796,9 +1267,11 @@ fn create_owner_line_string(
         (State::FullPrivilege, OwnerLine::Hollow) | (State::PartialPrivilege{..}, OwnerLine::Hollow) => {
             let mut hollow_line_data = data.clone();
             hollow_line_data.title += ". The binding cannot be reassigned.";
-            hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
+            // hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
+            // hollow_line_data.x2 -= 1.8;
 
-            registry.render("hollow_line_template", &hollow_line_data).unwrap()
+            //registry.render("hollow_line_template", &hollow_line_data).unwrap()
+            registry.render("new_hollow_line_template", &compute_hollow_line_data(hollow_line_data, 3.5)).unwrap()
         },
         (State::OutOfScope, _) => "".to_owned(),
         // do nothing when the case is (RevokedPrivilege, false), (OutofScope, _), (ResourceMoved, false)
@@ -831,9 +1304,10 @@ fn create_reference_line_string(
             }
             
             let mut hollow_line_data = data.clone();
-            hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
+            // hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
             
-            registry.render("hollow_line_template", &hollow_line_data).unwrap()
+            // registry.render("hollow_line_template", &hollow_line_data).unwrap()
+            registry.render("new_hollow_line_template", &compute_hollow_line_data(hollow_line_data, 3.5)).unwrap()
         },
         (State::PartialPrivilege{ .. }, muta) => {
             data.line_class = String::from("solid");
@@ -843,10 +1317,11 @@ fn create_reference_line_string(
             data.title += "; can only read data.";
             
             let mut hollow_line_data = data.clone();
-            hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
+            // hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
             hollow_line_data.title = data.title.to_owned();
             
-            registry.render("hollow_line_template", &hollow_line_data).unwrap()
+            // registry.render("hollow_line_template", &hollow_line_data).unwrap()
+            registry.render("new_hollow_line_template", &compute_hollow_line_data(hollow_line_data, 3.5)).unwrap()
         },
         (State::ResourceMoved{ .. }, true) => {
             data.line_class = String::from("extend");
@@ -858,76 +1333,217 @@ fn create_reference_line_string(
     }
 }
 
+fn append_line(
+    state: &State,
+    data: & mut VerticalLineData,
+    rap: &ResourceAccessPoint,
+    timeline_data: &TimelineColumnData,
+    output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
+    registry: &Handlebars
+) {
+    match rap {
+        ResourceAccessPoint::Function(_) => {}, // Don't do anything
+        ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) => {
+            if timeline_data.is_struct_group { //TODO: not sure if this is correct
+                if !output.contains_key(&(timeline_data.owner.to_owned() as i64)) {
+                    output.insert(timeline_data.owner.to_owned() as i64, (TimelinePanelData{ labels: String::new(), dots: String::new(), timelines: String::new(), 
+                        ref_line: String::new(), arrows: String::new() }, TimelinePanelData{ labels: String::new(), dots: String::new(), 
+                            timelines: String::new(), ref_line: String::new(), arrows: String::new() })); 
+                }
+                if timeline_data.is_member {
+                    output.get_mut(&(timeline_data.owner.to_owned() as i64)).unwrap().1.timelines.push_str(&create_owner_line_string(rap, state, data, registry));
+                } else {
+                    output.get_mut(&(timeline_data.owner.to_owned() as i64)).unwrap().0.timelines.push_str(&create_owner_line_string(rap, state, data, registry));
+                }
+            }
+            else {
+                output.get_mut(&-1).unwrap().0.timelines.push_str(&create_owner_line_string(rap, state, data, registry));
+            }
+        },
+        ResourceAccessPoint::StaticRef(_) | ResourceAccessPoint::MutRef(_) => {
+            output.get_mut(&-1).unwrap().0.timelines.push_str(&create_reference_line_string(rap, state, data, registry));
+        },
+    }
+}
+
+// render timeline given a hash
+fn render_timeline(
+    hash: &u64,
+    rap: &ResourceAccessPoint,
+    history: &Vec<(usize, Event)>,
+    prev_state: Option<State>,
+    prev_range: Option<(usize, usize)>,
+    output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
+    visualization_data: &VisualizationData,
+    timeline_data: &TimelineColumnData,
+    registry: &Handlebars
+) {
+
+    for (_, ev) in history {
+        match ev {
+            Event::Branch { is, branch_history, ty, split_point, merge_point } => {
+                // calculate state just before the split
+                let root_states = visualization_data.get_states(hash, history, prev_state.clone(), prev_range);
+                let p_state = root_states.iter().find(|&item| item.1 == *split_point).map(|item| item.2.clone()).unwrap();
+                for branch in branch_history {
+                    // render line from split to branch
+                    let mut split_line_data = VerticalLineData {
+                        line_class: String::new(),
+                        hash: *hash,
+                        x1: timeline_data.x_val as f64,
+                        y1: get_y_axis_pos(*split_point),
+                        x2: branch.t_data.x_val as f64,
+                        y2: get_y_axis_pos(*split_point + 1),
+                        title: p_state.print_message_with_name(rap.name())
+                    };
+                    append_line(&p_state, &mut split_line_data, rap, timeline_data, output, registry);
+                    render_timeline(hash, 
+                        rap, &branch.e_data, 
+                        Some(p_state.clone()),
+                        Some((*split_point, *merge_point)),
+                        output, visualization_data, &branch.t_data, registry);
+                    
+                    let e_state = 
+                        visualization_data.get_states(hash, &branch.e_data, Some(p_state.clone()), Some((*split_point, *merge_point)))
+                            .last().unwrap().2.clone();
+                    // render line from branch to merge
+                    let mut merge_line_data = VerticalLineData {
+                        line_class: String::new(),
+                        hash: *hash,
+                        x1: timeline_data.x_val as f64,
+                        y1: get_y_axis_pos(*merge_point + 1),
+                        x2: branch.t_data.x_val as f64,
+                        y2: get_y_axis_pos(*merge_point),
+                        title: e_state.print_message_with_name(rap.name())
+                    };
+                    append_line(&e_state, &mut merge_line_data, rap, timeline_data, output, registry);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let rap_states = visualization_data.get_states(hash, history, prev_state, prev_range);
+    let mut cleaned_rap_states: Vec<(usize, usize, State)> = Vec::new();
+    let mut i: usize = 0;
+    while i < rap_states.len() {
+        match &rap_states[i].2 { // merge partial privilege states together
+        State::PartialPrivilege { .. } => {
+            let mut j = i + 1;
+            let mut ending_range = rap_states[i].1;
+            while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
+                ending_range = rap_states[j].1;
+                j += 1;
+            }
+            cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
+            i = j;
+        }
+        _ => {
+            cleaned_rap_states.push(rap_states[i].clone());
+            i += 1;
+        }
+        }
+    }
+    for (line_start, line_end, state) in cleaned_rap_states.iter() {
+        // println!("{} -> start: {}, end: {}, state: {}", visualization_data.get_name_from_hash(hash).unwrap(), line_start, line_end, state); // DEBUG PURPOSES
+        let data = match rap {
+            ResourceAccessPoint::Function(_) => None,
+            _ => Some(VerticalLineData {
+                line_class: String::new(),
+                hash: *hash,
+                x1: timeline_data.x_val as f64,
+                y1: get_y_axis_pos(*line_start),
+                x2: timeline_data.x_val as f64,
+                y2: get_y_axis_pos(*line_end),
+                title: state.print_message_with_name(rap.name())
+            })
+        };
+        if data.is_some() {
+            append_line(state, & mut data.unwrap(), rap, timeline_data, output, registry);
+        }
+    }
+}
+
 // render timelines (states) for RAPs using vertical lines
 fn render_timelines(
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
     visualization_data: &VisualizationData,
-    resource_owners_layout: &BTreeMap<&u64, TimelineColumnData>,
+    resource_owners_layout: &BTreeMap<u64, TimelineColumnData>,
     registry: &Handlebars
 ){
     let timelines = &visualization_data.timelines;
     for (hash, timeline) in timelines {
         let rap = &timeline.resource_access_point;
-        let rap_states = visualization_data.get_states(hash);
-        let mut cleaned_rap_states: Vec<(usize, usize, State)> = Vec::new();
-        let mut i: usize = 0;
-        while i < rap_states.len() {
-          match &rap_states[i].2 { // merge partial privilege events together
-            State::PartialPrivilege { .. } => {
-              let mut j = i + 1;
-              let mut ending_range = rap_states[i].1;
-              while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
-                ending_range = rap_states[j].1;
-                j += 1;
-              }
-              cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
-              i = j;
-            }
+        match rap {
+            ResourceAccessPoint::Function(_) => {},
             _ => {
-              cleaned_rap_states.push(rap_states[i].clone());
-              i += 1;
-            }
-          }
-        }
-        for (line_start, line_end, state) in cleaned_rap_states.iter() {
-            // println!("{} -> start: {}, end: {}, state: {}", visualization_data.get_name_from_hash(hash).unwrap(), line_start, line_end, state); // DEBUG PURPOSES
-            let data = match rap {
-                ResourceAccessPoint::Function(_) => None,
-                _ => Some(VerticalLineData {
-                    line_class: String::new(),
-                    hash: *hash,
-                    x1: resource_owners_layout[hash].x_val as f64,
-                    y1: get_y_axis_pos(*line_start),
-                    x2: resource_owners_layout[hash].x_val,
-                    y2: get_y_axis_pos(*line_end),
-                    title: state.print_message_with_name(rap.name())
-                })
-            };
-            match rap {
-                ResourceAccessPoint::Function(_) => {}, // Don't do anything
-                ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) => {
-                    if resource_owners_layout[hash].is_struct_group { //TODO: not sure if this is correct
-                        if !output.contains_key(&(resource_owners_layout[hash].owner.to_owned() as i64)) {
-                            output.insert(resource_owners_layout[hash].owner.to_owned() as i64, (TimelinePanelData{ labels: String::new(), dots: String::new(), timelines: String::new(), 
-                                ref_line: String::new(), arrows: String::new() }, TimelinePanelData{ labels: String::new(), dots: String::new(), 
-                                    timelines: String::new(), ref_line: String::new(), arrows: String::new() })); 
-                        }
-                        if resource_owners_layout[hash].is_member {
-                            output.get_mut(&(resource_owners_layout[hash].owner.to_owned() as i64)).unwrap().1.timelines.push_str(&create_owner_line_string(rap, state, &mut data.unwrap(), registry));
-                        } else {
-                            output.get_mut(&(resource_owners_layout[hash].owner.to_owned() as i64)).unwrap().0.timelines.push_str(&create_owner_line_string(rap, state, &mut data.unwrap(), registry));
-                        }
-                    }
-                    else {
-                        output.get_mut(&-1).unwrap().0.timelines.push_str(&create_owner_line_string(rap, state, &mut data.unwrap(), registry));
-                    }
-                },
-                ResourceAccessPoint::StaticRef(_) | ResourceAccessPoint::MutRef(_) => {
-                    output.get_mut(&-1).unwrap().0.timelines.push_str(&create_reference_line_string(rap, state, &mut data.unwrap(), registry));
-                },
+                let t_data = resource_owners_layout.get(hash).unwrap();
+                render_timeline(hash, rap, &timeline.history, None, None, output, visualization_data, t_data, registry);
             }
         }
     }
+
+        
+        // let rap = &timeline.resource_access_point;
+        // let rap_states = visualization_data.get_states(hash, &timeline.history);
+        // let mut cleaned_rap_states: Vec<(usize, usize, State)> = Vec::new();
+        // let mut i: usize = 0;
+        // while i < rap_states.len() {
+        //   match &rap_states[i].2 { // merge partial privilege states together
+        //     State::PartialPrivilege { .. } => {
+        //       let mut j = i + 1;
+        //       let mut ending_range = rap_states[i].1;
+        //       while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
+        //         ending_range = rap_states[j].1;
+        //         j += 1;
+        //       }
+        //       cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
+        //       i = j;
+        //     }
+        //     _ => {
+        //       cleaned_rap_states.push(rap_states[i].clone());
+        //       i += 1;
+        //     }
+        //   }
+        // }
+        // for (line_start, line_end, state) in cleaned_rap_states.iter() {
+        //     // println!("{} -> start: {}, end: {}, state: {}", visualization_data.get_name_from_hash(hash).unwrap(), line_start, line_end, state); // DEBUG PURPOSES
+        //     let data = match rap {
+        //         ResourceAccessPoint::Function(_) => None,
+        //         _ => Some(VerticalLineData {
+        //             line_class: String::new(),
+        //             hash: *hash,
+        //             x1: resource_owners_layout[hash].x_val as f64,
+        //             y1: get_y_axis_pos(*line_start),
+        //             x2: resource_owners_layout[hash].x_val,
+        //             y2: get_y_axis_pos(*line_end),
+        //             title: state.print_message_with_name(rap.name())
+        //         })
+        //     };
+        //     match rap {
+        //         ResourceAccessPoint::Function(_) => {}, // Don't do anything
+        //         ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) => {
+        //             if resource_owners_layout[hash].is_struct_group { //TODO: not sure if this is correct
+        //                 if !output.contains_key(&(resource_owners_layout[hash].owner.to_owned() as i64)) {
+        //                     output.insert(resource_owners_layout[hash].owner.to_owned() as i64, (TimelinePanelData{ labels: String::new(), dots: String::new(), timelines: String::new(), 
+        //                         ref_line: String::new(), arrows: String::new() }, TimelinePanelData{ labels: String::new(), dots: String::new(), 
+        //                             timelines: String::new(), ref_line: String::new(), arrows: String::new() })); 
+        //                 }
+        //                 if resource_owners_layout[hash].is_member {
+        //                     output.get_mut(&(resource_owners_layout[hash].owner.to_owned() as i64)).unwrap().1.timelines.push_str(&create_owner_line_string(rap, state, &mut data.unwrap(), registry));
+        //                 } else {
+        //                     output.get_mut(&(resource_owners_layout[hash].owner.to_owned() as i64)).unwrap().0.timelines.push_str(&create_owner_line_string(rap, state, &mut data.unwrap(), registry));
+        //                 }
+        //             }
+        //             else {
+        //                 output.get_mut(&-1).unwrap().0.timelines.push_str(&create_owner_line_string(rap, state, &mut data.unwrap(), registry));
+        //             }
+        //         },
+        //         ResourceAccessPoint::StaticRef(_) | ResourceAccessPoint::MutRef(_) => {
+        //             output.get_mut(&-1).unwrap().0.timelines.push_str(&create_reference_line_string(rap, state, &mut data.unwrap(), registry));
+        //         },
+        //     }
+        // }
 }
 
 // vertical lines indicating whether a reference can mutate its resource(deref as many times)
@@ -935,7 +1551,7 @@ fn render_timelines(
 fn render_ref_line(
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
     visualization_data: &VisualizationData,
-    resource_owners_layout: &BTreeMap<&u64, TimelineColumnData>,
+    resource_owners_layout: &BTreeMap<u64, TimelineColumnData>,
     registry: &Handlebars
 ){
     let timelines = &visualization_data.timelines;
@@ -947,7 +1563,7 @@ fn render_ref_line(
             {
                 let ro = timeline.resource_access_point.to_owned();
                 // verticle state lines
-                let states = visualization_data.get_states(hash);
+                let states = visualization_data.get_states(hash, &timeline.history, None, None);
 
                 // struct can live over events
                 let mut alive = false;

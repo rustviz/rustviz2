@@ -361,6 +361,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         };
 
         // filter events that happened in the if/else block
+        // println!("split {}, end_if {}, merge {}", split, if_end, merge);
         let if_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, split, if_end)).cloned().collect();
         let else_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, if_end, merge)).cloned().collect();
         self.preprocessed_events.retain(|(l, _)| 
@@ -371,9 +372,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             true
           }
         );
-
+        // println!("if events {:#?}", if_ev); 
+        // println!("preprocee eve {:#?}", self.preprocessed_events);  
         // add if/else branch
-        self.add_external_event(line_num, ExternalEvent::Branch { live_vars: liveness, branches: vec![if_ev, else_ev], branch_type: BranchType::If, split_point: split, merge_point: merge })
+        let b_ty = BranchType::If(vec!["If".to_owned(), "Else".to_owned()]);
+        self.add_external_event(line_num, ExternalEvent::Branch { live_vars: liveness, branches: vec![if_ev, else_ev], branch_type:b_ty, split_point: split, merge_point: merge });
+        // println!("poopoo eve {:#?}", self.preprocessed_events);  
       }
       
       _ => {

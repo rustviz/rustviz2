@@ -12,10 +12,11 @@
 to fix/implement:
 
 - [ ] Implement hoverable anonymous owner interactions in code panel
-- [ ] Reference aliasing
+- [ x ] Reference aliasing
 - [ ] Fix annotated source gen to handle `</>` characters 
 - [ ] Let-if/match expressions (new conditional move event)
 - [ ] Conditional lifetime logic and visualization
+- [ ] Bad stuff happens when you don't put a semi-colon at the end of a void stmt (at the end of a block)
 
 Note: 
 

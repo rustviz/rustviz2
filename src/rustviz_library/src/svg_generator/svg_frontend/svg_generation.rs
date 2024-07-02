@@ -18,16 +18,35 @@ struct SvgData {
     height: i32,
 }
 
+fn sort_branch_external_events(v: & mut Vec<(usize, ExternalEvent)>) {
+    for (_, e) in v.iter_mut() {
+        match e {
+            ExternalEvent::Branch { branches, ..} => {
+                for branch in branches.iter_mut() {
+                    sort_branch_external_events(branch);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 pub fn render_svg(
     annotated_src_str: &str,
     source_rs_str: &str,
     visualization_data: &mut VisualizationData,
 ) -> (String, String){
     //------------------------sort HashMap<usize, Vec<ExternalEvent>>----------------------
-    // first by sorting "to" from small to large number then sort by "from" from small to large number
-    // Q: does for loop do the "move"?
-    // Q: how is this okay??
     for (_, event_vec) in &mut visualization_data.event_line_map {
+        // // sort branches
+        // for e in event_vec.iter_mut() {
+        //     match e {
+        //         ExternalEvent::Branch { branches, ..} => {
+
+        //         }
+        //         _ => {}
+        //     }
+        // }
         event_vec.sort_by(|a, b| {
             ResourceAccessPoint_extract(a)
                 .1
@@ -56,6 +75,8 @@ pub fn render_svg(
         let final_line_num = line_number.clone() + extra_line;
         visualization_data.append_processed_external_event(event, final_line_num, & mut None);
     }
+
+    println!("processed events {:#?}", visualization_data.external_events);
     //-----------------------update event_line_map line number------------------
     let mut event_line_map_replace: BTreeMap<usize, Vec<ExternalEvent>> = BTreeMap::new();
     let mut extra_line_sum = 0;
@@ -315,10 +336,6 @@ pub fn render_svg(
         .is_ok());
 
     // data for code panel
-    println!("TIMELINE DATA : {:#?}", visualization_data.timelines);
-    println!("y states {:#?}", visualization_data.get_states(&2));
-    // println!("z states {:#?}", visualization_data.get_states(&4));
-    // println!("c states {:#?}", visualization_data.get_states(&3));
     let mut max_x_space: i64 = 0;
     let (output, line_of_code) =
             code_panel::render_code_panel(a_lines, s_lines, &mut max_x_space, &visualization_data.event_line_map);
