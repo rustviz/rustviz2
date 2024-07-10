@@ -21,9 +21,9 @@ pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool, hash: u64) 
 
   let mut line_contents:String = self.source_map.get(&line).unwrap().clone();
   let replace_with: String = if is_func {
-      format!("<tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\">{}</tspan>", 0, hash, name)
+      format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, name)
     } else {
-      format!("<tspan data-hash=\"{}\">{}</tspan>", hash, name)
+      format!("[_tspan data-hash=\"{}\"_]{}[_/tspan_]", hash, name)
     };
   line_contents.replace_range(left..right, &replace_with);
   let v = self.annotated_lines.get_mut(&line).unwrap();
@@ -35,6 +35,12 @@ pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool, hash: u64) 
 pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
   match expr.kind {
     ExprKind::Path(QPath::Resolved(_, p)) => {
+      match p.res {
+        rustc_hir::def::Res::Def(rustc_hir::def::DefKind::Ctor(..), _) => {
+          return;
+        }
+        _ => ()
+      }
       let name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
       self.annotate_src(name.clone(), p.span, false, *self.raps.get(&name).unwrap().0.hash());
     }
@@ -125,12 +131,22 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
       self.annotate_expr(&exp);
     }
     ExprKind::If(guard_expr, if_expr, else_expr) => {
-      println!("annotating guard");
       self.annotate_expr(&guard_expr);
       self.annotate_expr(&if_expr);
       match else_expr {
         Some(e) => self.annotate_expr(&e),
         None => {}
+      }
+    }
+    ExprKind::Loop(block, _, _loop_ty, _span) => {
+      for stmt in block.stmts.iter() {
+        self.annotate_stmt(stmt);
+      }
+      match block.expr {
+        Some(ex) => {
+          self.annotate_expr(ex);
+        }
+        _ => {}
       }
     }
     ExprKind::Match(match_expr, arms, _) => {

@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use regex::Regex;
 use rustviz_lib::data::ExternalEvent;
 use std::collections::{HashMap, BTreeMap};
 use std::{path::PathBuf, fs};
@@ -54,7 +55,7 @@ impl RV1Helper {
     return Ok(line_map);
   }
 
-  pub fn generate_vis(& mut self, mut line_map: BTreeMap<usize, Vec<ExternalEvent>>, p_events: Vec<(usize, ExternalEvent)>, a_map: &BTreeMap<usize, Vec<String>>,
+  pub fn generate_vis(& mut self, mut line_map: BTreeMap<usize, Vec<ExternalEvent>>, p_events: Vec<(usize, ExternalEvent)>, a_map: & mut BTreeMap<usize, Vec<String>>,
   num_raps: usize) -> Result<()> {
     let mut keys_to_remove: Vec<usize> = Vec::new();
     for (k, v) in line_map.iter() {
@@ -68,7 +69,7 @@ impl RV1Helper {
     }
 
     let annotated_source_str: String = generate_annotated_src(a_map);
-    println!("ANNOTATED : \n{}", annotated_source_str);
+    //println!("ANNOTATED : \n{}", annotated_source_str);
 
 
     // send stuff to RV1
@@ -114,13 +115,13 @@ fn union_strings (strings: &Vec<String>) -> String {
         let mut j = offsets[string];
         let mut char_at_i = string.chars().nth(j).unwrap();
         if char_at_i != consistent_char {
-          assert_eq!(char_at_i, '<'); //todo: fix 
-          while char_at_i != '>' {
+          assert_eq!(char_at_i, '['); //todo: fix
+          while char_at_i != ']' {
             res.push(char_at_i);
             j += 1;
             char_at_i = string.chars().nth(j).unwrap();
-          } // loop until closing '>' since characters <..> could contain consistent_char
-          res.push(char_at_i); // add '>'
+          } // loop until closing ']' since characters [_.._] could contain consistent_char
+          res.push(char_at_i); // add ']'
           j += 1;
         }
         j += 1;
@@ -139,11 +140,20 @@ fn union_strings (strings: &Vec<String>) -> String {
   }
 }
 
-pub fn generate_annotated_src(annotated_line_map: &BTreeMap<usize, Vec<String>>) -> String {
+pub fn generate_annotated_src(annotated_line_map: & mut BTreeMap<usize, Vec<String>>) -> String {
   let mut annotated_str = String::new();
+  println!("annotated line map {:#?}", annotated_line_map);
   for (_k, v) in annotated_line_map {
     annotated_str.push_str(&union_strings(v));
     annotated_str.push('\n');
   }
-  annotated_str.replace("&", "&amp;")
+  annotated_str = annotated_str.replace("&", "&amp;");
+  annotated_str = annotated_str.replace("<", "&lt;");
+  annotated_str = annotated_str.replace(">", "&gt;");
+  annotated_str = annotated_str.replace("[_", "<");
+  annotated_str = annotated_str.replace("_]", ">");
+
+  println!("annotated str {}", annotated_str);
+
+  annotated_str
 }

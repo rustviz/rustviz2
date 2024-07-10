@@ -2,7 +2,7 @@ use rustc_middle::{
     mir::Body,
     ty::*,
   };
-  use rustc_hir::{Expr, ExprKind, QPath, Path, Mutability, UnOp, StmtKind, Stmt,};
+  use rustc_hir::{Expr, ExprKind, QPath, Path, Mutability, UnOp, StmtKind, Stmt, def::*};
 use rustc_utils::mir::mutability;
 use rustc_utils::MutabilityExt;
   use std::cell::Ref;
@@ -653,8 +653,22 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         }
         res
       }
+      ExprKind::If(guard_expr, if_expr, else_expr) => {
+        let mut res: HashSet<ResourceAccessPoint> = HashSet::new();
+        res = res.union(&self.get_live_of_expr(&guard_expr)).cloned().collect();
+        res = res.union(&self.get_live_of_expr(&if_expr)).cloned().collect();
+        match else_expr {
+          Some(e) => {
+            res = res.union(&self.get_live_of_expr(&e)).cloned().collect();
+          }
+          None => {
+            
+          }
+        }
+        res
+
+      }
       _ => {
-        // TODO: what to do with nested branches? (just care about guard?)
         HashSet::new()
       }
     }
@@ -709,7 +723,21 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let line_num = self.span_to_line(&p.span);
-        let rhs_name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+        let rhs_name: String = match p.res {
+          rustc_hir::def::Res::Def(rustc_hir::def::DefKind::Ctor(_, CtorKind::Const), _) => {
+            let mut name = String::new();
+            for (i, segment) in p.segments.iter().enumerate() {
+              name.push_str(self.tcx.hir().name(segment.hir_id).as_str());
+              if i < p.segments.len() - 1 {
+                name.push_str("::");
+              }
+            }
+            name
+          }
+          _ => {
+            self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned()
+          }
+        };
         let rhs_rap = self.raps.get(&rhs_name).unwrap().0.to_owned();
         self.update_rap(&rhs_rap, line_num);
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));

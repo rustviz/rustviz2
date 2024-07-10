@@ -2,13 +2,14 @@ extern crate handlebars;
 
 use crate::data::{ExternalEvent, LINE_SPACE};
 use handlebars::Handlebars;
-use std::{cmp::max, collections::BTreeMap};
+use std::{cmp::max, collections::{BTreeMap, HashMap}};
 
 pub fn render_code_panel(
     annotated_lines: std::str::Lines,
     lines: std::str::Lines,
     max_x_space: &mut i64,
     event_line_map: &BTreeMap<usize, Vec<ExternalEvent>>,
+    l_map: &HashMap<usize, usize>, 
 ) -> (String, i32) {
     /* Template creation */
     let mut handlebars = Handlebars::new();
@@ -35,25 +36,24 @@ pub fn render_code_panel(
     let mut line_of_code = 1;
     for line in annotated_lines {
         let line_string = line;
-          let mut data = BTreeMap::new();
-          data.insert("X_VAL".to_string(), x.to_string());
-          data.insert("Y_VAL".to_string(), y.to_string());
-          /* automatically add line numbers to code */
-          let fmt_line = format!(
-              "<tspan fill=\"#AAA\">{}  </tspan>{}",
-              line_of_code, line_string
-          );
-          data.insert("LINE".to_string(), fmt_line);
-          output.push_str(&handlebars.render("code_line_template", &data).unwrap());
-          // change line spacing
-          y = y + LINE_SPACE;
-        let mut extra_line_num = 0;
-        match event_line_map.get(&(line_of_code as usize)) {
-            Some(event_vec) => extra_line_num = event_vec.len(),
-            None => (),
-        }
+        let mut data = BTreeMap::new();
+        data.insert("X_VAL".to_string(), x.to_string());
+        data.insert("Y_VAL".to_string(), y.to_string());
+        /* automatically add line numbers to code */
+        let fmt_line = format!(
+            "<tspan fill=\"#AAA\">{}  </tspan>{}",
+            line_of_code, line_string
+        );
+        data.insert("LINE".to_string(), fmt_line);
+        output.push_str(&handlebars.render("code_line_template", &data).unwrap());
+        // change line spacing
+        y = y + LINE_SPACE;
+        let mut extra_line_num = match l_map.get(&line_of_code) {
+            Some(l) => *l,
+            None => 0
+        };
         /* add empty lines for arrows */
-        while extra_line_num > 1 {
+        while extra_line_num > 0 {
             let mut data = BTreeMap::new();
             data.insert("X_VAL".to_string(), x.to_string());
             data.insert("Y_VAL".to_string(), y.to_string());
@@ -68,5 +68,5 @@ pub fn render_code_panel(
         line_of_code = line_of_code + 1;
     }
     output.push_str("    </g>\n");
-    (output, line_of_code)
+    (output, line_of_code as i32)
 }

@@ -1,0 +1,459 @@
+e Copy
+rhs expr Expr {
+    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).2),
+    kind: Call(
+        Expr {
+            hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).3),
+            kind: Path(
+                Resolved(
+                    None,
+                    Path {
+                        span: src/lib.rs:9:15: 9:27 (#0),
+                        res: Def(
+                            Ctor(
+                                Variant,
+                                Fn,
+                            ),
+                            DefId(0:6 ~ test_crate[7d47]::Fruit::Apple::{constructor#0}),
+                        ),
+                        segments: [
+                            PathSegment {
+                                ident: Fruit#0,
+                                hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).4),
+                                res: Def(
+                                    Enum,
+                                    DefId(0:4 ~ test_crate[7d47]::Fruit),
+                                ),
+                                args: None,
+                                infer_args: true,
+                            },
+                            PathSegment {
+                                ident: Apple#0,
+                                hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).5),
+                                res: Def(
+                                    Ctor(
+                                        Variant,
+                                        Fn,
+                                    ),
+                                    DefId(0:6 ~ test_crate[7d47]::Fruit::Apple::{constructor#0}),
+                                ),
+                                args: None,
+                                infer_args: true,
+                            },
+                        ],
+                    },
+                ),
+            ),
+            span: src/lib.rs:9:15: 9:27 (#0),
+        },
+        [
+            Expr {
+                hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).6),
+                kind: Lit(
+                    Spanned {
+                        node: Int(
+                            Pu128(
+                                0,
+                            ),
+                            Unsuffixed,
+                        ),
+                        span: src/lib.rs:9:28: 9:29 (#0),
+                    },
+                ),
+                span: src/lib.rs:9:28: 9:29 (#0),
+            },
+        ],
+    ),
+    span: src/lib.rs:9:15: 9:30 (#0),
+}
+t `Fruit`
+e Copy
+rhs expr Expr {
+    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).10),
+    kind: Path(
+        Resolved(
+            None,
+            Path {
+                span: src/lib.rs:10:15: 10:28 (#0),
+                res: Def(
+                    Ctor(
+                        Variant,
+                        Const,
+                    ),
+                    DefId(0:9 ~ test_crate[7d47]::Fruit::Banana::{constructor#0}),
+                ),
+                segments: [
+                    PathSegment {
+                        ident: Fruit#0,
+                        hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).11),
+                        res: Def(
+                            Enum,
+                            DefId(0:4 ~ test_crate[7d47]::Fruit),
+                        ),
+                        args: None,
+                        infer_args: true,
+                    },
+                    PathSegment {
+                        ident: Banana#0,
+                        hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).12),
+                        res: Def(
+                            Ctor(
+                                Variant,
+                                Const,
+                            ),
+                            DefId(0:9 ~ test_crate[7d47]::Fruit::Banana::{constructor#0}),
+                        ),
+                        args: None,
+                        infer_args: true,
+                    },
+                ],
+            },
+        ),
+    ),
+    span: src/lib.rs:10:15: 10:28 (#0),
+}
+path name Fruit::Banana
+t `Fruit`
+BORROW MAP {}
+lender to refs {}
+ultimate refs {}
+annotated line map {
+    1: [
+        "#[derive(Clone, Copy)]",
+    ],
+    2: [
+        "pub enum Fruit {",
+    ],
+    3: [
+        "  Apple(u32),",
+    ],
+    4: [
+        "  Banana,",
+    ],
+    5: [
+        "}",
+    ],
+    6: [
+        "",
+    ],
+    7: [
+        "",
+    ],
+    8: [
+        "fn main () {",
+    ],
+    9: [
+        "  let mut x = Fruit::Apple(0);",
+        "  let mut [_tspan data-hash=\"2\"_]x[_/tspan_] = Fruit::Apple(0);",
+        "  let mut x = [_tspan class=\"fn\" data-hash=\"0\" hash=\"1\"_]Fruit::Apple[_/tspan_](0);",
+    ],
+    10: [
+        "  let mut y = Fruit::Banana;",
+        "  let mut [_tspan data-hash=\"4\"_]y[_/tspan_] = Fruit::Banana;",
+    ],
+    11: [
+        "",
+    ],
+    12: [
+        "}",
+    ],
+}
+annotated str #[derive(Clone, Copy)]
+pub enum Fruit {
+  Apple(u32),
+  Banana,
+}
+
+
+fn main () {
+  let mut <tspan data-hash="2">x</tspan> = <tspan class="fn" data-hash="0" hash="1">Fruit::Apple</tspan>(0);
+  let mut <tspan data-hash="4">y</tspan> = Fruit::Banana;
+
+}
+
+preprocessed events : [
+    (
+        9,
+        Copy {
+            from: Anonymous,
+            to: Value(
+                Function(
+                    Function {
+                        name: "Fruit::Apple",
+                        hash: 1,
+                    },
+                ),
+            ),
+        },
+    ),
+    (
+        9,
+        Copy {
+            from: Value(
+                Function(
+                    Function {
+                        name: "Fruit::Apple",
+                        hash: 1,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+        },
+    ),
+    (
+        10,
+        Copy {
+            from: Value(
+                Function(
+                    Function {
+                        name: "Fruit::Banana",
+                        hash: 3,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "y",
+                        hash: 4,
+                        is_mut: true,
+                    },
+                ),
+            ),
+        },
+    ),
+    (
+        12,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "x",
+                    hash: 2,
+                    is_mut: true,
+                },
+            ),
+        },
+    ),
+    (
+        12,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "y",
+                    hash: 4,
+                    is_mut: true,
+                },
+            ),
+        },
+    ),
+]
+ev_line_map: {}
+processed events [
+    (
+        9,
+        Copy {
+            from: Anonymous,
+            to: Value(
+                Function(
+                    Function {
+                        name: "Fruit::Apple",
+                        hash: 1,
+                    },
+                ),
+            ),
+        },
+    ),
+    (
+        9,
+        Copy {
+            from: Value(
+                Function(
+                    Function {
+                        name: "Fruit::Apple",
+                        hash: 1,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+        },
+    ),
+    (
+        10,
+        Copy {
+            from: Value(
+                Function(
+                    Function {
+                        name: "Fruit::Banana",
+                        hash: 3,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "y",
+                        hash: 4,
+                        is_mut: true,
+                    },
+                ),
+            ),
+        },
+    ),
+    (
+        12,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "x",
+                    hash: 2,
+                    is_mut: true,
+                },
+            ),
+        },
+    ),
+    (
+        12,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "y",
+                    hash: 4,
+                    is_mut: true,
+                },
+            ),
+        },
+    ),
+]
+processed line map {}
+hash 2, timeline Timeline {
+    resource_access_point: Owner(
+        Owner {
+            name: "x",
+            hash: 2,
+            is_mut: true,
+        },
+    ),
+    history: [
+        (
+            9,
+            Copy {
+                from: Value(
+                    Function(
+                        Function {
+                            name: "Fruit::Apple",
+                            hash: 1,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 2,
+                            is_mut: true,
+                        },
+                    ),
+                ),
+            },
+        ),
+        (
+            12,
+            OwnerGoOutOfScope,
+        ),
+    ],
+}
+PREV STATE OutOfScope
+states when rendering timeline [
+    (
+        1,
+        9,
+        OutOfScope,
+    ),
+    (
+        9,
+        12,
+        FullPrivilege {
+            s: Full,
+        },
+    ),
+    (
+        12,
+        12,
+        OutOfScope,
+    ),
+]
+hash 4, timeline Timeline {
+    resource_access_point: Owner(
+        Owner {
+            name: "y",
+            hash: 4,
+            is_mut: true,
+        },
+    ),
+    history: [
+        (
+            10,
+            Copy {
+                from: Value(
+                    Function(
+                        Function {
+                            name: "Fruit::Banana",
+                            hash: 3,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "y",
+                            hash: 4,
+                            is_mut: true,
+                        },
+                    ),
+                ),
+            },
+        ),
+        (
+            12,
+            OwnerGoOutOfScope,
+        ),
+    ],
+}
+PREV STATE OutOfScope
+states when rendering timeline [
+    (
+        1,
+        10,
+        OutOfScope,
+    ),
+    (
+        10,
+        12,
+        FullPrivilege {
+            s: Full,
+        },
+    ),
+    (
+        12,
+        12,
+        OutOfScope,
+    ),
+]
+PREV STATE OutOfScope
+PREV STATE OutOfScope

@@ -1,0 +1,9 @@
+ [used for debug] 2:"Bind(b)"
+ [used for debug] 3:"Bind(c)"
+ [used for debug] 4:"GoOutOfScope(b)"
+ [used for debug] 4:"GoOutOfScope(c)"
+/* --- BEGIN Variable Definitions ---
+Owner Not b;
+Owner Not c;
+--- END Variable Definitions --- */
+annotated src string: 

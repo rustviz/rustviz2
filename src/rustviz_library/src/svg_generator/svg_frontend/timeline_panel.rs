@@ -1,16 +1,16 @@
 extern crate handlebars;
 
-use crate::data::{string_of_branch, string_of_external_event, BranchData, BranchType, Event, ExternalEvent, ResourceAccessPoint, ResourceAccessPoint_extract, ResourceTy, State, StructsInfo, Timeline, Visualizable, VisualizationData, LINE_SPACE};
+use crate::data::{branch_state_converter, convert_back, string_of_branch, string_of_external_event, BranchData, BranchType, Event, ExternalEvent, LineState, ResourceAccessPoint, ResourceAccessPoint_extract, ResourceTy, State, StructsInfo, Timeline, Visualizable, VisualizationData, LINE_SPACE};
 use crate::svg_frontend::line_styles::{RefDataLine, RefValueLine, OwnerLine};
 use handlebars::Handlebars;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use serde::Serialize;
-use std::cmp;
+use std::cmp::{self, max, min};
 
 // set style for code string
 static SPAN_BEGIN : &'static str = "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;";
 static SPAN_END : &'static str = "&lt;/span&gt;";
-static BRANCH_WEIGHT: i64 = 40;
+static BRANCH_WEIGHT: i64 = 25;
 #[derive(Debug, Clone)]
 pub struct TimelineColumnData {
     pub name: String,
@@ -95,10 +95,11 @@ struct VerticalLineData {
     x2: f64,
     y1: i64,
     y2: i64,
-    title: String
+    title: String,
+    opacity: f64
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 struct HollowLineData {
     line_class: String,
     hash: u64,
@@ -110,7 +111,8 @@ struct HollowLineData {
     y3: f64,
     x4: f64,
     y4: f64,
-    title: String
+    title: String,
+    opacity: f64
 }
 
 #[derive(Serialize, Clone)]
@@ -211,20 +213,15 @@ fn prepare_registry(registry: &mut Handlebars) {
     let arrow_template =
         "        <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{{coordinates_hbs}}\" marker-end=\"url(#arrowHead)\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\" style=\"fill: none;\"/> \n";
     let vertical_line_template =
-        "        <line data-hash=\"{{hash}}\" class=\"{{line_class}} tooltip-trigger\" x1=\"{{x1}}\" x2=\"{{x2}}\" y1=\"{{y1}}\" y2=\"{{y2}}\" data-tooltip-text=\"{{title}}\"/>\n";
+        "        <line data-hash=\"{{hash}}\" class=\"{{line_class}} tooltip-trigger\" x1=\"{{x1}}\" x2=\"{{x2}}\" y1=\"{{y1}}\" y2=\"{{y2}}\" data-tooltip-text=\"{{title}}\" style=\"opacity: {{opacity}};\"/>\n";
     let hollow_line_template =
         "        <path data-hash=\"{{hash}}\" class=\"hollow tooltip-trigger\" style=\"fill:transparent;\" d=\"M {{x1}},{{y1}} V {{y2}} h 3.5 V {{y1}} h -3.5\" data-tooltip-text=\"{{title}}\"/>\n";
     let new_hollow_line_template = "<path 
         data-hash=\"{{hash}}\"
         class=\"hollow tooltip-trigger\"
-        style=\"fill:transparent;\"
+        style=\"fill:transparent; stroke-opacity: {{opacity}};\"
         d=\"M {{x1}},{{y1}} L {{x2}},{{y2}} L {{x3}},{{y3}} L {{x4}},{{y4}} Z\"
         data-tooltip-text=\"{{title}}\"/>";
-    let vertical_line_template2 =
-        "        <line data-hash=\"{{hash}}\" 
-                class=\"{{line_class}} tooltip-trigger\" x1=\"{{x1}}\" x2=\"{{x2}}\" y1=\"{{y1}}\" y2=\"{{y2}}\" 
-                style=\"fill:none; stroke-width:2\"
-                data-tooltip-text=\"{{title}}\"/>\n";
     let solid_ref_line_template =
         "        <path data-hash=\"{{hash}}\" class=\"mutref {{line_class}} tooltip-trigger\" style=\"fill:transparent; stroke-width: 2px !important;\" d=\"M {{x1}} {{y1}} l {{dx}} {{dy}} v {{v}} l -{{dx}} {{dy}}\" data-tooltip-text=\"{{title}}\"/>\n";
     let hollow_ref_line_template =
@@ -234,9 +231,6 @@ fn prepare_registry(registry: &mut Handlebars) {
 
     assert!(
         registry.register_template_string("new_hollow_line_template", new_hollow_line_template).is_ok()
-    );
-    assert!(
-        registry.register_template_string("vertical_line_template2", vertical_line_template2).is_ok()
     );
     assert!(
         registry.register_template_string("struct_template", struct_template).is_ok()
@@ -283,14 +277,17 @@ fn compute_width(events: & mut Vec<(usize, Event)>) -> usize {
     for (_, ev) in events {
         match ev {
             Event::Branch { branch_history, ..} => {
+                let mut b_width = 0;
                 // DFS to calculate width of each branch
                 for branch in & mut *branch_history {
                     let branch_w = compute_width(& mut branch.e_data);
                     branch.width = branch_w; // store branch width for later DOES NOT INCLUDE PADDING BETWEEN BRANCHES AT SAME LEVEL
-                    max_width += branch_w;
+                    b_width += branch_w;
                 }
                 let padding = (branch_history.len() - 1) * 2; // TODO: update for match expr
-                max_width += padding;
+                b_width += padding;
+                println!("branch width {}", b_width);
+                max_width = max(b_width, max_width);
             }
             _ => {}
         }
@@ -307,8 +304,9 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                     branch.t_data = parent_data.clone();
                 }
                 // update the xvalue based on width
-                match ty {
-                    BranchType::Match(_) => {}
+                let mut parent_branch_data: Vec<TimelineColumnData> = Vec::new();
+                match ty { // TODO: will have to change this for match expr
+                    BranchType::Match(..) => {}
                     _ => {
                         let if_bw = branch_history.get(0).unwrap().width;
                         let else_bw = branch_history.get(1).unwrap().width;
@@ -318,6 +316,14 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                         branch_history.get_mut(0).unwrap().t_data.x_val = parent_data.x_val + (if_offset_coefficient * BRANCH_WEIGHT);
                         branch_history.get_mut(1).unwrap().t_data.x_val = parent_data.x_val + (else_offset_coefficient * BRANCH_WEIGHT);
                     }
+                }
+                parent_branch_data.push(branch_history.get(0).unwrap().t_data.clone());
+                parent_branch_data.push(branch_history.get(1).unwrap().t_data.clone());
+
+                // recurse
+                for (i, branch) in branch_history.iter_mut().enumerate() {
+                    update_timeline_data(&mut branch.e_data, &parent_branch_data[i])
+                    
                 }
 
             }
@@ -343,6 +349,7 @@ fn compute_column_layout<'a>(
         let width = compute_width(&mut timeline.history);
         w_map.insert(*h, width as i64);
     }
+
     
     for (hash, timeline) in visualization_data.timelines.iter() {
 
@@ -635,6 +642,33 @@ fn fetch_timeline<'a>(
     }
 }
 
+
+fn traverse_events<'a> (gep: & mut VecDeque<(usize, usize)>, history: & 'a Vec<(usize, ExternalEvent)>) -> & 'a BTreeMap<usize, Vec<ExternalEvent>> {
+    let (freq, index) = gep.front().unwrap().clone();
+    gep.pop_front();
+    let mut found = 0;
+    for (_, e) in history.iter() {
+        match e {
+            ExternalEvent::Branch { branches, .. } => {
+                found += 1;
+                if found == freq {
+                    if gep.is_empty() {
+                        return &branches.get(index).unwrap().line_map
+                    }
+                    else {
+                        return traverse_events(gep, &branches.get(index).unwrap().e_data)
+                    }
+                }
+                else {
+                    continue
+                }
+            }
+            _ => {}
+        }
+    }
+    unreachable!()
+}
+
 // render arrow
 fn render_arrow (
     line_number : &usize,
@@ -655,7 +689,7 @@ fn render_arrow (
             // render all the events in the branch
             for (b_index, branch) in branches.iter().enumerate() {
                 gep.push_back((old_branch_freq, b_index));
-                for (l, e) in branch.iter() {
+                for (l, e) in branch.e_data.iter() {
                     // somewhat redundant but have to filter out external events here
                     match e {
                         ExternalEvent::Bind {..} | ExternalEvent::GoOutOfScope {..} | ExternalEvent::InitRefParam { .. }
@@ -668,7 +702,6 @@ fn render_arrow (
                 gep.pop_back(); // backtrack
             }
             *branch_freq = old_branch_freq;
-            println!(" gep after branch {:#?}", gep);
         }
         _ => {
             // get the resource owners involved in the event
@@ -794,7 +827,8 @@ fn render_arrow (
                         visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64
                     }
                     else {
-                        0 //TODO: FIX
+                        let b_line_map = traverse_events(& mut gep.clone(), &visualization_data.external_events);
+                        b_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64
                     };
                     
 
@@ -910,8 +944,6 @@ fn render_arrows_string_external_events_version(
     resource_owners_layout: &BTreeMap<u64, TimelineColumnData>,
     registry: &Handlebars
 ){
-
-    println!("external events {:#?}", visualization_data.external_events);
     for (line_number, external_event) in &visualization_data.external_events {
         match external_event {
             // events that should be skipped (we don't render arrows for them)
@@ -1203,8 +1235,8 @@ fn determine_owner_line_styles(
     state: &State
 ) -> OwnerLine {
     match (state, rap.is_mut()) {
-        (State::FullPrivilege, true) => OwnerLine::Solid,
-        (State::FullPrivilege, false) => OwnerLine::Hollow,
+        (State::FullPrivilege{..}, true) => OwnerLine::Solid,
+        (State::FullPrivilege{..}, false) => OwnerLine::Hollow,
         // cannot assign to to variable because it is borrowed
         // partialprivilege ~= immutable, otherwise it would be an error
         (State::PartialPrivilege{..}, _) => OwnerLine::Hollow, // let (mut) a = 5;
@@ -1223,6 +1255,7 @@ fn compute_hollow_line_data(v_data: VerticalLineData, w: f64) -> HollowLineData{
     
     // Length of the direction vector
     let d_length = (dx.powi(2) + dy.powi(2)).sqrt();
+
 
     let p_x = -dy / d_length * (-w / 2.0);
     let p_y  = dx / d_length * (-w / 2.0);
@@ -1246,7 +1279,7 @@ fn compute_hollow_line_data(v_data: VerticalLineData, w: f64) -> HollowLineData{
     HollowLineData { line_class: v_data.line_class, 
         hash: v_data.hash, 
         x1: x1, x2: x2, x3: x4, x4: x3, 
-        y1: y1, y2: y2, y3: y4, y4: y3, title: v_data.title }
+        y1: y1, y2: y2, y3: y4, y4: y3, title: v_data.title, opacity: v_data.opacity }
 }
 
 // generate a Owner Line string from the RAP and its State
@@ -1258,20 +1291,25 @@ fn create_owner_line_string(
 ) -> String {
     // TODO: prevent creating line when function dot already exists
     let style = determine_owner_line_styles(rap, state);
+
+    match state {
+        State::FullPrivilege { s: LineState::Gray } | State::PartialPrivilege { s: LineState::Gray } => {
+            data.opacity = 0.5;
+        }
+        _ => {}
+    }
     match (state, style) {
-        (State::FullPrivilege, OwnerLine::Solid) | (State::PartialPrivilege{ .. }, OwnerLine::Solid) => {
+        (State::FullPrivilege{..}, OwnerLine::Solid) | (State::PartialPrivilege{ .. }, OwnerLine::Solid) => {
             data.line_class = String::from("solid");
             data.title += ". The binding can be reassigned.";
             registry.render("vertical_line_template", &data).unwrap()
         },
-        (State::FullPrivilege, OwnerLine::Hollow) | (State::PartialPrivilege{..}, OwnerLine::Hollow) => {
+        (State::FullPrivilege{..}, OwnerLine::Hollow) | (State::PartialPrivilege{..}, OwnerLine::Hollow) => {
             let mut hollow_line_data = data.clone();
             hollow_line_data.title += ". The binding cannot be reassigned.";
-            // hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
-            // hollow_line_data.x2 -= 1.8;
-
-            //registry.render("hollow_line_template", &hollow_line_data).unwrap()
-            registry.render("new_hollow_line_template", &compute_hollow_line_data(hollow_line_data, 3.5)).unwrap()
+            let new_hollow_line_data = compute_hollow_line_data(hollow_line_data, 3.5);
+            let s = registry.render("new_hollow_line_template", &new_hollow_line_data).unwrap();
+            s
         },
         (State::OutOfScope, _) => "".to_owned(),
         // do nothing when the case is (RevokedPrivilege, false), (OutofScope, _), (ResourceMoved, false)
@@ -1287,7 +1325,7 @@ fn create_reference_line_string(
     registry: &Handlebars,
 ) -> String {
     match (state, rap.is_mut()) {
-        (State::FullPrivilege, true) => {
+        (State::FullPrivilege{..}, true) => {
             data.line_class = String::from("solid");
             if rap.is_ref() {
                 data.title += "; can read and write data; can point to another piece of data.";
@@ -1296,7 +1334,7 @@ fn create_reference_line_string(
             }
             registry.render("vertical_line_template", &data).unwrap()
         },
-        (State::FullPrivilege, false) => {
+        (State::FullPrivilege{..}, false) => {
             if rap.is_ref() {
                 data.title += "; can read and write data; cannot point to another piece of data.";
             } else {
@@ -1371,8 +1409,8 @@ fn render_timeline(
     hash: &u64,
     rap: &ResourceAccessPoint,
     history: &Vec<(usize, Event)>,
-    prev_state: Option<State>,
-    prev_range: Option<(usize, usize)>,
+    prev_state: Option<(usize, usize, State)>,
+    end_state: Option<(usize, usize, State)>,
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
     visualization_data: &VisualizationData,
     timeline_data: &TimelineColumnData,
@@ -1383,10 +1421,17 @@ fn render_timeline(
         match ev {
             Event::Branch { is, branch_history, ty, split_point, merge_point } => {
                 // calculate state just before the split
-                let root_states = visualization_data.get_states(hash, history, prev_state.clone(), prev_range);
-                let p_state = root_states.iter().find(|&item| item.1 == *split_point).map(|item| item.2.clone()).unwrap();
-                for branch in branch_history {
+                println!("prev_state {:#?}", prev_state);
+                let root_states = visualization_data.fetch_states(hash, history, prev_state.clone(), None);
+                println!("root_states {:#?}", root_states);
+                let begin_state = root_states.iter().find(|&item| item.1 == *split_point).unwrap().clone();
+                let p_state = convert_back(&begin_state.2);
+                println!("p_state {:#?}", begin_state);
+                println!("split {}", split_point);
+                println!("merge {}", merge_point);
+                for (i, branch) in branch_history.iter().enumerate() {
                     // render line from split to branch
+                    println!("branch {:#?}", branch);
                     let mut split_line_data = VerticalLineData {
                         line_class: String::new(),
                         hash: *hash,
@@ -1394,18 +1439,39 @@ fn render_timeline(
                         y1: get_y_axis_pos(*split_point),
                         x2: branch.t_data.x_val as f64,
                         y2: get_y_axis_pos(*split_point + 1),
-                        title: p_state.print_message_with_name(rap.name())
+                        title: p_state.print_message_with_name(rap.name()),
+                        opacity: 1.0
                     };
+
+                    if branch.e_data.is_empty() {
+                        println!("here");
+                        split_line_data.opacity = 0.5;
+                    }
                     append_line(&p_state, &mut split_line_data, rap, timeline_data, output, registry);
+
+                    // convert beginning state
+                    let b_state = branch_state_converter(&p_state);
+                    let (start, end) = ty.get_start_end(i);
+                    println!("start end for branch {}, : {} - {}", i, start, end);
+                    let start_val = min(start + 1, *merge_point);
+                    let begin = Some((*split_point + 1, start_val, b_state));
+                    println!("begin state for branch {}, : {:#?}", i, begin);
+
+                    // convert ending state
+                    let b_states = visualization_data.fetch_states(hash, &branch.e_data, begin.clone(), None);
+                    println!("states {:#?}", b_states);
+                    let e_state = b_states.last().unwrap().2.clone();
+                    let end_val = min(end + 1, *merge_point);
+                    let end = Some((end_val, *merge_point, branch_state_converter(&e_state)));
+
+                    println!("end state for branch {}, : {:#?}", i, end);
+
                     render_timeline(hash, 
                         rap, &branch.e_data, 
-                        Some(p_state.clone()),
-                        Some((*split_point, *merge_point)),
+                        begin,
+                        end,
                         output, visualization_data, &branch.t_data, registry);
                     
-                    let e_state = 
-                        visualization_data.get_states(hash, &branch.e_data, Some(p_state.clone()), Some((*split_point, *merge_point)))
-                            .last().unwrap().2.clone();
                     // render line from branch to merge
                     let mut merge_line_data = VerticalLineData {
                         line_class: String::new(),
@@ -1414,8 +1480,14 @@ fn render_timeline(
                         y1: get_y_axis_pos(*merge_point + 1),
                         x2: branch.t_data.x_val as f64,
                         y2: get_y_axis_pos(*merge_point),
-                        title: e_state.print_message_with_name(rap.name())
+                        title: e_state.print_message_with_name(rap.name()),
+                        opacity: 1.0
                     };
+
+                    if branch.e_data.is_empty() {
+                        merge_line_data.opacity = 0.5;
+                    }
+
                     append_line(&e_state, &mut merge_line_data, rap, timeline_data, output, registry);
                 }
             }
@@ -1423,27 +1495,28 @@ fn render_timeline(
         }
     }
 
-    let rap_states = visualization_data.get_states(hash, history, prev_state, prev_range);
+    let rap_states = visualization_data.fetch_states(hash, history, prev_state, end_state);
     let mut cleaned_rap_states: Vec<(usize, usize, State)> = Vec::new();
     let mut i: usize = 0;
     while i < rap_states.len() {
         match &rap_states[i].2 { // merge partial privilege states together
-        State::PartialPrivilege { .. } => {
-            let mut j = i + 1;
-            let mut ending_range = rap_states[i].1;
-            while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
-                ending_range = rap_states[j].1;
-                j += 1;
+            State::PartialPrivilege { .. } => {
+                let mut j = i + 1;
+                let mut ending_range = rap_states[i].1;
+                while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
+                    ending_range = rap_states[j].1;
+                    j += 1;
+                }
+                cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
+                i = j;
             }
-            cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
-            i = j;
-        }
-        _ => {
-            cleaned_rap_states.push(rap_states[i].clone());
-            i += 1;
-        }
+            _ => {
+                cleaned_rap_states.push(rap_states[i].clone());
+                i += 1;
+            }
         }
     }
+    println!("states when rendering timeline {:#?}", cleaned_rap_states);
     for (line_start, line_end, state) in cleaned_rap_states.iter() {
         // println!("{} -> start: {}, end: {}, state: {}", visualization_data.get_name_from_hash(hash).unwrap(), line_start, line_end, state); // DEBUG PURPOSES
         let data = match rap {
@@ -1455,10 +1528,11 @@ fn render_timeline(
                 y1: get_y_axis_pos(*line_start),
                 x2: timeline_data.x_val as f64,
                 y2: get_y_axis_pos(*line_end),
-                title: state.print_message_with_name(rap.name())
+                title: state.print_message_with_name(rap.name()),
+                opacity: 1.0
             })
         };
-        if data.is_some() {
+        if data.is_some() && *line_start != *line_end{
             append_line(state, & mut data.unwrap(), rap, timeline_data, output, registry);
         }
     }
@@ -1477,6 +1551,7 @@ fn render_timelines(
         match rap {
             ResourceAccessPoint::Function(_) => {},
             _ => {
+                println!("hash {}, timeline {:#?}", hash, timeline);
                 let t_data = resource_owners_layout.get(hash).unwrap();
                 render_timeline(hash, rap, &timeline.history, None, None, output, visualization_data, t_data, registry);
             }
@@ -1563,8 +1638,7 @@ fn render_ref_line(
             {
                 let ro = timeline.resource_access_point.to_owned();
                 // verticle state lines
-                let states = visualization_data.get_states(hash, &timeline.history, None, None);
-
+                let states = visualization_data.fetch_states(hash, &timeline.history, None, None);
                 // struct can live over events
                 let mut alive = false;
                 let mut data = RefLineData {
@@ -1603,7 +1677,7 @@ fn render_ref_line(
                                 alive = false;
                             }
                         },
-                        State::FullPrivilege => {
+                        State::FullPrivilege{..} => {
                             if !alive {
                                 // set known vals
                                 data.hash = *hash;

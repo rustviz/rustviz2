@@ -1,5 +1,5 @@
 // Some headers
-use rustc_hir::{StmtKind, Stmt, Expr, ExprKind, UnOp, Param, QPath, PatKind, Mutability, LetStmt};
+use rustc_hir::{StmtKind, Stmt, Expr, ExprKind, UnOp, Param, QPath, PatKind, Mutability, LetStmt, def::*};
 // use rustc_ast::walk_list;
 use rustc_hir::intravisit::{self, Visitor};
 use crate::expr_visitor::*;
@@ -9,7 +9,9 @@ use rustc_middle::{
   mir::Body,
   ty::{TyCtxt,Ty, adjustment::*},
 };
+use core::borrow;
 use std::collections::{BTreeMap, HashSet, VecDeque};
+use rustc_utils::mir::borrowck_facts::get_body_with_borrowck_facts;
 
 // these are the visitor trait itself
 // the visitor will walk through the hir
@@ -24,6 +26,13 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     for param in body.params {
       self.visit_param(param);
     }
+    // let borrow_data = get_body_with_borrowck_facts(self.tcx, body.value.hir_id.owner.def_id);
+    // println!("location map {:#?}", borrow_data.borrow_set.location_map);
+    // println!("activation map{:#?}", borrow_data.borrow_set.activation_map);
+    // println!("local_map {:#?}", borrow_data.borrow_set.local_map);
+    // // println!("locals state at exit {:#?}", borrow_data.borrow_set.locals_state_at_exit);
+    // println!("input facts {:#?}", borrow_data.input_facts); 
+    // println!("output facts {:#?}", borrow_data.output_facts);
     self.visit_expr(body.value); // visit fn body
     match body.value { // handle return expression if there is one
       Expr{kind: ExprKind::Block(b, _), ..} => {
@@ -155,9 +164,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         // println!("typeck res: {:#?}", self.tcx.typeck(name_and_generic_args.hir_id.owner));
         // println!("item local id {:#?}", name_and_generic_args.hir_id.local_id);
         // println!("caller local id {:#?}", rcvr.hir_id.local_id);
+        self.visit_expr(rcvr);
         let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
         let fn_name =self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
         self.add_fn(fn_name.clone());
+        println!("raps {:#?}", self.raps);
+        println!("rcvr name {}", rcvr_name);
         let rcvr_rap = self.raps.get(&rcvr_name).unwrap().0.to_owned();
         self.update_rap(&rcvr_rap, line_num);
         let fn_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
@@ -315,20 +327,25 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let new_scope = self.tcx.sess.source_map().lookup_char_pos(expr.span.hi()).line;
         self.current_scope = new_scope;
         self.visit_block(block); // visit all the statements in the block
-        // handle the return expr (if there is one)
-        match block.expr {
-          Some(expr) => {
-            self.visit_expr(expr);
-          }
-          None => {}
-        }
-        // backtrack
-        self.current_scope = prev_scope;
+          self.current_scope = prev_scope;
       }
 
       ExprKind::Unary(UnOp::Deref, exp) => { self.visit_expr(exp) }
       ExprKind::Path(QPath::Resolved(_,p)) => {
-
+        match p.res {
+          Res::Def(DefKind::Ctor(_, CtorKind::Const), id) => {
+            let mut name = String::new();
+            for (i, segment) in p.segments.iter().enumerate() {
+              name.push_str(self.tcx.hir().name(segment.hir_id).as_str());
+              if i < p.segments.len() - 1 {
+                name.push_str("::");
+              }
+            }
+            self.add_fn(name);
+            return;
+          }
+          _ => ()
+        }
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
         let r = &self.raps.get(&name).unwrap().0.clone();
         let line_num = self.span_to_line(&p.span);
@@ -372,12 +389,51 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             true
           }
         );
-        // println!("if events {:#?}", if_ev); 
-        // println!("preprocee eve {:#?}", self.preprocessed_events);  
+        let if_map = create_line_map(&if_ev);
+        let else_map = create_line_map(&else_ev);
         // add if/else branch
-        let b_ty = BranchType::If(vec!["If".to_owned(), "Else".to_owned()]);
-        self.add_external_event(line_num, ExternalEvent::Branch { live_vars: liveness, branches: vec![if_ev, else_ev], branch_type:b_ty, split_point: split, merge_point: merge });
+        let b_ty = BranchType::If(vec!["If".to_owned(), "Else".to_owned()], vec![(split, if_end), (if_end, merge)]);
+        self.add_external_event(line_num, 
+          ExternalEvent::Branch { 
+            live_vars: liveness, 
+            branches: vec![ExtBranchData{ e_data: if_ev, line_map: if_map}, 
+                          ExtBranchData {e_data: else_ev, line_map: else_map}], 
+            branch_type:b_ty, 
+            split_point: split, 
+            merge_point: merge });
         // println!("poopoo eve {:#?}", self.preprocessed_events);  
+      }
+
+      ExprKind::Loop(block, _, loop_ty, span) => {
+        println!("loop ty: {:#?}", loop_ty);
+        println!("loop block : {:#?}", block);
+
+        match loop_ty {
+          rustc_hir::LoopSource::While => {
+            match block.expr {
+              Some(e) => {
+                self.visit_expr(e);
+              } 
+              None => {
+
+
+              }
+            }
+          }
+          _ => {}
+        }
+      }
+
+      ExprKind::Match(guard_expr, arms, source) => {
+        self.visit_expr(guard_expr);
+        match source {
+          rustc_hir::MatchSource::Normal => {
+            for arm in arms.iter() {
+              println!("arm {:#?}", arm);
+            }
+          }
+          _ => {}
+        }
       }
       
       _ => {
