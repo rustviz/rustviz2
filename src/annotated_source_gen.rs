@@ -35,14 +35,20 @@ pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool, hash: u64) 
 pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
   match expr.kind {
     ExprKind::Path(QPath::Resolved(_, p)) => {
-      match p.res {
+      let (name, is_func) = match p.res {
         rustc_hir::def::Res::Def(rustc_hir::def::DefKind::Ctor(..), _) => {
-          return;
+          let mut name = String::new();
+            for (i, segment) in p.segments.iter().enumerate() {
+              name.push_str(self.tcx.hir().name(segment.hir_id).as_str());
+              if i < p.segments.len() - 1 {
+                name.push_str("::");
+              }
+            }
+            (name, true)
         }
-        _ => ()
-      }
-      let name: String = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-      self.annotate_src(name.clone(), p.span, false, *self.raps.get(&name).unwrap().0.hash());
+        _ => (self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned(), false)
+      };
+      self.annotate_src(name.clone(), p.span, is_func, *self.raps.get(&name).unwrap().0.hash());
     }
     ExprKind::Call(fn_expr, fn_args) => {
       match fn_expr.kind {

@@ -237,7 +237,7 @@ pub fn render_svg(
     //     let final_line_num = line_number.clone() + extra_line;
     //     visualization_data.append_processed_external_event(event, final_line_num, & mut None);
     // }
-
+    visualization_data.external_events.sort_by(|(l, _), (l1, _)| l.cmp(l1));
     println!("processed events {:#?}", visualization_data.external_events);
     //-----------------------update event_line_map line number------------------
     // let mut event_line_map_replace: BTreeMap<usize, Vec<ExternalEvent>> = BTreeMap::new();
@@ -480,6 +480,8 @@ pub fn render_svg(
         fill: #b99f35;
         stroke: #b99f35;
     }");
+
+    println!("timelines {:#?}", visualization_data.timelines);
     
     let a_lines = annotated_src_str.lines();
     let s_lines = source_rs_str.lines();

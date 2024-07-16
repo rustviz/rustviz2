@@ -142,10 +142,10 @@ impl ResourceTy {
           }
     }
 
-    pub fn extract_rap(&self) -> &ResourceAccessPoint {
+    pub fn extract_rap(&self) -> Option<&ResourceAccessPoint> {
         match self {
-            ResourceTy::Anonymous | ResourceTy::Caller => panic!("don't call this function unless certain that resourceTy is val or deref"),
-            ResourceTy::Deref(r) | ResourceTy::Value(r) => r
+            ResourceTy::Anonymous | ResourceTy::Caller => None,
+            ResourceTy::Deref(r) | ResourceTy::Value(r) => Some(r)
         }
     }
 
@@ -1300,6 +1300,27 @@ impl Visualizable for VisualizationData {
                 }
                 maybe_append_event(self, &is.clone(), Event::Branch { is: is, branch_history: branch_history, ty: branch_type.clone(), split_point: split_point, merge_point: merge_point}, line_number, collection);
               }
+
+              // 
+              // for branch in branches.iter() { // for each branch
+              //   for (l, ev) in branch.e_data.iter() { // for each event in each branch
+              //     let (from, to) = ResourceAccessPoint_extract(ev);
+              //     match (from.extract_rap(), to.extract_rap()) {
+              //           (Some(x), Some(y)) => {
+              //             if !live_vars.contains(x) && !live_vars.contains(y) {
+              //               self.append_processed_external_event(ev.clone(), *l, collection);
+              //             }
+              //           }
+              //           (Some(x), _) | (_, Some(x)) => {
+              //             if !live_vars.contains(x) {
+              //               self.append_processed_external_event(ev.clone(), *l, collection);
+              //             }
+              //           }
+              //           _ => self.append_processed_external_event(ev.clone(), *l, collection)
+              //         }
+                  
+              //   }
+              // }
             }
             ExternalEvent::StaticBorrow{from: from_ro, to: to_ro} => {
                 maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);

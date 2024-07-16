@@ -306,7 +306,15 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                 // update the xvalue based on width
                 let mut parent_branch_data: Vec<TimelineColumnData> = Vec::new();
                 match ty { // TODO: will have to change this for match expr
-                    BranchType::Match(..) => {}
+                    BranchType::Match(..) => {
+                      let if_bw = branch_history.get(0).unwrap().width;
+                      let else_bw = branch_history.get(1).unwrap().width;
+                      let if_offset_coefficient: i64 = -1 * ((if_bw + 1) as i64); // + 1 for padding between branches
+                      let else_offset_coefficient: i64 = (else_bw + 1) as i64;
+
+                      branch_history.get_mut(0).unwrap().t_data.x_val = parent_data.x_val + (if_offset_coefficient * BRANCH_WEIGHT);
+                      branch_history.get_mut(1).unwrap().t_data.x_val = parent_data.x_val + (else_offset_coefficient * BRANCH_WEIGHT);
+                    }
                     _ => {
                         let if_bw = branch_history.get(0).unwrap().width;
                         let else_bw = branch_history.get(1).unwrap().width;
@@ -837,7 +845,7 @@ fn render_arrow (
 
                     // get to_variable info 
                     // TODO: will probably need to fix this, depending on how conditionals are displayed
-                    let to_timeline = if live_vars.contains(to_variable.extract_rap()) {
+                    let to_timeline = if live_vars.contains(to_variable.extract_rap().unwrap()) {
                         fetch_timeline(to_variable.hash(), gep, visualization_data, resource_owners_layout)
                     }
                     else {

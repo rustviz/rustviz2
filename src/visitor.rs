@@ -40,6 +40,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           Some(e) => {
             let tycheck_results = self.tcx.typeck(e.hir_id.owner);
             let lhs_ty = tycheck_results.node_type(e.hir_id);
+            // TODO: only append this event if parent fn ctxt doesn't return void
             let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(e.hir_id.owner));
             let evt = if lhs_ty.is_ref() {
               match lhs_ty.ref_mutability().unwrap() {
@@ -133,7 +134,16 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                       }
                     }
                   _ => {
-                    println!("getting here to the println 2");
+                    //self.visit_expr(fn_expr);
+                    println!("fn expr {:#?}", fn_expr);
+                    let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+                    println!("function name {}", fn_name);
+                    self.add_fn(fn_name.clone());
+                    for arg in a.iter(){
+                      self.visit_expr(&arg);
+                      self.match_arg(&arg, fn_name.clone());
+                      // self.match_args(&arg, fn_name.clone());
+                    }
                   }
                 }
               }
@@ -389,7 +399,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             true
           }
         );
-        let if_map = create_line_map(&if_ev);
+        let if_map = rustviz_lib::data::create_line_map(&if_ev);
         let else_map = create_line_map(&else_ev);
         // add if/else branch
         let b_ty = BranchType::If(vec!["If".to_owned(), "Else".to_owned()], vec![(split, if_end), (if_end, merge)]);
@@ -424,13 +434,125 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         }
       }
 
+      // EXTREMELY SCUFFED - WILL NOT WORK FOR BASICALLY EVERY CASE, will have to come back and think of a better solution
       ExprKind::Match(guard_expr, arms, source) => {
         self.visit_expr(guard_expr);
+        let parent = match self.get_rap(guard_expr) { // TODO: this will fail with matching tuples: ex match (a, b, c)
+          ResourceTy::Value(ResourceAccessPoint::Function(_)) => ResourceTy::Anonymous,
+          p => p
+        };
+        let typeck_res = self.tcx.typeck(guard_expr.hir_id.owner);
+        let parent_ty = typeck_res.node_type(guard_expr.hir_id);
+        let parent_ev = if parent_ty.is_ref() {
+          if bool_of_mut(parent_ty.ref_mutability().unwrap()) { Evt::MBorrow }
+          else { Evt::SBorrow }
+        }
+        else {
+          if parent_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(guard_expr.hir_id.owner)) { Evt::Copy }
+          else { Evt::Move }
+        };
+
+        let split = self.tcx.sess.source_map().lookup_char_pos(guard_expr.span.hi()).line; // TODO: might need to alter this
+        let merge = self.tcx.sess.source_map().lookup_char_pos(expr.span.hi()).line;
+
+        let mut b_ty_names: Vec<String> = Vec::new();
+        let mut b_slices: Vec<(usize, usize)> = Vec::new();
+        let mut branch_data: Vec<ExtBranchData> = Vec::new();
+        let mut liveness: HashSet<ResourceAccessPoint> = self.get_live_of_expr(guard_expr);
+
+        
         match source {
           rustc_hir::MatchSource::Normal => {
             for arm in arms.iter() {
-              println!("arm {:#?}", arm);
+              // get line info
+              let begin = self.tcx.sess.source_map().lookup_char_pos(arm.body.span.lo()).line;
+              let end = self.tcx.sess.source_map().lookup_char_pos(arm.body.span.hi()).line;
+              let pat_line = self.span_to_line(&arm.pat.span);
+              
+              // add/fetch raps that are initialized in arm expr 
+              let pat_decls = self.get_decl_of_pat(&arm.pat, typeck_res, &parent, end);
+
+              // visit expr
+              self.visit_expr(arm.body);
+
+              // get liveness info
+              liveness = liveness.union(&self.get_live_of_expr(arm.body)).cloned().collect();
+              liveness = liveness.difference(&pat_decls).cloned().collect(); // subtract decls from live variables
+
+              // get name of constructor
+              let constructor_name = self.get_name_of_pat(arm.pat);
+              let cons_rap = match self.raps.get(&constructor_name) {
+                Some((r, _)) => r.clone(),
+                None => {
+                  self.add_fn(constructor_name.clone());
+                  self.raps.get(&constructor_name).unwrap().0.clone()
+                }
+              };
+
+              // get event info
+              let mut branch_e_data: Vec<(usize, ExternalEvent)> = Vec::new();
+              // append event that happens when matching
+              branch_e_data.push((pat_line, self.ext_ev_of_evt(parent_ev.clone(), ResourceTy::Value(cons_rap), parent.clone())));
+
+              for v in pat_decls.iter() { // will need to append events at the end of the branch that return resources
+                self.add_external_event(pat_line, ExternalEvent::Bind { from: ResourceTy::Anonymous, to: ResourceTy::Value(v.clone()) });
+              }
+
+              let temp: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev_match(i, begin, end, &liveness)).cloned().collect();
+              for elem in temp {
+                branch_e_data.push(elem);
+              }
+
+              // append raps that are declared inside the block (if there is one)
+              let mut var_decls = pat_decls.clone();         
+              match arm.body.kind {
+                ExprKind::Block(b, _) => {
+                  var_decls = var_decls.union(&self.get_decl_of_block(b)).cloned().collect();
+                }
+                _ => {}
+              }
+
+              b_slices.push((begin, end));
+              b_ty_names.push(self.get_name_of_pat(arm.pat));
+
+
+              // for each var decl append a GoOutOfScope
+              for v in var_decls.iter() {
+                self.add_external_event(end, ExternalEvent::GoOutOfScope { ro: v.clone() })
+              }
+
+              branch_e_data.push((end, self.ext_ev_of_evt(parent_ev.clone(), ResourceTy::Anonymous, parent.clone())));
+              let branch_line_map = create_line_map(&branch_e_data);
+
+              branch_data.push(ExtBranchData { e_data: branch_e_data, line_map: branch_line_map });
             }
+
+            // filter events from main events
+            self.preprocessed_events.retain(|(l, e)| 
+              if *l <= merge && *l >= split {
+                let (from, to) = ResourceAccessPoint_extract(e);
+                let ev_is_live = match (from.extract_rap(), to.extract_rap()) {
+                  (Some(x), Some(y)) => {
+                    liveness.contains(x) || liveness.contains(y)
+                  }
+                  (Some(x), _) | (_, Some(x)) => {
+                    liveness.contains(x)
+                  }
+                  _ => false
+                };
+                !ev_is_live
+              }
+              else {
+                true
+              }
+            );
+            // add branch event
+            self.add_external_event(split, ExternalEvent::Branch { 
+              live_vars: liveness, 
+              branches: branch_data, 
+              branch_type: BranchType::Match(b_ty_names, b_slices), 
+              split_point: split, 
+              merge_point: merge });
           }
           _ => {}
         }

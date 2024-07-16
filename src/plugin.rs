@@ -45,42 +45,61 @@ fn annotate_struct_field (
 
 // use regex to help annotate top level fn signature
 fn annotate_toplevel_fn (
-  func_name: &str, 
+  func_ident: rustc_span::symbol::Ident, 
   line_str: &str, 
-  raps: & mut HashMap<String, (ResourceAccessPoint, usize)>,
+  raps: & HashMap<String, (ResourceAccessPoint, usize)>,
   a_map: & mut BTreeMap<usize, Vec<String>>,
   hashes: & mut usize,
-  line: usize)  {
-  use regex::Regex;
-  let pattern: String = format!(r"fn\s+({})\s*[<(]", regex::escape(func_name));
+  m: &TyCtxt)  {
+  let func_name = func_ident.as_str().to_owned();
+  
+  let line: usize = m.sess.source_map().lookup_char_pos(func_ident.span.lo()).line;
+  let left: usize = m.sess.source_map().lookup_char_pos(func_ident.span.lo()).col_display;
+  let right: usize = m.sess.source_map().lookup_char_pos(func_ident.span.hi()).col_display;
+  let hash = match raps.get(&func_name) {
+    Some(r) => { *r.0.hash() }
+    None => {
+      let current_hash = *hashes;
+      *hashes = (*hashes + 1) % 10;
+      current_hash as u64
+    }
+  };
 
-  let re = Regex::new(&pattern).unwrap();
-  if let Some(caps) = re.captures(line_str) {
-    if let Some(m) = caps.get(1) {
-      let left: usize = m.start();
-      let right: usize = m.end();
-      let hash = match raps.get(func_name) {
-        Some(r) => { *r.0.hash() }
-        None => {
-          let current_hash = *hashes;
-          *hashes = (*hashes + 1) % 10;
-          current_hash as u64
-        }
-      };
 
-      let mut line_contents = line_str.to_string();
-      let replace_with: String = format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, func_name);
-      line_contents.replace_range(left..right, &replace_with);
-      let v = a_map.get_mut(&line).unwrap();
-      if !v.contains(&line_contents) {
-        v.push(line_contents);
-      }
+  let mut line_contents = line_str.to_string();
+  let replace_with: String = format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, func_name);
+  line_contents.replace_range(left..right, &replace_with);
+  let v = a_map.get_mut(&line).unwrap();
+  if !v.contains(&line_contents) {
+    v.push(line_contents);
+  }
+}
+
+fn annotate_enum_variant(
+  ctor_name: &str, 
+  parent_name: &str,
+  variant: & rustc_hir::Variant,
+  rap_map: & HashMap<String, (ResourceAccessPoint, usize)>,
+  a_map: & mut BTreeMap<usize, Vec<String>>,
+  m: & TyCtxt
+) {
+  let rap_name = format!("{}::{}", parent_name, ctor_name);
+  if rap_map.contains_key(&rap_name) {
+    let span = variant.ident.span;
+    let hash = rap_map.get(&rap_name).unwrap().0.hash();
+    let line: usize = m.sess.source_map().lookup_char_pos(span.lo()).line;
+    let left: usize = m.sess.source_map().lookup_char_pos(span.lo()).col_display;
+    let line_str = &a_map[&line][0];
+    let right = m.sess.source_map().lookup_char_pos(span.hi()).col_display;
+
+    let mut line_contents = line_str.to_string();
+    let replace_with = format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, ctor_name);
+    line_contents.replace_range(left..right, &replace_with);
+    let v = a_map.get_mut(&line).unwrap();
+    if !v.contains(&line_contents) {
+      v.push(line_contents);
     }
   }
-  else {
-    println!("error, toplevel function pattern didn't match");
-  }
-
 }
 
 // "The main function"
@@ -170,13 +189,19 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
 
   for id in hir.items() {
     match &hir.item(id).kind {
-      ItemKind::Fn(fn_sig, _generic, body_id) => {
-        let fn_id = hir.body_owner(*body_id);
-        let func_name:String = hir.name(fn_id).as_str().to_owned();
+      ItemKind::Fn(fn_sig, _generic, _body_id) => {
+        let fn_ident = tcx.hir_owner_node(id.hir_id().owner).ident().unwrap();
         let line = tcx.sess.source_map().lookup_char_pos(fn_sig.span.lo()).line;
         let line_str = &a_map[&line];
-        if func_name != "main" {
-          annotate_toplevel_fn(&func_name, line_str, & mut rap_map, & mut a_line_map, & mut rap_hash_num, line);
+        if fn_ident.as_str() != "main" {
+          annotate_toplevel_fn(fn_ident, line_str, &rap_map, & mut a_line_map, & mut rap_hash_num, &tcx);
+        }
+      }
+      ItemKind::Enum(e_def, _generics) => {
+        for variant in e_def.variants.iter() {
+          let ctor_name = hir.name(variant.data.ctor_hir_id().unwrap()).as_str().to_owned();
+          let parent_name = hir.name(tcx.parent_hir_id(variant.hir_id)).as_str().to_owned();
+          annotate_enum_variant(ctor_name.as_str(), parent_name.as_str(), &variant, &rap_map, & mut a_line_map, &tcx);
         }
       }
       _ => {}

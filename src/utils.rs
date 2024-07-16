@@ -30,13 +30,7 @@ impl RV1Helper {
         let mut res_str: String = String::new();
         // remove all comments from main string
         for line in contents.lines() {
-          let line_without_comment = if let Some(pos) = line.find("//") {
-            &line[..pos]
-          }
-          else {
-            line
-          };
-          res_str.push_str(line_without_comment);
+          res_str.push_str(line);
           res_str.push('\n');
   
         }

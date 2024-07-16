@@ -2,7 +2,7 @@ use rustc_middle::{
     mir::Body,
     ty::*,
   };
-  use rustc_hir::{Expr, ExprKind, QPath, Path, Mutability, UnOp, StmtKind, Stmt, def::*};
+  use rustc_hir::{Expr, ExprKind, QPath, PatKind, Mutability, UnOp, StmtKind, Stmt, def::*, Pat, Path};
 use rustc_utils::mir::mutability;
 use rustc_utils::MutabilityExt;
   use std::cell::Ref;
@@ -199,18 +199,22 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn add_ev(&mut self, line_num: usize, evt: Evt, lhs: ResourceTy, rhs: ResourceTy) {
+  pub fn ext_ev_of_evt(&self, evt: Evt, lhs: ResourceTy, rhs: ResourceTy) -> ExternalEvent{
     match evt {
-      Evt::Bind => self.add_external_event(line_num, ExternalEvent::Bind { from: rhs, to: lhs }),
-      Evt::Copy => self.add_external_event(line_num, ExternalEvent::Copy { from: rhs, to: lhs }),
-      Evt::Move => self.add_external_event(line_num, ExternalEvent::Move { from: rhs, to: lhs }),
-      Evt::SBorrow => self.add_external_event(line_num, ExternalEvent::StaticBorrow { from: rhs, to: lhs }),
-      Evt::MBorrow => self.add_external_event(line_num, ExternalEvent::MutableBorrow { from: rhs, to: lhs }),
-      Evt::PassBySRef => self.add_external_event(line_num, ExternalEvent::PassByStaticReference { from: rhs, to: lhs }),
-      Evt::PassByMRef => self.add_external_event(line_num, ExternalEvent::PassByMutableReference { from: rhs, to: lhs }),
-      Evt::SDie =>  self.add_external_event(line_num, ExternalEvent::StaticDie { from: rhs, to: lhs }),
-      Evt::MDie => self.add_external_event(line_num, ExternalEvent::MutableDie { from: rhs, to: lhs })
+      Evt::Bind => ExternalEvent::Bind { from: rhs, to: lhs },
+      Evt::Copy => ExternalEvent::Copy { from: rhs, to: lhs },
+      Evt::Move => ExternalEvent::Move { from: rhs, to: lhs },
+      Evt::SBorrow => ExternalEvent::StaticBorrow { from: rhs, to: lhs },
+      Evt::MBorrow => ExternalEvent::MutableBorrow { from: rhs, to: lhs },
+      Evt::PassBySRef => ExternalEvent::PassByStaticReference { from: rhs, to: lhs },
+      Evt::PassByMRef => ExternalEvent::PassByMutableReference { from: rhs, to: lhs },
+      Evt::SDie =>  ExternalEvent::StaticDie { from: rhs, to: lhs },
+      Evt::MDie => ExternalEvent::MutableDie { from: rhs, to: lhs }
     }
+  }
+
+  pub fn add_ev(&mut self, line_num: usize, evt: Evt, lhs: ResourceTy, rhs: ResourceTy) {
+    self.add_external_event(line_num, self.ext_ev_of_evt(evt, lhs, rhs));
   }
 
   pub fn resource_of_lhs(&mut self, expr: &'tcx Expr) -> ResourceTy {
@@ -561,11 +565,133 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  pub fn string_of_path(&self, p: &Path) -> String {
+    match p.res {
+      Res::Def(rustc_hir::def::DefKind::Ctor(_, _), _) => {
+        let mut name = String::new();
+        for (i, segment) in p.segments.iter().enumerate() {
+          name.push_str(self.tcx.hir().name(segment.hir_id).as_str());
+          if i < p.segments.len() - 1 {
+            name.push_str("::");
+          }
+        }
+        name
+      }
+      _ => {
+        self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned()
+      }
+    }
+  }
+
+  pub fn get_name_of_pat(&self, pat: &Pat) -> String {
+    match pat.kind {
+      PatKind::Binding(_, _, ident, _) => ident.to_string(),
+      PatKind::TupleStruct(QPath::Resolved(_, p), _, _) => {
+        self.string_of_path(&p)
+      }
+      PatKind::Path(QPath::Resolved(_, p)) => {
+        self.string_of_path(&p)
+      }
+      PatKind::Wild => {
+        String::from("Wild")
+      }
+      _ => panic!("unexpected pat kind {:#?}", pat)
+    }
+  }
+
+  pub fn get_decl_of_pat(&mut self, pat: &Pat, ty_results: &TypeckResults, parent: &ResourceTy, scope: usize) -> HashSet<ResourceAccessPoint> {
+    let mut res = HashSet::new();
+    match pat.kind {
+      PatKind::TupleStruct(_p, tuple_members, _) => {
+        for p in tuple_members.iter() {
+          let other: HashSet<ResourceAccessPoint> = self.get_decl_of_pat(p, ty_results, parent, scope);
+          res = res.union(&other).cloned().collect();
+        }
+
+      }
+      PatKind::Binding(mode, id, ident, _) => {
+        // hacky fix for GoOutOfScope events
+        let old_scope = self.current_scope;
+        self.current_scope = scope; 
+        // add raps that appear in binding
+        let muta = bool_of_mut(mode.1);
+        let line_num = self.span_to_line(&ident.span);
+        let ty = ty_results.node_type(id);
+        let name = ident.to_string();
+        if ty.is_ref() {
+          let ref_mutability = bool_of_mut(ty.ref_mutability().unwrap());
+          self.add_ref(name.clone(), ref_mutability, muta, line_num, parent.clone(), VecDeque::new());
+        }
+        else if ty.is_adt() {
+          match ty.ty_adt_def().unwrap().adt_kind() {
+            AdtKind::Struct => {
+              let owner_hash = self.rap_hashes as u64;
+              self.add_struct(name.clone(), owner_hash, false, muta);
+              for field in ty.ty_adt_def().unwrap().all_fields() {
+                let field_name = format!("{}.{}", name, field.name.as_str());
+                self.add_struct(field_name, owner_hash, true, muta);
+              }
+            },
+            AdtKind::Union => {
+              panic!("union not implemented yet")
+            },
+            AdtKind::Enum => {
+              self.add_owner(name.clone(), muta);
+            }
+          }
+          
+        }
+        else {
+          self.add_owner(name.clone(), muta);
+        }
+        self.current_scope = old_scope;
+
+        res.insert(self.raps.get(&name).unwrap().0.to_owned());
+      }
+      _ => {}
+    }
+    res
+
+  }
+
+  pub fn get_decl_of_block(&self, block: & 'tcx rustc_hir::Block) -> HashSet<ResourceAccessPoint>{
+    let mut res:HashSet<ResourceAccessPoint> = HashSet::new();
+    for stmt in block.stmts.iter() {
+      res = res.union(&self.get_decl_of_stmt(&stmt)).cloned().collect();
+    }
+    res
+  }
+
+  pub fn get_decl_of_stmt(&self, stmt: &'tcx Stmt) -> HashSet<ResourceAccessPoint> {
+    let mut res = HashSet::new();
+    match stmt.kind {
+      StmtKind::Let(ref local) => {
+        let name = match local.pat.kind {
+          PatKind::Binding(_, _, ident, _) => {
+            ident.to_string()
+          }
+          _ => panic!("unexpected binding pattern")
+        };
+        res.insert(self.raps.get(&name).unwrap().0.to_owned());
+      }
+      _ => {}
+    }
+    res
+  }
+
   pub fn get_live_of_expr(&self, expr: &'tcx Expr) -> HashSet<ResourceAccessPoint> {
     match expr.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
-        let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        HashSet::from([self.raps.get(&name).unwrap().0.to_owned()])
+        match p.res {
+          Res::Def(rustc_hir::def::DefKind::Ctor(_, _), _) => {
+            // function, so we don't care about it in regards to live vars
+            HashSet::new()
+          }
+          _ => {
+            let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+            HashSet::from([self.raps.get(&name).unwrap().0.to_owned()])
+          }
+        }
       }
       ExprKind::Field(expr, ident) => {
         match expr {
@@ -691,10 +817,28 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       }
     }
   }
-
-  pub fn filter_ev(&self, (line_num, _ev): &(usize, ExternalEvent), split: usize, merge: usize) -> bool {
+  pub fn filter_ev(&self, (line_num, ev): &(usize, ExternalEvent), split: usize, merge: usize) -> bool {
     if *line_num <= merge && *line_num >= split {
       true
+    }
+    else {
+      false
+    }
+  }
+
+  pub fn filter_ev_match(&self, (line_num, ev): &(usize, ExternalEvent), split: usize, merge: usize, liveness: &HashSet<ResourceAccessPoint>) -> bool {
+    if *line_num <= merge && *line_num >= split {
+      let (from, to) = ResourceAccessPoint_extract(ev);
+      let ev_is_live = match (from.extract_rap(), to.extract_rap()) {
+        (Some(x), Some(y)) => {
+          liveness.contains(x) || liveness.contains(y)
+        }
+        (Some(x), _) | (_, Some(x)) => {
+          liveness.contains(x)
+        }
+        _ => false
+      };
+      ev_is_live
     }
     else {
       false
@@ -724,7 +868,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let line_num = self.span_to_line(&p.span);
         let rhs_name: String = match p.res {
-          rustc_hir::def::Res::Def(rustc_hir::def::DefKind::Ctor(_, CtorKind::Const), _) => {
+          Res::Def(rustc_hir::def::DefKind::Ctor(_, _), _) => {
             let mut name = String::new();
             for (i, segment) in p.segments.iter().enumerate() {
               name.push_str(self.tcx.hir().name(segment.hir_id).as_str());
@@ -747,6 +891,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Call(fn_expr, _) => {
         let line_num = self.span_to_line(&fn_expr.span);
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+        println!("fn_name {:#?}", fn_name);
         let rhs_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
       },
