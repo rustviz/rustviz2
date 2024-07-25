@@ -199,7 +199,7 @@ pub fn render_svg(
             Some(ev) => { // if there are multiple arrow events on this line
                 if *ev.get(0).unwrap() == event { // if event is the first arrow event
                     for e in ev.clone() { // append all the events in the line map on the same line
-                        visualization_data.append_processed_external_event(e.clone(), final_line_num, & mut None);
+                        visualization_data.append_processed_external_event(e.clone(), final_line_num);
                         skippable_ev.insert((line_num, e)); // they all become skippable 
                     }
                     let ev_len = ev.len() - 1;
@@ -208,12 +208,12 @@ pub fn render_svg(
                     ev_len
                 }
                 else {
-                    visualization_data.append_processed_external_event(event.clone(), final_line_num, & mut None);
+                    visualization_data.append_processed_external_event(event.clone(), final_line_num);
                     0
                 }
             },
             None => {
-                visualization_data.append_processed_external_event(event.clone(), final_line_num, & mut None);
+                visualization_data.append_processed_external_event(event.clone(), final_line_num);
                 0
             }
         };

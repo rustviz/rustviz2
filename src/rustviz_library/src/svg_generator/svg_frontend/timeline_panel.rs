@@ -286,7 +286,6 @@ fn compute_width(events: & mut Vec<(usize, Event)>) -> usize {
                 }
                 let padding = (branch_history.len() - 1) * 2; // TODO: update for match expr
                 b_width += padding;
-                println!("branch width {}", b_width);
                 max_width = max(b_width, max_width);
             }
             _ => {}
@@ -508,7 +507,7 @@ fn render_dot(
             Event::RefDie { .. } => {
                 continue;
             }
-            Event::Branch { is, branch_history, ty, split_point, merge_point } => { 
+            Event::Branch { is, branch_history, ty, split_point, merge_point, id } => { 
                 // first append split dot
                 let b_data = EventDotData {
                     hash: *hash as u64,
@@ -635,18 +634,82 @@ fn traverse_timeline<'a> (gep: & mut VecDeque<(usize, usize)>, history: & 'a Vec
     unreachable!()
 }
 
-fn fetch_timeline<'a>(
-    hash: &u64, 
-    gep: & mut VecDeque<(usize, usize)>, 
-    vd: &'a VisualizationData, 
-    ro_layout: & 'a BTreeMap<u64, TimelineColumnData>) -> & 'a TimelineColumnData 
-    {
-    if gep.is_empty() {
-        &ro_layout[hash]
+fn traverse_timeline2<'a> (t: &'a TimelineColumnData, history: & 'a Vec<(usize, Event)>, id: usize) -> Option<& 'a TimelineColumnData> {
+    for (_, e) in history {
+        match e {
+            Event::Branch { is, branch_history, .. } => {
+                for branch in branch_history {
+                    let res = traverse_timeline2(&branch.t_data, &branch.e_data, id);
+                    if res.is_some() {
+                        return res;
+                    }
+                }
+            }
+            _ => {
+                if e.get_id() == id {
+                    return Some(t);
+                }
+            }
+        }
     }
-    else {
-        let var_history = &vd.timelines.get(hash).unwrap().history;
-        traverse_timeline(& mut gep.clone(), var_history)
+    None
+}
+
+
+fn fetch_timeline<'a>(hash: &u64, vd: &'a VisualizationData, ro_layout: & 'a BTreeMap<u64, TimelineColumnData>, id: usize) -> & 'a TimelineColumnData {
+    match traverse_timeline2(&ro_layout[hash], &vd.timelines[hash].history, id) {
+        Some(t) => t,
+        None => panic!("Shouldn't be happening")
+    }
+}
+
+// fn fetch_timeline<'a>(
+//     hash: &u64, 
+//     gep: & mut VecDeque<(usize, usize)>, 
+//     vd: &'a VisualizationData, 
+//     ro_layout: & 'a BTreeMap<u64, TimelineColumnData>) -> & 'a TimelineColumnData 
+//     {
+//     if gep.is_empty() {
+//         &ro_layout[hash]
+//     }
+//     else {
+//         let var_history = &vd.timelines.get(hash).unwrap().history;
+//         traverse_timeline(& mut gep.clone(), var_history)
+//     }
+// }
+
+fn traverse_events2<'a> (
+    history: & 'a Vec<(usize, ExternalEvent)>, 
+    line_map: & 'a BTreeMap<usize, Vec<ExternalEvent>>,
+    id: usize
+) ->  Option<& 'a BTreeMap<usize, Vec<ExternalEvent>>> {
+    for (_, e) in history {
+        match e {
+            ExternalEvent::Branch { branches, .. } => {
+                for branch in branches {
+                    let res = traverse_events2(&branch.e_data, &branch.line_map, id);
+                    if res.is_some() {
+                        return res;
+                    }
+                }
+            }
+            _ => {
+                if e.get_id() == id {
+                    return Some(line_map);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn fetch_line_map<'a>(
+    vd: &'a VisualizationData,
+    id: usize 
+) -> & 'a BTreeMap<usize, Vec<ExternalEvent>> {
+    match traverse_events2(&vd.external_events, &vd.event_line_map, id) {
+        Some(t) => t,
+        None => panic!("Error getting a line map")
     }
 }
 
@@ -681,9 +744,6 @@ fn traverse_events<'a> (gep: & mut VecDeque<(usize, usize)>, history: & 'a Vec<(
 fn render_arrow (
     line_number : &usize,
     external_event: &ExternalEvent,
-    branch_freq: & mut usize,
-    gep: & mut VecDeque<(usize, usize)>,
-    live_vars: &HashSet<ResourceAccessPoint>,
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
     visualization_data: &VisualizationData,
     resource_owners_layout: &BTreeMap<u64, TimelineColumnData>,
@@ -691,25 +751,22 @@ fn render_arrow (
 ) {
     match external_event {
         ExternalEvent::Branch { live_vars, branches, .. } => {
-            *branch_freq = *branch_freq + 1;
-            // save the old branch freq since we are hopping onto different branches for the time being
-            let old_branch_freq = *branch_freq;
             // render all the events in the branch
             for (b_index, branch) in branches.iter().enumerate() {
-                gep.push_back((old_branch_freq, b_index));
+                //gep.push_back((old_branch_freq, b_index));
                 for (l, e) in branch.e_data.iter() {
                     // somewhat redundant but have to filter out external events here
                     match e {
                         ExternalEvent::Bind {..} | ExternalEvent::GoOutOfScope {..} | ExternalEvent::InitRefParam { .. }
                         | ExternalEvent::RefDie {..} => {}
                         _ => {
-                            render_arrow(l, e, & mut 0, gep, live_vars, output, visualization_data, resource_owners_layout, registry);
+                            render_arrow(l, e,  output, visualization_data, resource_owners_layout, registry);
                         }
                     }
                 }
-                gep.pop_back(); // backtrack
+                //gep.pop_back(); // backtrack
             }
-            *branch_freq = old_branch_freq;
+            // *branch_freq = old_branch_freq;
         }
         _ => {
             // get the resource owners involved in the event
@@ -741,7 +798,7 @@ fn render_arrow (
                     // ro1 (to_variable) <- ro2 (from_function)
                     // arrow go from (x2, y2) -> (x1, y1)
                     // get position of to_variable
-                    let to_timeline = fetch_timeline(to_variable.hash(), gep, visualization_data, resource_owners_layout);
+                    let to_timeline = fetch_timeline(to_variable.hash(), visualization_data, resource_owners_layout, external_event.get_id());
                     let x1 = to_timeline.x_val + 3; // adjust arrow head pos
                     let x2 = x1 + arrow_length;
                     let y1 = get_y_axis_pos(*line_number);
@@ -774,7 +831,7 @@ fn render_arrow (
                     let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
 
                     // get position of to_variable
-                    let from_timeline = fetch_timeline(from_variable.hash(), gep, visualization_data, resource_owners_layout);
+                    let from_timeline = fetch_timeline(from_variable.hash(), visualization_data, resource_owners_layout, external_event.get_id());
 
                     let title_fn = match external_event {
                         ExternalEvent::PassByStaticReference { .. } => " reads from ",
@@ -803,7 +860,7 @@ fn render_arrow (
                 (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(to_function)), _e) => { // (Some(variable), Some(function), _)
                     let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
                     //  ro1 (to_function) <- ro2 (from_variable)
-                    let from_timeline = fetch_timeline(from_variable.hash(), gep, visualization_data, resource_owners_layout);
+                    let from_timeline = fetch_timeline(from_variable.hash(), visualization_data, resource_owners_layout, external_event.get_id());
                     let x2 = from_timeline.x_val - 5;
                     let x1 = x2 - arrow_length;
                     let y1 = get_y_axis_pos(*line_number);
@@ -830,27 +887,32 @@ fn render_arrow (
                         output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
                     }
                 },
-                (from_variable, to_variable, _e) => {
-                    let arrow_order = if gep.is_empty() {
-                        visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64
-                    }
-                    else {
-                        let b_line_map = traverse_events(& mut gep.clone(), &visualization_data.external_events);
-                        b_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64
-                    };
+                (from_variable, to_variable, e) => {
+                    let line_map = fetch_line_map(&visualization_data, e.get_id());
+                    let arrow_order = line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
+                    // let arrow_order = if gep.is_empty() {
+                    //     visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64
+                    // }
+                    // else {
+                    //     let b_line_map = traverse_events(& mut gep.clone(), &visualization_data.external_events);
+                    //     b_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64
+                    // };
                     
 
                     // get from_variable info 
-                    let from_timeline = fetch_timeline(from_variable.hash(), gep, visualization_data, resource_owners_layout);
-
-                    // get to_variable info 
-                    // TODO: will probably need to fix this, depending on how conditionals are displayed
-                    let to_timeline = if live_vars.contains(to_variable.extract_rap().unwrap()) {
-                        fetch_timeline(to_variable.hash(), gep, visualization_data, resource_owners_layout)
-                    }
-                    else {
-                        &resource_owners_layout[to_variable.hash()]
-                    };
+                    // println!("from variable {}", from_variable.real_name());
+                    // println!("gep {:#?}", gep);
+                    let from_timeline = fetch_timeline(from_variable.hash(), visualization_data, resource_owners_layout, e.get_id());
+                    let to_timeline = fetch_timeline(to_variable.hash(), visualization_data, resource_owners_layout, e.get_id());
+                    // // get to_variable info 
+                    // // TODO: will probably need to fix this, depending on how conditionals are displayed
+                    // let to_timeline = if live_vars.contains(to_variable.extract_rap().unwrap()) {
+                    //     println!("to variable {}", to_variable.real_name());
+                    //     fetch_timeline(to_variable.hash(), gep, visualization_data, resource_owners_layout)
+                    // }
+                    // else {
+                    //     &resource_owners_layout[to_variable.hash()]
+                    // };
 
                     let x1 = to_timeline.x_val;
                     let x2 = from_timeline.x_val;
@@ -963,9 +1025,6 @@ fn render_arrows_string_external_events_version(
                 // render external event arrow
                 render_arrow(line_number, 
                     external_event,
-                    & mut 0, 
-                    & mut VecDeque::new(), 
-                    & HashSet::new(), 
                     output, visualization_data, resource_owners_layout, registry)
             }
         }
@@ -1427,19 +1486,19 @@ fn render_timeline(
 
     for (_, ev) in history {
         match ev {
-            Event::Branch { is, branch_history, ty, split_point, merge_point } => {
+            Event::Branch { is, branch_history, ty, split_point, merge_point, id } => {
                 // calculate state just before the split
-                println!("prev_state {:#?}", prev_state);
+                // println!("prev_state {:#?}", prev_state);
                 let root_states = visualization_data.fetch_states(hash, history, prev_state.clone(), None);
-                println!("root_states {:#?}", root_states);
+                // println!("root_states {:#?}", root_states);
                 let begin_state = root_states.iter().find(|&item| item.1 == *split_point).unwrap().clone();
                 let p_state = convert_back(&begin_state.2);
-                println!("p_state {:#?}", begin_state);
-                println!("split {}", split_point);
-                println!("merge {}", merge_point);
+                // println!("p_state {:#?}", begin_state);
+                // println!("split {}", split_point);
+                // println!("merge {}", merge_point);
                 for (i, branch) in branch_history.iter().enumerate() {
                     // render line from split to branch
-                    println!("branch {:#?}", branch);
+                    // println!("branch {:#?}", branch);
                     let mut split_line_data = VerticalLineData {
                         line_class: String::new(),
                         hash: *hash,
@@ -1452,7 +1511,7 @@ fn render_timeline(
                     };
 
                     if branch.e_data.is_empty() {
-                        println!("here");
+                        // println!("here");
                         split_line_data.opacity = 0.5;
                     }
                     append_line(&p_state, &mut split_line_data, rap, timeline_data, output, registry);
@@ -1460,19 +1519,19 @@ fn render_timeline(
                     // convert beginning state
                     let b_state = branch_state_converter(&p_state);
                     let (start, end) = ty.get_start_end(i);
-                    println!("start end for branch {}, : {} - {}", i, start, end);
+                    // println!("start end for branch {}, : {} - {}", i, start, end);
                     let start_val = min(start + 1, *merge_point);
                     let begin = Some((*split_point + 1, start_val, b_state));
-                    println!("begin state for branch {}, : {:#?}", i, begin);
+                    // println!("begin state for branch {}, : {:#?}", i, begin);
 
                     // convert ending state
                     let b_states = visualization_data.fetch_states(hash, &branch.e_data, begin.clone(), None);
-                    println!("states {:#?}", b_states);
+                    // println!("states {:#?}", b_states);
                     let e_state = b_states.last().unwrap().2.clone();
                     let end_val = min(end + 1, *merge_point);
                     let end = Some((end_val, *merge_point, branch_state_converter(&e_state)));
 
-                    println!("end state for branch {}, : {:#?}", i, end);
+                    // println!("end state for branch {}, : {:#?}", i, end);
 
                     render_timeline(hash, 
                         rap, &branch.e_data, 
@@ -1524,7 +1583,7 @@ fn render_timeline(
             }
         }
     }
-    println!("states when rendering timeline {:#?}", cleaned_rap_states);
+    // println!("states when rendering timeline {:#?}", cleaned_rap_states);
     for (line_start, line_end, state) in cleaned_rap_states.iter() {
         // println!("{} -> start: {}, end: {}, state: {}", visualization_data.get_name_from_hash(hash).unwrap(), line_start, line_end, state); // DEBUG PURPOSES
         let data = match rap {

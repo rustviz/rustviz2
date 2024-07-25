@@ -53,6 +53,8 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub source_map: & 'a BTreeMap<usize, String>,
   pub annotated_lines: & 'a mut BTreeMap<usize, Vec<String>>,
   pub id_map: & 'a mut HashMap<String, usize>,
+
+  pub unique_id: & 'a mut usize
 }
 
 impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
@@ -199,22 +201,23 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn ext_ev_of_evt(&self, evt: Evt, lhs: ResourceTy, rhs: ResourceTy) -> ExternalEvent{
+  pub fn ext_ev_of_evt(&self, evt: Evt, lhs: ResourceTy, rhs: ResourceTy, id: usize) -> ExternalEvent{
     match evt {
-      Evt::Bind => ExternalEvent::Bind { from: rhs, to: lhs },
-      Evt::Copy => ExternalEvent::Copy { from: rhs, to: lhs },
-      Evt::Move => ExternalEvent::Move { from: rhs, to: lhs },
-      Evt::SBorrow => ExternalEvent::StaticBorrow { from: rhs, to: lhs },
-      Evt::MBorrow => ExternalEvent::MutableBorrow { from: rhs, to: lhs },
-      Evt::PassBySRef => ExternalEvent::PassByStaticReference { from: rhs, to: lhs },
-      Evt::PassByMRef => ExternalEvent::PassByMutableReference { from: rhs, to: lhs },
-      Evt::SDie =>  ExternalEvent::StaticDie { from: rhs, to: lhs },
-      Evt::MDie => ExternalEvent::MutableDie { from: rhs, to: lhs }
+      Evt::Bind => ExternalEvent::Bind { from: rhs, to: lhs, id },
+      Evt::Copy => ExternalEvent::Copy { from: rhs, to: lhs, id },
+      Evt::Move => ExternalEvent::Move { from: rhs, to: lhs, id },
+      Evt::SBorrow => ExternalEvent::StaticBorrow { from: rhs, to: lhs, id },
+      Evt::MBorrow => ExternalEvent::MutableBorrow { from: rhs, to: lhs, id },
+      Evt::PassBySRef => ExternalEvent::PassByStaticReference { from: rhs, to: lhs, id },
+      Evt::PassByMRef => ExternalEvent::PassByMutableReference { from: rhs, to: lhs, id },
+      Evt::SDie =>  ExternalEvent::StaticDie { from: rhs, to: lhs, id },
+      Evt::MDie => ExternalEvent::MutableDie { from: rhs, to: lhs, id }
     }
   }
 
   pub fn add_ev(&mut self, line_num: usize, evt: Evt, lhs: ResourceTy, rhs: ResourceTy) {
-    self.add_external_event(line_num, self.ext_ev_of_evt(evt, lhs, rhs));
+    self.add_external_event(line_num, self.ext_ev_of_evt(evt, lhs, rhs, *self.unique_id));
+    *self.unique_id += 1;
   }
 
   pub fn resource_of_lhs(&mut self, expr: &'tcx Expr) -> ResourceTy {
@@ -1039,9 +1042,23 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   pub fn print_out_of_scope(&mut self){
     for (_, rap) in self.raps.clone().iter() {
       // need this to avoid duplicating out of scope events, this is due to the fact that RAPS is a map that lives over multiple fn ctxts
-      if !rap.0.is_fn() && !self.preprocessed_events.contains(&(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone() })){ 
-        self.add_external_event(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone() })
-        
+      if !rap.0.is_fn() {
+        let mut duplicate = false;
+        for (_l, e) in self.preprocessed_events.iter() {
+          match e.is_gos_ev() {
+            Some(r) => {
+              if *r == rap.0 {
+                duplicate = true;
+                break;
+              }
+            }
+            None => {}
+          }
+        }
+        if !duplicate {
+          self.add_external_event(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone(), id: *self.unique_id });
+          *self.unique_id += 1;
+        }
       }
     }
   }
@@ -1095,7 +1112,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       // if ref is not an ultimate ref then it dies without returning a resource
       if !ultimate_refs.contains(k) { 
         self.add_external_event(*lifetime, ExternalEvent::RefDie { 
-          from: ResourceTy::Value(from_ro.clone()), to: to_ro, num_curr_borrowers: self.get_borrowers(from_ro.name()).len() - 1 });
+          from: ResourceTy::Value(from_ro.clone()), to: to_ro, num_curr_borrowers: self.get_borrowers(from_ro.name()).len() - 1, 
+          id: *self.unique_id });
+        *self.unique_id += 1;
       }
       else {
         // otherwise it does return a resource

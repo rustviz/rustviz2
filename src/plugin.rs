@@ -128,6 +128,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
     line_map2.insert(*k, vec![]);
   }
   let mut rap_hash_num: usize = 1;
+  let mut ids: usize = 0;
 
   // Generate a few things needed for later analysis. They
   // are basically things generated when compiling code.
@@ -177,6 +178,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
           source_map: & a_map,
           annotated_lines: & mut a_line_map,
           id_map: & mut owner_to_hash,
+          unique_id: & mut ids,
         };
         visitor.visit_body(hir_body);
         visitor.print_lifetimes();

@@ -97,7 +97,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         else {
           self.add_owner(name.clone(), bool_of_mut(binding_annotation.1));
         }
-        self.add_external_event(line_num, ExternalEvent::InitRefParam { param: self.raps.get(&name).unwrap().0.to_owned() });
+        self.add_external_event(line_num, ExternalEvent::InitRefParam { param: self.raps.get(&name).unwrap().0.to_owned(), id: *self.unique_id });
+        *self.unique_id += 1;
         self.annotate_src(name.clone(), ident.span, false, *self.raps.get(&name).unwrap().0.hash());
       }
       _=>{}
@@ -257,7 +258,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               // add event
               let borrowers = self.get_borrowers(&lhs_rty.real_name());
               if borrowers.len() > 1 { // there is another active reference at this point, the resource cannot be returned
-                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro, num_curr_borrowers: borrowers.len() - 1 });
+                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro, num_curr_borrowers: borrowers.len() - 1, id: *self.unique_id });
+                *self.unique_id += 1;
               }
               else {
                 match ref_data.ref_mutability {
@@ -289,7 +291,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               // add event
               let borrowers = self.get_borrowers(&lhs_rty.real_name());
               if borrowers.len() > 1 { // there is another active reference at this point, the resource cannot be returned
-                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro, num_curr_borrowers: borrowers.len() - 1 });
+                self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro, num_curr_borrowers: borrowers.len() - 1, id: *self.unique_id });
+                *self.unique_id += 1;
               }
               else {
                 match modified_ref_data.ref_mutability {
@@ -378,8 +381,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let if_live = self.get_live_of_expr(if_expr);
         let if_decl = self.get_decl_of_expr(if_expr);
         let mut liveness:HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
-        liveness = liveness.difference(&if_decl).cloned().collect();
-        liveness = liveness.difference(&else_decl).cloned().collect();
+        // liveness = liveness.difference(&if_decl).cloned().collect();
+        // liveness = liveness.difference(&else_decl).cloned().collect();
         // compute split and merge points
         let line_num = self.expr_to_line(&guard_expr);
         let split = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.lo()).line;
@@ -408,11 +411,13 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         self.add_external_event(line_num, 
           ExternalEvent::Branch { 
             live_vars: liveness, 
-            branches: vec![ExtBranchData{ e_data: if_ev, line_map: if_map}, 
-                          ExtBranchData {e_data: else_ev, line_map: else_map}], 
+            branches: vec![ExtBranchData{ e_data: if_ev, line_map: if_map, decl_vars: if_decl }, 
+                          ExtBranchData { e_data: else_ev, line_map: else_map, decl_vars: else_decl }], 
             branch_type:b_ty, 
             split_point: split, 
-            merge_point: merge });
+            merge_point: merge,
+            id: *self.unique_id });
+            *self.unique_id += 1;
         // println!("poopoo eve {:#?}", self.preprocessed_events);  
       }
 
@@ -494,11 +499,11 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               // get event info
               let mut branch_e_data: Vec<(usize, ExternalEvent)> = Vec::new();
               // append event that happens when matching
-              branch_e_data.push((pat_line, self.ext_ev_of_evt(parent_ev.clone(), ResourceTy::Value(cons_rap), parent.clone())));
+              // branch_e_data.push((pat_line, self.ext_ev_of_evt(parent_ev.clone(), ResourceTy::Value(cons_rap), parent.clone())));
 
-              for v in pat_decls.iter() { // will need to append events at the end of the branch that return resources
-                self.add_external_event(pat_line, ExternalEvent::Bind { from: ResourceTy::Anonymous, to: ResourceTy::Value(v.clone()) });
-              }
+              // for v in pat_decls.iter() { // will need to append events at the end of the branch that return resources
+              //   self.add_external_event(pat_line, ExternalEvent::Bind { from: ResourceTy::Anonymous, to: ResourceTy::Value(v.clone()) });
+              // }
 
               let temp: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev_match(i, begin, end, &liveness)).cloned().collect();
               for elem in temp {
@@ -519,14 +524,14 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
 
 
               // for each var decl append a GoOutOfScope
-              for v in var_decls.iter() {
-                self.add_external_event(end, ExternalEvent::GoOutOfScope { ro: v.clone() })
-              }
+              // for v in var_decls.iter() {
+              //   self.add_external_event(end, ExternalEvent::GoOutOfScope { ro: v.clone() })
+              // }
 
-              branch_e_data.push((end, self.ext_ev_of_evt(parent_ev.clone(), ResourceTy::Anonymous, parent.clone())));
-              let branch_line_map = create_line_map(&branch_e_data);
+              // branch_e_data.push((end, self.ext_ev_of_evt(parent_ev.clone(), ResourceTy::Anonymous, parent.clone())));
+              // let branch_line_map = create_line_map(&branch_e_data);
 
-              branch_data.push(ExtBranchData { e_data: branch_e_data, line_map: branch_line_map });
+              //branch_data.push(ExtBranchData { e_data: branch_e_data, line_map: branch_line_map,  });
             }
 
             // filter events from main events
@@ -549,12 +554,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               }
             );
             // add branch event
-            self.add_external_event(split, ExternalEvent::Branch { 
-              live_vars: liveness, 
-              branches: branch_data, 
-              branch_type: BranchType::Match(b_ty_names, b_slices), 
-              split_point: split, 
-              merge_point: merge });
+            // self.add_external_event(split, ExternalEvent::Branch { 
+            //   live_vars: liveness, 
+            //   branches: branch_data, 
+            //   branch_type: BranchType::Match(b_ty_names, b_slices), 
+            //   split_point: split, 
+            //   merge_point: merge });
           }
           _ => {}
         }

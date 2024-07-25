@@ -12,6 +12,7 @@ to fix/implement:
 - [ ] Implement new state calculation system
 - [ ] Remove struct members that are not utilized from the timeline
 - [ ] Implement hoverable anonymous owner interactions in code panel
+- [ ] Fix Resource dropping (breaks with conditionals it seems)
 - [ x ] Reference aliasing
 - [ x ] Fix annotated source gen to handle `</>` characters 
 - [ ] Let-if/match expressions (new conditional move event)

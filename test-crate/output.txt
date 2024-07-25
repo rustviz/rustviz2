@@ -1,50 +1,6 @@
 BORROW MAP {}
 lender to refs {}
 ultimate refs {}
-annotated line map {
-    1: [
-        "fn main () {",
-    ],
-    2: [
-        "  let x = 8;",
-        "  let [_tspan data-hash=\"1\"_]x[_/tspan_] = 8;",
-    ],
-    3: [
-        "  if true {",
-    ],
-    4: [
-        "    let y = x;",
-        "    let [_tspan data-hash=\"2\"_]y[_/tspan_] = x;",
-        "    let y = [_tspan data-hash=\"1\"_]x[_/tspan_];",
-    ],
-    5: [
-        "    if true {",
-    ],
-    6: [
-        "      let z = y;",
-        "      let [_tspan data-hash=\"3\"_]z[_/tspan_] = y;",
-        "      let z = [_tspan data-hash=\"2\"_]y[_/tspan_];",
-    ],
-    7: [
-        "    }",
-    ],
-    8: [
-        "  }",
-    ],
-    9: [
-        "}",
-    ],
-}
-annotated str fn main () {
-  let <tspan data-hash="1">x</tspan> = 8;
-  if true {
-    let <tspan data-hash="2">y</tspan> = <tspan data-hash="1">x</tspan>;
-    if true {
-      let <tspan data-hash="3">z</tspan> = <tspan data-hash="2">y</tspan>;
-    }
-  }
-}
-
 preprocessed events : [
     (
         2,
@@ -55,21 +11,22 @@ preprocessed events : [
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
+                        is_mut: true,
                     },
                 ),
             ),
+            id: 0,
         },
     ),
     (
-        3,
+        4,
         Branch {
             live_vars: {
                 Owner(
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
+                        is_mut: true,
                     },
                 ),
             },
@@ -77,14 +34,14 @@ preprocessed events : [
                 ExtBranchData {
                     e_data: [
                         (
-                            4,
+                            5,
                             Copy {
                                 from: Value(
                                     Owner(
                                         Owner {
                                             name: "x",
                                             hash: 1,
-                                            is_mut: false,
+                                            is_mut: true,
                                         },
                                     ),
                                 ),
@@ -97,10 +54,11 @@ preprocessed events : [
                                         },
                                     ),
                                 ),
+                                id: 1,
                             },
                         ),
                         (
-                            5,
+                            6,
                             Branch {
                                 live_vars: {
                                     Owner(
@@ -110,12 +68,19 @@ preprocessed events : [
                                             is_mut: false,
                                         },
                                     ),
+                                    Owner(
+                                        Owner {
+                                            name: "x",
+                                            hash: 1,
+                                            is_mut: true,
+                                        },
+                                    ),
                                 },
                                 branches: [
                                     ExtBranchData {
                                         e_data: [
                                             (
-                                                6,
+                                                7,
                                                 Copy {
                                                     from: Value(
                                                         Owner(
@@ -135,11 +100,138 @@ preprocessed events : [
                                                             },
                                                         ),
                                                     ),
+                                                    id: 2,
+                                                },
+                                            ),
+                                            (
+                                                8,
+                                                Copy {
+                                                    from: Value(
+                                                        Owner(
+                                                            Owner {
+                                                                name: "x",
+                                                                hash: 1,
+                                                                is_mut: true,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    to: Value(
+                                                        Owner(
+                                                            Owner {
+                                                                name: "c",
+                                                                hash: 4,
+                                                                is_mut: false,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    id: 3,
+                                                },
+                                            ),
+                                            (
+                                                9,
+                                                Branch {
+                                                    live_vars: {
+                                                        Owner(
+                                                            Owner {
+                                                                name: "c",
+                                                                hash: 4,
+                                                                is_mut: false,
+                                                            },
+                                                        ),
+                                                    },
+                                                    branches: [
+                                                        ExtBranchData {
+                                                            e_data: [
+                                                                (
+                                                                    10,
+                                                                    Copy {
+                                                                        from: Value(
+                                                                            Owner(
+                                                                                Owner {
+                                                                                    name: "c",
+                                                                                    hash: 4,
+                                                                                    is_mut: false,
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        to: Value(
+                                                                            Owner(
+                                                                                Owner {
+                                                                                    name: "b",
+                                                                                    hash: 5,
+                                                                                    is_mut: false,
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        id: 4,
+                                                                    },
+                                                                ),
+                                                            ],
+                                                            line_map: {
+                                                                10: [
+                                                                    Copy {
+                                                                        from: Value(
+                                                                            Owner(
+                                                                                Owner {
+                                                                                    name: "c",
+                                                                                    hash: 4,
+                                                                                    is_mut: false,
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        to: Value(
+                                                                            Owner(
+                                                                                Owner {
+                                                                                    name: "b",
+                                                                                    hash: 5,
+                                                                                    is_mut: false,
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        id: 4,
+                                                                    },
+                                                                ],
+                                                            },
+                                                            decl_vars: {
+                                                                Owner(
+                                                                    Owner {
+                                                                        name: "b",
+                                                                        hash: 5,
+                                                                        is_mut: false,
+                                                                    },
+                                                                ),
+                                                            },
+                                                        },
+                                                        ExtBranchData {
+                                                            e_data: [],
+                                                            line_map: {},
+                                                            decl_vars: {},
+                                                        },
+                                                    ],
+                                                    branch_type: If(
+                                                        [
+                                                            "If",
+                                                            "Else",
+                                                        ],
+                                                        [
+                                                            (
+                                                                9,
+                                                                11,
+                                                            ),
+                                                            (
+                                                                11,
+                                                                11,
+                                                            ),
+                                                        ],
+                                                    ),
+                                                    split_point: 9,
+                                                    merge_point: 11,
+                                                    id: 5,
                                                 },
                                             ),
                                         ],
                                         line_map: {
-                                            6: [
+                                            7: [
                                                 Copy {
                                                     from: Value(
                                                         Owner(
@@ -159,13 +251,54 @@ preprocessed events : [
                                                             },
                                                         ),
                                                     ),
+                                                    id: 2,
                                                 },
                                             ],
+                                            8: [
+                                                Copy {
+                                                    from: Value(
+                                                        Owner(
+                                                            Owner {
+                                                                name: "x",
+                                                                hash: 1,
+                                                                is_mut: true,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    to: Value(
+                                                        Owner(
+                                                            Owner {
+                                                                name: "c",
+                                                                hash: 4,
+                                                                is_mut: false,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    id: 3,
+                                                },
+                                            ],
+                                        },
+                                        decl_vars: {
+                                            Owner(
+                                                Owner {
+                                                    name: "z",
+                                                    hash: 3,
+                                                    is_mut: false,
+                                                },
+                                            ),
+                                            Owner(
+                                                Owner {
+                                                    name: "c",
+                                                    hash: 4,
+                                                    is_mut: false,
+                                                },
+                                            ),
                                         },
                                     },
                                     ExtBranchData {
                                         e_data: [],
                                         line_map: {},
+                                        decl_vars: {},
                                     },
                                 ],
                                 branch_type: If(
@@ -175,29 +308,30 @@ preprocessed events : [
                                     ],
                                     [
                                         (
-                                            5,
-                                            7,
+                                            6,
+                                            12,
                                         ),
                                         (
-                                            7,
-                                            7,
+                                            12,
+                                            12,
                                         ),
                                     ],
                                 ),
-                                split_point: 5,
-                                merge_point: 7,
+                                split_point: 6,
+                                merge_point: 12,
+                                id: 6,
                             },
                         ),
                     ],
                     line_map: {
-                        4: [
+                        5: [
                             Copy {
                                 from: Value(
                                     Owner(
                                         Owner {
                                             name: "x",
                                             hash: 1,
-                                            is_mut: false,
+                                            is_mut: true,
                                         },
                                     ),
                                 ),
@@ -210,13 +344,24 @@ preprocessed events : [
                                         },
                                     ),
                                 ),
+                                id: 1,
                             },
                         ],
+                    },
+                    decl_vars: {
+                        Owner(
+                            Owner {
+                                name: "y",
+                                hash: 2,
+                                is_mut: false,
+                            },
+                        ),
                     },
                 },
                 ExtBranchData {
                     e_data: [],
                     line_map: {},
+                    decl_vars: {},
                 },
             ],
             branch_type: If(
@@ -226,28 +371,43 @@ preprocessed events : [
                 ],
                 [
                     (
-                        3,
-                        8,
+                        4,
+                        13,
                     ),
                     (
-                        8,
-                        8,
+                        13,
+                        13,
                     ),
                 ],
             ),
-            split_point: 3,
-            merge_point: 8,
+            split_point: 4,
+            merge_point: 13,
+            id: 7,
         },
     ),
     (
-        3,
+        4,
         Copy {
             from: Anonymous,
             to: Caller,
+            id: 8,
         },
     ),
     (
-        7,
+        11,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "b",
+                    hash: 5,
+                    is_mut: false,
+                },
+            ),
+            id: 12,
+        },
+    ),
+    (
+        12,
         GoOutOfScope {
             ro: Owner(
                 Owner {
@@ -256,10 +416,24 @@ preprocessed events : [
                     is_mut: false,
                 },
             ),
+            id: 9,
         },
     ),
     (
-        8,
+        12,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "c",
+                    hash: 4,
+                    is_mut: false,
+                },
+            ),
+            id: 11,
+        },
+    ),
+    (
+        13,
         GoOutOfScope {
             ro: Owner(
                 Owner {
@@ -268,30 +442,32 @@ preprocessed events : [
                     is_mut: false,
                 },
             ),
+            id: 13,
         },
     ),
     (
-        9,
+        14,
         GoOutOfScope {
             ro: Owner(
                 Owner {
                     name: "x",
                     hash: 1,
-                    is_mut: false,
+                    is_mut: true,
                 },
             ),
+            id: 10,
         },
     ),
 ]
 ev_line_map: {
-    4: [
+    5: [
         Copy {
             from: Value(
                 Owner(
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
+                        is_mut: true,
                     },
                 ),
             ),
@@ -304,9 +480,10 @@ ev_line_map: {
                     },
                 ),
             ),
+            id: 1,
         },
     ],
-    6: [
+    7: [
         Copy {
             from: Value(
                 Owner(
@@ -326,6 +503,53 @@ ev_line_map: {
                     },
                 ),
             ),
+            id: 2,
+        },
+    ],
+    8: [
+        Copy {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 3,
+        },
+    ],
+    10: [
+        Copy {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "b",
+                        hash: 5,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 4,
         },
     ],
 }
@@ -339,21 +563,22 @@ processed events [
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
+                        is_mut: true,
                     },
                 ),
             ),
+            id: 0,
         },
     ),
     (
-        3,
+        4,
         Branch {
             live_vars: {
                 Owner(
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
+                        is_mut: true,
                     },
                 ),
             },
@@ -361,14 +586,14 @@ processed events [
                 ExtBranchData {
                     e_data: [
                         (
-                            4,
+                            5,
                             Copy {
                                 from: Value(
                                     Owner(
                                         Owner {
                                             name: "x",
                                             hash: 1,
-                                            is_mut: false,
+                                            is_mut: true,
                                         },
                                     ),
                                 ),
@@ -381,10 +606,11 @@ processed events [
                                         },
                                     ),
                                 ),
+                                id: 1,
                             },
                         ),
                         (
-                            5,
+                            6,
                             Branch {
                                 live_vars: {
                                     Owner(
@@ -394,12 +620,19 @@ processed events [
                                             is_mut: false,
                                         },
                                     ),
+                                    Owner(
+                                        Owner {
+                                            name: "x",
+                                            hash: 1,
+                                            is_mut: true,
+                                        },
+                                    ),
                                 },
                                 branches: [
                                     ExtBranchData {
                                         e_data: [
                                             (
-                                                6,
+                                                7,
                                                 Copy {
                                                     from: Value(
                                                         Owner(
@@ -419,11 +652,138 @@ processed events [
                                                             },
                                                         ),
                                                     ),
+                                                    id: 2,
+                                                },
+                                            ),
+                                            (
+                                                8,
+                                                Copy {
+                                                    from: Value(
+                                                        Owner(
+                                                            Owner {
+                                                                name: "x",
+                                                                hash: 1,
+                                                                is_mut: true,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    to: Value(
+                                                        Owner(
+                                                            Owner {
+                                                                name: "c",
+                                                                hash: 4,
+                                                                is_mut: false,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    id: 3,
+                                                },
+                                            ),
+                                            (
+                                                9,
+                                                Branch {
+                                                    live_vars: {
+                                                        Owner(
+                                                            Owner {
+                                                                name: "c",
+                                                                hash: 4,
+                                                                is_mut: false,
+                                                            },
+                                                        ),
+                                                    },
+                                                    branches: [
+                                                        ExtBranchData {
+                                                            e_data: [
+                                                                (
+                                                                    10,
+                                                                    Copy {
+                                                                        from: Value(
+                                                                            Owner(
+                                                                                Owner {
+                                                                                    name: "c",
+                                                                                    hash: 4,
+                                                                                    is_mut: false,
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        to: Value(
+                                                                            Owner(
+                                                                                Owner {
+                                                                                    name: "b",
+                                                                                    hash: 5,
+                                                                                    is_mut: false,
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        id: 4,
+                                                                    },
+                                                                ),
+                                                            ],
+                                                            line_map: {
+                                                                10: [
+                                                                    Copy {
+                                                                        from: Value(
+                                                                            Owner(
+                                                                                Owner {
+                                                                                    name: "c",
+                                                                                    hash: 4,
+                                                                                    is_mut: false,
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        to: Value(
+                                                                            Owner(
+                                                                                Owner {
+                                                                                    name: "b",
+                                                                                    hash: 5,
+                                                                                    is_mut: false,
+                                                                                },
+                                                                            ),
+                                                                        ),
+                                                                        id: 4,
+                                                                    },
+                                                                ],
+                                                            },
+                                                            decl_vars: {
+                                                                Owner(
+                                                                    Owner {
+                                                                        name: "b",
+                                                                        hash: 5,
+                                                                        is_mut: false,
+                                                                    },
+                                                                ),
+                                                            },
+                                                        },
+                                                        ExtBranchData {
+                                                            e_data: [],
+                                                            line_map: {},
+                                                            decl_vars: {},
+                                                        },
+                                                    ],
+                                                    branch_type: If(
+                                                        [
+                                                            "If",
+                                                            "Else",
+                                                        ],
+                                                        [
+                                                            (
+                                                                9,
+                                                                11,
+                                                            ),
+                                                            (
+                                                                11,
+                                                                11,
+                                                            ),
+                                                        ],
+                                                    ),
+                                                    split_point: 9,
+                                                    merge_point: 11,
+                                                    id: 5,
                                                 },
                                             ),
                                         ],
                                         line_map: {
-                                            6: [
+                                            7: [
                                                 Copy {
                                                     from: Value(
                                                         Owner(
@@ -443,13 +803,54 @@ processed events [
                                                             },
                                                         ),
                                                     ),
+                                                    id: 2,
                                                 },
                                             ],
+                                            8: [
+                                                Copy {
+                                                    from: Value(
+                                                        Owner(
+                                                            Owner {
+                                                                name: "x",
+                                                                hash: 1,
+                                                                is_mut: true,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    to: Value(
+                                                        Owner(
+                                                            Owner {
+                                                                name: "c",
+                                                                hash: 4,
+                                                                is_mut: false,
+                                                            },
+                                                        ),
+                                                    ),
+                                                    id: 3,
+                                                },
+                                            ],
+                                        },
+                                        decl_vars: {
+                                            Owner(
+                                                Owner {
+                                                    name: "z",
+                                                    hash: 3,
+                                                    is_mut: false,
+                                                },
+                                            ),
+                                            Owner(
+                                                Owner {
+                                                    name: "c",
+                                                    hash: 4,
+                                                    is_mut: false,
+                                                },
+                                            ),
                                         },
                                     },
                                     ExtBranchData {
                                         e_data: [],
                                         line_map: {},
+                                        decl_vars: {},
                                     },
                                 ],
                                 branch_type: If(
@@ -459,29 +860,30 @@ processed events [
                                     ],
                                     [
                                         (
-                                            5,
-                                            7,
+                                            6,
+                                            12,
                                         ),
                                         (
-                                            7,
-                                            7,
+                                            12,
+                                            12,
                                         ),
                                     ],
                                 ),
-                                split_point: 5,
-                                merge_point: 7,
+                                split_point: 6,
+                                merge_point: 12,
+                                id: 6,
                             },
                         ),
                     ],
                     line_map: {
-                        4: [
+                        5: [
                             Copy {
                                 from: Value(
                                     Owner(
                                         Owner {
                                             name: "x",
                                             hash: 1,
-                                            is_mut: false,
+                                            is_mut: true,
                                         },
                                     ),
                                 ),
@@ -494,13 +896,24 @@ processed events [
                                         },
                                     ),
                                 ),
+                                id: 1,
                             },
                         ],
+                    },
+                    decl_vars: {
+                        Owner(
+                            Owner {
+                                name: "y",
+                                hash: 2,
+                                is_mut: false,
+                            },
+                        ),
                     },
                 },
                 ExtBranchData {
                     e_data: [],
                     line_map: {},
+                    decl_vars: {},
                 },
             ],
             branch_type: If(
@@ -510,28 +923,43 @@ processed events [
                 ],
                 [
                     (
-                        3,
-                        8,
+                        4,
+                        13,
                     ),
                     (
-                        8,
-                        8,
+                        13,
+                        13,
                     ),
                 ],
             ),
-            split_point: 3,
-            merge_point: 8,
+            split_point: 4,
+            merge_point: 13,
+            id: 7,
         },
     ),
     (
-        3,
+        4,
         Copy {
             from: Anonymous,
             to: Caller,
+            id: 8,
         },
     ),
     (
-        7,
+        11,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "b",
+                    hash: 5,
+                    is_mut: false,
+                },
+            ),
+            id: 12,
+        },
+    ),
+    (
+        12,
         GoOutOfScope {
             ro: Owner(
                 Owner {
@@ -540,10 +968,24 @@ processed events [
                     is_mut: false,
                 },
             ),
+            id: 9,
         },
     ),
     (
-        8,
+        12,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "c",
+                    hash: 4,
+                    is_mut: false,
+                },
+            ),
+            id: 11,
+        },
+    ),
+    (
+        13,
         GoOutOfScope {
             ro: Owner(
                 Owner {
@@ -552,18 +994,20 @@ processed events [
                     is_mut: false,
                 },
             ),
+            id: 13,
         },
     ),
     (
-        9,
+        14,
         GoOutOfScope {
             ro: Owner(
                 Owner {
                     name: "x",
                     hash: 1,
-                    is_mut: false,
+                    is_mut: true,
                 },
             ),
+            id: 10,
         },
     ),
 ]
@@ -574,7 +1018,7 @@ timelines {
             Owner {
                 name: "x",
                 hash: 1,
-                is_mut: false,
+                is_mut: true,
             },
         ),
         history: [
@@ -587,21 +1031,22 @@ timelines {
                             Owner {
                                 name: "x",
                                 hash: 1,
-                                is_mut: false,
+                                is_mut: true,
                             },
                         ),
                     ),
+                    id: 0,
                 },
             ),
             (
-                3,
+                4,
                 Branch {
                     is: Value(
                         Owner(
                             Owner {
                                 name: "x",
                                 hash: 1,
-                                is_mut: false,
+                                is_mut: true,
                             },
                         ),
                     ),
@@ -618,7 +1063,7 @@ timelines {
                             },
                             e_data: [
                                 (
-                                    4,
+                                    5,
                                     Duplicate {
                                         to: Value(
                                             Owner(
@@ -634,10 +1079,97 @@ timelines {
                                                 Owner {
                                                     name: "x",
                                                     hash: 1,
-                                                    is_mut: false,
+                                                    is_mut: true,
                                                 },
                                             ),
                                         ),
+                                        id: 1,
+                                    },
+                                ),
+                                (
+                                    6,
+                                    Branch {
+                                        is: Value(
+                                            Owner(
+                                                Owner {
+                                                    name: "x",
+                                                    hash: 1,
+                                                    is_mut: true,
+                                                },
+                                            ),
+                                        ),
+                                        branch_history: [
+                                            BranchData {
+                                                t_data: TimelineColumnData {
+                                                    name: "",
+                                                    x_val: -1,
+                                                    title: "",
+                                                    is_ref: false,
+                                                    is_struct_group: false,
+                                                    is_member: false,
+                                                    owner: 0,
+                                                },
+                                                e_data: [
+                                                    (
+                                                        8,
+                                                        Duplicate {
+                                                            to: Value(
+                                                                Owner(
+                                                                    Owner {
+                                                                        name: "c",
+                                                                        hash: 4,
+                                                                        is_mut: false,
+                                                                    },
+                                                                ),
+                                                            ),
+                                                            is: Value(
+                                                                Owner(
+                                                                    Owner {
+                                                                        name: "x",
+                                                                        hash: 1,
+                                                                        is_mut: true,
+                                                                    },
+                                                                ),
+                                                            ),
+                                                            id: 3,
+                                                        },
+                                                    ),
+                                                ],
+                                                width: 0,
+                                            },
+                                            BranchData {
+                                                t_data: TimelineColumnData {
+                                                    name: "",
+                                                    x_val: -1,
+                                                    title: "",
+                                                    is_ref: false,
+                                                    is_struct_group: false,
+                                                    is_member: false,
+                                                    owner: 0,
+                                                },
+                                                e_data: [],
+                                                width: 0,
+                                            },
+                                        ],
+                                        ty: If(
+                                            [
+                                                "If",
+                                                "Else",
+                                            ],
+                                            [
+                                                (
+                                                    6,
+                                                    12,
+                                                ),
+                                                (
+                                                    12,
+                                                    12,
+                                                ),
+                                            ],
+                                        ),
+                                        split_point: 6,
+                                        merge_point: 12,
+                                        id: 6,
                                     },
                                 ),
                             ],
@@ -664,21 +1196,22 @@ timelines {
                         ],
                         [
                             (
-                                3,
-                                8,
+                                4,
+                                13,
                             ),
                             (
-                                8,
-                                8,
+                                13,
+                                13,
                             ),
                         ],
                     ),
-                    split_point: 3,
-                    merge_point: 8,
+                    split_point: 4,
+                    merge_point: 13,
+                    id: 7,
                 },
             ),
             (
-                9,
+                14,
                 OwnerGoOutOfScope,
             ),
         ],
@@ -693,14 +1226,14 @@ timelines {
         ),
         history: [
             (
-                4,
+                5,
                 Copy {
                     from: Value(
                         Owner(
                             Owner {
                                 name: "x",
                                 hash: 1,
-                                is_mut: false,
+                                is_mut: true,
                             },
                         ),
                     ),
@@ -713,10 +1246,97 @@ timelines {
                             },
                         ),
                     ),
+                    id: 1,
                 },
             ),
             (
-                8,
+                6,
+                Branch {
+                    is: Value(
+                        Owner(
+                            Owner {
+                                name: "y",
+                                hash: 2,
+                                is_mut: false,
+                            },
+                        ),
+                    ),
+                    branch_history: [
+                        BranchData {
+                            t_data: TimelineColumnData {
+                                name: "",
+                                x_val: -1,
+                                title: "",
+                                is_ref: false,
+                                is_struct_group: false,
+                                is_member: false,
+                                owner: 0,
+                            },
+                            e_data: [
+                                (
+                                    7,
+                                    Duplicate {
+                                        to: Value(
+                                            Owner(
+                                                Owner {
+                                                    name: "z",
+                                                    hash: 3,
+                                                    is_mut: false,
+                                                },
+                                            ),
+                                        ),
+                                        is: Value(
+                                            Owner(
+                                                Owner {
+                                                    name: "y",
+                                                    hash: 2,
+                                                    is_mut: false,
+                                                },
+                                            ),
+                                        ),
+                                        id: 2,
+                                    },
+                                ),
+                            ],
+                            width: 0,
+                        },
+                        BranchData {
+                            t_data: TimelineColumnData {
+                                name: "",
+                                x_val: -1,
+                                title: "",
+                                is_ref: false,
+                                is_struct_group: false,
+                                is_member: false,
+                                owner: 0,
+                            },
+                            e_data: [],
+                            width: 0,
+                        },
+                    ],
+                    ty: If(
+                        [
+                            "If",
+                            "Else",
+                        ],
+                        [
+                            (
+                                6,
+                                12,
+                            ),
+                            (
+                                12,
+                                12,
+                            ),
+                        ],
+                    ),
+                    split_point: 6,
+                    merge_point: 12,
+                    id: 6,
+                },
+            ),
+            (
+                13,
                 OwnerGoOutOfScope,
             ),
         ],
@@ -732,18 +1352,205 @@ timelines {
         history: [
             (
                 7,
+                Copy {
+                    from: Value(
+                        Owner(
+                            Owner {
+                                name: "y",
+                                hash: 2,
+                                is_mut: false,
+                            },
+                        ),
+                    ),
+                    is: Value(
+                        Owner(
+                            Owner {
+                                name: "z",
+                                hash: 3,
+                                is_mut: false,
+                            },
+                        ),
+                    ),
+                    id: 2,
+                },
+            ),
+            (
+                12,
+                OwnerGoOutOfScope,
+            ),
+        ],
+    },
+    4: Timeline {
+        resource_access_point: Owner(
+            Owner {
+                name: "c",
+                hash: 4,
+                is_mut: false,
+            },
+        ),
+        history: [
+            (
+                8,
+                Copy {
+                    from: Value(
+                        Owner(
+                            Owner {
+                                name: "x",
+                                hash: 1,
+                                is_mut: true,
+                            },
+                        ),
+                    ),
+                    is: Value(
+                        Owner(
+                            Owner {
+                                name: "c",
+                                hash: 4,
+                                is_mut: false,
+                            },
+                        ),
+                    ),
+                    id: 3,
+                },
+            ),
+            (
+                9,
+                Branch {
+                    is: Value(
+                        Owner(
+                            Owner {
+                                name: "c",
+                                hash: 4,
+                                is_mut: false,
+                            },
+                        ),
+                    ),
+                    branch_history: [
+                        BranchData {
+                            t_data: TimelineColumnData {
+                                name: "",
+                                x_val: -1,
+                                title: "",
+                                is_ref: false,
+                                is_struct_group: false,
+                                is_member: false,
+                                owner: 0,
+                            },
+                            e_data: [
+                                (
+                                    10,
+                                    Duplicate {
+                                        to: Value(
+                                            Owner(
+                                                Owner {
+                                                    name: "b",
+                                                    hash: 5,
+                                                    is_mut: false,
+                                                },
+                                            ),
+                                        ),
+                                        is: Value(
+                                            Owner(
+                                                Owner {
+                                                    name: "c",
+                                                    hash: 4,
+                                                    is_mut: false,
+                                                },
+                                            ),
+                                        ),
+                                        id: 4,
+                                    },
+                                ),
+                            ],
+                            width: 0,
+                        },
+                        BranchData {
+                            t_data: TimelineColumnData {
+                                name: "",
+                                x_val: -1,
+                                title: "",
+                                is_ref: false,
+                                is_struct_group: false,
+                                is_member: false,
+                                owner: 0,
+                            },
+                            e_data: [],
+                            width: 0,
+                        },
+                    ],
+                    ty: If(
+                        [
+                            "If",
+                            "Else",
+                        ],
+                        [
+                            (
+                                9,
+                                11,
+                            ),
+                            (
+                                11,
+                                11,
+                            ),
+                        ],
+                    ),
+                    split_point: 9,
+                    merge_point: 11,
+                    id: 5,
+                },
+            ),
+            (
+                12,
+                OwnerGoOutOfScope,
+            ),
+        ],
+    },
+    5: Timeline {
+        resource_access_point: Owner(
+            Owner {
+                name: "b",
+                hash: 5,
+                is_mut: false,
+            },
+        ),
+        history: [
+            (
+                10,
+                Copy {
+                    from: Value(
+                        Owner(
+                            Owner {
+                                name: "c",
+                                hash: 4,
+                                is_mut: false,
+                            },
+                        ),
+                    ),
+                    is: Value(
+                        Owner(
+                            Owner {
+                                name: "b",
+                                hash: 5,
+                                is_mut: false,
+                            },
+                        ),
+                    ),
+                    id: 4,
+                },
+            ),
+            (
+                11,
                 OwnerGoOutOfScope,
             ),
         ],
     },
 }
-branch width 2
 hash 1, timeline Timeline {
     resource_access_point: Owner(
         Owner {
             name: "x",
             hash: 1,
-            is_mut: false,
+            is_mut: true,
         },
     ),
     history: [
@@ -756,21 +1563,22 @@ hash 1, timeline Timeline {
                         Owner {
                             name: "x",
                             hash: 1,
-                            is_mut: false,
+                            is_mut: true,
                         },
                     ),
                 ),
+                id: 0,
             },
         ),
         (
-            3,
+            4,
             Branch {
                 is: Value(
                     Owner(
                         Owner {
                             name: "x",
                             hash: 1,
-                            is_mut: false,
+                            is_mut: true,
                         },
                     ),
                 ),
@@ -778,8 +1586,8 @@ hash 1, timeline Timeline {
                     BranchData {
                         t_data: TimelineColumnData {
                             name: "x",
-                            x_val: 70,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, immutable",
+                            x_val: 45,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
                             is_ref: false,
                             is_struct_group: false,
                             is_member: false,
@@ -787,7 +1595,7 @@ hash 1, timeline Timeline {
                         },
                         e_data: [
                             (
-                                4,
+                                5,
                                 Duplicate {
                                     to: Value(
                                         Owner(
@@ -803,20 +1611,107 @@ hash 1, timeline Timeline {
                                             Owner {
                                                 name: "x",
                                                 hash: 1,
-                                                is_mut: false,
+                                                is_mut: true,
                                             },
                                         ),
                                     ),
+                                    id: 1,
+                                },
+                            ),
+                            (
+                                6,
+                                Branch {
+                                    is: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "x",
+                                                hash: 1,
+                                                is_mut: true,
+                                            },
+                                        ),
+                                    ),
+                                    branch_history: [
+                                        BranchData {
+                                            t_data: TimelineColumnData {
+                                                name: "x",
+                                                x_val: 20,
+                                                title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
+                                                is_ref: false,
+                                                is_struct_group: false,
+                                                is_member: false,
+                                                owner: 1,
+                                            },
+                                            e_data: [
+                                                (
+                                                    8,
+                                                    Duplicate {
+                                                        to: Value(
+                                                            Owner(
+                                                                Owner {
+                                                                    name: "c",
+                                                                    hash: 4,
+                                                                    is_mut: false,
+                                                                },
+                                                            ),
+                                                        ),
+                                                        is: Value(
+                                                            Owner(
+                                                                Owner {
+                                                                    name: "x",
+                                                                    hash: 1,
+                                                                    is_mut: true,
+                                                                },
+                                                            ),
+                                                        ),
+                                                        id: 3,
+                                                    },
+                                                ),
+                                            ],
+                                            width: 0,
+                                        },
+                                        BranchData {
+                                            t_data: TimelineColumnData {
+                                                name: "x",
+                                                x_val: 70,
+                                                title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
+                                                is_ref: false,
+                                                is_struct_group: false,
+                                                is_member: false,
+                                                owner: 1,
+                                            },
+                                            e_data: [],
+                                            width: 0,
+                                        },
+                                    ],
+                                    ty: If(
+                                        [
+                                            "If",
+                                            "Else",
+                                        ],
+                                        [
+                                            (
+                                                6,
+                                                12,
+                                            ),
+                                            (
+                                                12,
+                                                12,
+                                            ),
+                                        ],
+                                    ),
+                                    split_point: 6,
+                                    merge_point: 12,
+                                    id: 6,
                                 },
                             ),
                         ],
-                        width: 0,
+                        width: 2,
                     },
                     BranchData {
                         t_data: TimelineColumnData {
                             name: "x",
-                            x_val: 120,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, immutable",
+                            x_val: 145,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
                             is_ref: false,
                             is_struct_group: false,
                             is_member: false,
@@ -833,292 +1728,55 @@ hash 1, timeline Timeline {
                     ],
                     [
                         (
-                            3,
-                            8,
+                            4,
+                            13,
                         ),
                         (
-                            8,
-                            8,
+                            13,
+                            13,
                         ),
                     ],
                 ),
-                split_point: 3,
-                merge_point: 8,
+                split_point: 4,
+                merge_point: 13,
+                id: 7,
             },
         ),
         (
-            9,
+            14,
             OwnerGoOutOfScope,
         ),
     ],
 }
-prev_state None
 PREV STATE OutOfScope
-root_states [
-    (
-        1,
-        2,
-        OutOfScope,
-    ),
-    (
-        2,
-        3,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-    (
-        3,
-        8,
-        OutOfScope,
-    ),
-    (
-        9,
-        9,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-    (
-        9,
-        9,
-        OutOfScope,
-    ),
-]
-p_state (
-    2,
-    3,
-    FullPrivilege {
-        s: Full,
-    },
-)
-split 3
-merge 8
-branch BranchData {
-    t_data: TimelineColumnData {
-        name: "x",
-        x_val: 70,
-        title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, immutable",
-        is_ref: false,
-        is_struct_group: false,
-        is_member: false,
-        owner: 1,
-    },
-    e_data: [
-        (
-            4,
-            Duplicate {
-                to: Value(
-                    Owner(
-                        Owner {
-                            name: "y",
-                            hash: 2,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                is: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
-                            hash: 1,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-            },
-        ),
-    ],
-    width: 0,
-}
-start end for branch 0, : 3 - 8
-begin state for branch 0, : Some(
-    (
-        4,
-        4,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-)
 PREV STATE FullPrivilege {
     s: Full,
 }
-states [
-    (
-        4,
-        4,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-    (
-        4,
-        4,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-    (
-        4,
-        4,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-]
-end state for branch 0, : Some(
-    (
-        8,
-        8,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-)
 PREV STATE FullPrivilege {
     s: Full,
 }
-states when rendering timeline [
-    (
-        4,
-        4,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-    (
-        4,
-        4,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-    (
-        4,
-        8,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-    (
-        8,
-        8,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-]
-branch BranchData {
-    t_data: TimelineColumnData {
-        name: "x",
-        x_val: 120,
-        title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, immutable",
-        is_ref: false,
-        is_struct_group: false,
-        is_member: false,
-        owner: 1,
-    },
-    e_data: [],
-    width: 0,
-}
-here
-start end for branch 1, : 8 - 8
-begin state for branch 1, : Some(
-    (
-        4,
-        8,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-)
 PREV STATE FullPrivilege {
     s: Full,
 }
-states [
-    (
-        4,
-        8,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-    (
-        8,
-        8,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-]
-end state for branch 1, : Some(
-    (
-        8,
-        8,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-)
 PREV STATE FullPrivilege {
     s: Full,
 }
-states when rendering timeline [
-    (
-        4,
-        8,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-    (
-        8,
-        8,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-    (
-        8,
-        8,
-        FullPrivilege {
-            s: Gray,
-        },
-    ),
-]
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
 PREV STATE OutOfScope
-states when rendering timeline [
-    (
-        1,
-        2,
-        OutOfScope,
-    ),
-    (
-        2,
-        3,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-    (
-        3,
-        8,
-        OutOfScope,
-    ),
-    (
-        9,
-        9,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-    (
-        9,
-        9,
-        OutOfScope,
-    ),
-]
 hash 2, timeline Timeline {
     resource_access_point: Owner(
         Owner {
@@ -1129,14 +1787,14 @@ hash 2, timeline Timeline {
     ),
     history: [
         (
-            4,
+            5,
             Copy {
                 from: Value(
                     Owner(
                         Owner {
                             name: "x",
                             hash: 1,
-                            is_mut: false,
+                            is_mut: true,
                         },
                     ),
                 ),
@@ -1149,34 +1807,115 @@ hash 2, timeline Timeline {
                         },
                     ),
                 ),
+                id: 1,
             },
         ),
         (
-            8,
+            6,
+            Branch {
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "y",
+                            hash: 2,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                branch_history: [
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "y",
+                            x_val: 240,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;y&lt;/span&gt;, immutable",
+                            is_ref: false,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 2,
+                        },
+                        e_data: [
+                            (
+                                7,
+                                Duplicate {
+                                    to: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "z",
+                                                hash: 3,
+                                                is_mut: false,
+                                            },
+                                        ),
+                                    ),
+                                    is: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "y",
+                                                hash: 2,
+                                                is_mut: false,
+                                            },
+                                        ),
+                                    ),
+                                    id: 2,
+                                },
+                            ),
+                        ],
+                        width: 0,
+                    },
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "y",
+                            x_val: 290,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;y&lt;/span&gt;, immutable",
+                            is_ref: false,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 2,
+                        },
+                        e_data: [],
+                        width: 0,
+                    },
+                ],
+                ty: If(
+                    [
+                        "If",
+                        "Else",
+                    ],
+                    [
+                        (
+                            6,
+                            12,
+                        ),
+                        (
+                            12,
+                            12,
+                        ),
+                    ],
+                ),
+                split_point: 6,
+                merge_point: 12,
+                id: 6,
+            },
+        ),
+        (
+            13,
             OwnerGoOutOfScope,
         ),
     ],
 }
 PREV STATE OutOfScope
-states when rendering timeline [
-    (
-        1,
-        4,
-        OutOfScope,
-    ),
-    (
-        4,
-        8,
-        FullPrivilege {
-            s: Full,
-        },
-    ),
-    (
-        8,
-        8,
-        OutOfScope,
-    ),
-]
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE OutOfScope
 hash 3, timeline Timeline {
     resource_access_point: Owner(
         Owner {
@@ -1188,23 +1927,216 @@ hash 3, timeline Timeline {
     history: [
         (
             7,
+            Copy {
+                from: Value(
+                    Owner(
+                        Owner {
+                            name: "y",
+                            hash: 2,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "z",
+                            hash: 3,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 2,
+            },
+        ),
+        (
+            12,
             OwnerGoOutOfScope,
         ),
     ],
 }
 PREV STATE OutOfScope
-states when rendering timeline [
-    (
-        1,
-        7,
-        OutOfScope,
+hash 4, timeline Timeline {
+    resource_access_point: Owner(
+        Owner {
+            name: "c",
+            hash: 4,
+            is_mut: false,
+        },
     ),
-    (
-        7,
-        7,
-        Invalid,
+    history: [
+        (
+            8,
+            Copy {
+                from: Value(
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: true,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "c",
+                            hash: 4,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 3,
+            },
+        ),
+        (
+            9,
+            Branch {
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "c",
+                            hash: 4,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                branch_history: [
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "c",
+                            x_val: 430,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;c&lt;/span&gt;, immutable",
+                            is_ref: false,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 4,
+                        },
+                        e_data: [
+                            (
+                                10,
+                                Duplicate {
+                                    to: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "b",
+                                                hash: 5,
+                                                is_mut: false,
+                                            },
+                                        ),
+                                    ),
+                                    is: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "c",
+                                                hash: 4,
+                                                is_mut: false,
+                                            },
+                                        ),
+                                    ),
+                                    id: 4,
+                                },
+                            ),
+                        ],
+                        width: 0,
+                    },
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "c",
+                            x_val: 480,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;c&lt;/span&gt;, immutable",
+                            is_ref: false,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 4,
+                        },
+                        e_data: [],
+                        width: 0,
+                    },
+                ],
+                ty: If(
+                    [
+                        "If",
+                        "Else",
+                    ],
+                    [
+                        (
+                            9,
+                            11,
+                        ),
+                        (
+                            11,
+                            11,
+                        ),
+                    ],
+                ),
+                split_point: 9,
+                merge_point: 11,
+                id: 5,
+            },
+        ),
+        (
+            12,
+            OwnerGoOutOfScope,
+        ),
+    ],
+}
+PREV STATE OutOfScope
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE FullPrivilege {
+    s: Full,
+}
+PREV STATE OutOfScope
+hash 5, timeline Timeline {
+    resource_access_point: Owner(
+        Owner {
+            name: "b",
+            hash: 5,
+            is_mut: false,
+        },
     ),
-]
+    history: [
+        (
+            10,
+            Copy {
+                from: Value(
+                    Owner(
+                        Owner {
+                            name: "c",
+                            hash: 4,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "b",
+                            hash: 5,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 4,
+            },
+        ),
+        (
+            11,
+            OwnerGoOutOfScope,
+        ),
+    ],
+}
+PREV STATE OutOfScope
+PREV STATE OutOfScope
+PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope
