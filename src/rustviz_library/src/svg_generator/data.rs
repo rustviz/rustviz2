@@ -12,6 +12,7 @@ use std::cmp::Ordering;
 pub static LINE_SPACE: i64 = 30;
 // Top level Api that the Timeline object supports
 pub trait Visualizable {
+    fn event_of_exteranl_event(&self, line_num: usize, ext_ev: &ExternalEvent, to_o: bool) -> Vec<(usize, Event)>;
     fn fetch_states(&self, hash: &u64, history: & Vec<(usize, Event)>, before_state: Option<(usize, usize, State)>, after_state: Option<(usize, usize, State)>) -> Vec::<(usize, usize, State)>;
     // returns None if the hash does not exist
     fn get_name_from_hash(&self, hash: &u64) -> Option<String>;
@@ -28,7 +29,7 @@ pub trait Visualizable {
     fn _append_event(&mut self, resource_access_point: &ResourceAccessPoint, event: Event, line_number: &usize);
     
     // add an event to the Visualizable data structure
-    fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize, collection: &mut Option<(Vec<(usize, Event)>, HashSet<ResourceAccessPoint>)>);
+    fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize, collection: & mut Option<& mut Vec<(usize, Event)>>);
     
     // if resource_access_point with hash is mutable
     fn is_mut(&self, hash: &u64 ) -> bool;
@@ -354,8 +355,8 @@ pub enum ExternalEvent {
     },
 
     Branch {
-      live_vars: HashSet<ResourceAccessPoint>,
-      branches: Vec<ExtBranchData>,
+      live_vars: HashSet<ResourceAccessPoint>, // variables who were defined outside of the branch but are live inside it
+      branches: Vec<ExtBranchData>, 
       branch_type: BranchType,
       split_point: usize,
       merge_point: usize,
@@ -1218,27 +1219,110 @@ impl Visualizable for VisualizationData {
         }
     }
 
+    fn event_of_exteranl_event(&self, line_num: usize, ext_ev: &ExternalEvent, to_o: bool) -> Vec<(usize, Event)> {
+      match ext_ev {
+        ExternalEvent::Bind { from, to } => {
+          if to_o { vec![(line_num,  Event::Acquire{from : from.to_owned(), is: to.clone()})] }
+          else { vec![(line_num, Event::Duplicate{to : to.to_owned(), is: from.clone()})] }
+        },
+        ExternalEvent::Copy{from: from_ro, to: to_ro} => {
+          if to_o { vec![(line_num,  Event::Copy{from : from_ro.to_owned(), is: to_ro.clone()})] }
+          else { vec![(line_num, Event::Duplicate{to : to_ro.to_owned(), is: from_ro.clone()})] }
+        },
+        ExternalEvent::Move{from: from_ro, to: to_ro} => {
+          if to_o { vec![(line_num,  Event::Acquire{from : from_ro.to_owned(), is: to_ro.clone()})] }
+          else { vec![(line_num, Event::Move{to : to_ro.to_owned(), is: from_ro.clone()})] }
+        },
+        ExternalEvent::StaticBorrow{from: from_ro, to: to_ro} => {
+          if to_o { vec![(line_num,  Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro.clone()})] }
+          else { vec![(line_num, Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()})] }
+        },
+        ExternalEvent::StaticDie{from: from_ro, to: to_ro} => {
+          if to_o { vec![(line_num,  Event::StaticReacquire{from : from_ro.to_owned(), is: to_ro.clone()})] }
+          else { vec![(line_num, Event::StaticDie{to : to_ro.to_owned(), is: from_ro.clone()})] }
+        },
+        ExternalEvent::MutableBorrow{from: from_ro, to: to_ro} => {
+          if to_o { vec![(line_num,  Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro.clone()})] }
+          else { vec![(line_num, Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()})] }          
+        },
+        ExternalEvent::MutableDie{from: from_ro, to: to_ro} => {
+          if to_o { vec![(line_num,  Event::MutableReacquire{from : from_ro.to_owned(), is: to_ro.clone()})] }
+          else { vec![(line_num, Event::MutableDie{to : to_ro.to_owned(), is: from_ro.clone()})] }    
+        },
+        ExternalEvent::RefDie { from: from_ro, to: to_ro , num_curr_borrowers} => {
+          match from_ro.clone() {
+              ResourceTy::Deref(ro_is) | ResourceTy::Value(ro_is) => {
+                  if ro_is.is_mutref() && !to_o {
+                    vec![(line_num, Event::MutableDie {to: ResourceTy::Anonymous, is: from_ro.clone()})]
+                  }
+                  else {
+                    if to_o { vec![(line_num,  Event::RefDie{from : from_ro.to_owned(), is: to_ro.clone(), num_curr_borrowers: *num_curr_borrowers})] }
+                    else { vec![(line_num, Event::StaticDie{to : to_ro.to_owned(), is: from_ro.clone()})] }    
+                  }
+              }
+              _ => panic!("not possible")
+          }
+        },
+        ExternalEvent::PassByStaticReference{from: from_ro, to: to_ro} => {
+          if to_o { 
+            vec![(line_num,  Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro.clone()}),
+            (line_num,  Event::StaticDie{to : from_ro.to_owned(), is: to_ro.clone()})] 
+          }
+          else { 
+            vec![(line_num, Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}),
+            (line_num,  Event::StaticReacquire{from : to_ro.to_owned(), is: from_ro.clone()})]
+          }
+        },
+        ExternalEvent::PassByMutableReference{from: from_ro, to: to_ro} => {
+          if to_o { 
+            vec![(line_num,  Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro.clone()}),
+            (line_num,  Event::MutableDie{to : from_ro.to_owned(), is: to_ro.clone()})]
+          }
+          else { 
+            vec![(line_num, Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone()}),
+            (line_num,  Event::MutableReacquire{from : to_ro.to_owned(), is: from_ro.clone()})]
+          }
+        },
+        ExternalEvent::InitRefParam{param: ro} => {
+          vec![(line_num, Event::InitRefParam{param : ro.to_owned()})]
+        },
+        ExternalEvent::GoOutOfScope{ro} => {
+          match ro {
+            ResourceAccessPoint::Owner(..) | ResourceAccessPoint::Struct(..) => {
+              vec![(line_num, Event::OwnerGoOutOfScope)]
+            },
+            ResourceAccessPoint::MutRef(..) | ResourceAccessPoint::StaticRef(..)=> {
+              vec![(line_num, Event::RefGoOutOfScope)]
+            },
+            ResourceAccessPoint::Function(func) => {
+              panic!(
+                  "Functions do not go out of scope! We do not expect to see \"{}\" here.",
+                  func.name
+              );
+            }
+          }
+        },
+
+        _ => panic!("should not be calling this on branches")
+      }
+    }
+
 
     // store them in external_events, and call append_events
     // default way to record events
-    fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize, collection: & mut Option<(Vec<(usize, Event)>, HashSet<ResourceAccessPoint>)>) {
+    fn append_processed_external_event(&mut self, event: ExternalEvent, line_number: usize, collection: & mut Option<& mut Vec<(usize, Event)>>) {
         if collection.is_none() { // don't double count events inside of Branch blocks
             self.external_events.push((line_number, event.clone()));
         }
         
-        // append_event if resource_access_point is not null
-        fn maybe_append_event (vd: & mut VisualizationData, resource_ty: &ResourceTy, event: Event, line_number: usize, collection: & mut Option<(Vec<(usize, Event)>, HashSet<ResourceAccessPoint>)>){
+        // append_event to timelines unless interacting with an anonymous owner 
+        fn maybe_append_event (vd: & mut VisualizationData, resource_ty: &ResourceTy, event: Event, line_number: usize, collection: & mut Option<& mut Vec<(usize, Event)>>){
           match resource_ty {
             ResourceTy::Anonymous | ResourceTy::Caller => {}
             ResourceTy::Deref(r) | ResourceTy::Value(r) => {
               match collection {
-                Some((v, h)) => {
-                    if h.contains(r) {
-                        v.push((line_number, event));
-                    }
-                    else {
-                        vd._append_event(&r, event, &line_number)
-                    }
+                Some(v) => {
+                    v.push((line_number, event));
                 },
                 None => vd._append_event(&r, event, &line_number)
               }
@@ -1263,30 +1347,69 @@ impl Visualizable for VisualizationData {
                 maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro}, line_number, collection);
             },
             ExternalEvent::Branch { live_vars, branches, branch_type, split_point, merge_point } => {
-              for var in live_vars.iter() {
+              // need to add events with more granularity for Branches
+              for var in live_vars.iter() { // for all the live variables in the branch
                 let is = ResourceTy::Value(var.clone());
                 let could_be = ResourceTy::Deref(var.clone());
                 let mut branch_history: Vec<BranchData> = Vec::new();
                 for branch in branches.iter() { // for each branch
-                  let mut  branch_h: Option<(Vec<(usize, Event)>, HashSet<ResourceAccessPoint>)> = Some((Vec::new(), live_vars.clone()));
+                  let mut b_history: Vec<(usize, Event)> = Vec::new();
                   for (l, ev) in branch.e_data.iter() { // for each event in each branch
                     match ev {
                         ExternalEvent::Branch { live_vars: inner_vars, .. } => {
                             if inner_vars.contains(var) {
-                                self.append_processed_external_event(ev.clone(), *l, & mut branch_h);
+                                self.append_processed_external_event(ev.clone(), *l, & mut Some(& mut b_history));
                             }
                         }   
                         _ => {
                             let (from, to) = ResourceAccessPoint_extract(ev);
-                            if *from == is || *to == is || *from == could_be || *to == could_be {
-                              // append each of the events in a branch related to given live var
-                              self.append_processed_external_event(ev.clone(), *l, & mut branch_h);
+                            if *from == is || *from == could_be {
+                              b_history.extend(self.event_of_exteranl_event(*l, ev, false));
+                              // match to.extract_rap() {
+                              //   Some(r) => {
+                              //     // we are guaranteed to only visit this event once if the other ro is not part of the live variables
+                              //     if !live_vars.contains(r) {
+                              //       match collection {
+                              //         Some(v) => {
+                              //           v.extend(self.event_of_exteranl_event(*l, ev, true));
+                              //         }
+                              //         None => {
+                              //           for (_, ev) in self.event_of_exteranl_event(*l, ev, true) {
+                              //             self._append_event(r, ev, l);
+                              //           }
+                              //         }
+                              //       }
+                              //     }
+                              //   }
+                              //   None => {}
+                              // }
+                            }
+                            else if *to == is || *to == could_be {
+                              b_history.extend(self.event_of_exteranl_event(*l, ev, true));
+                              // match to.extract_rap() {
+                              //   Some(r) => {
+                              //     // we are guaranteed to only visit this event once if the other ro is not part of the live variables
+                              //     if !live_vars.contains(r) {
+                              //       match collection {
+                              //         Some(v) => {
+                              //           v.extend(self.event_of_exteranl_event(*l, ev, false));
+                              //         }
+                              //         None => {
+                              //           for (_, ev) in self.event_of_exteranl_event(*l, ev, false) {
+                              //             self._append_event(r, ev, l);
+                              //           }
+                              //         }
+                              //       }
+                              //     }
+                              //   }
+                              //   None => {}
+                              // }
                             }
                         }
                     }
                   }
-                  // clean the branch events (unelegant but whatever)
-                  let clean_branch_history: Vec<(usize, Event)> = branch_h.unwrap().0.iter().filter(|(_, e)| {*e.extract_is() == is}).cloned().collect();
+
+                  // loop through declared variables in each branch and add their events to the outer collection
 
                   branch_history.push(BranchData { t_data: TimelineColumnData { // produce some dummy timeline data for now
                     name: "".to_owned(),
@@ -1296,31 +1419,12 @@ impl Visualizable for VisualizationData {
                     is_struct_group: false,
                     is_member: false, 
                     owner: 0
-                  }, e_data: clean_branch_history, width: 0 });
+                  }, e_data: b_history, width: 0 });
                 }
                 maybe_append_event(self, &is.clone(), Event::Branch { is: is, branch_history: branch_history, ty: branch_type.clone(), split_point: split_point, merge_point: merge_point}, line_number, collection);
               }
 
-              // 
-              // for branch in branches.iter() { // for each branch
-              //   for (l, ev) in branch.e_data.iter() { // for each event in each branch
-              //     let (from, to) = ResourceAccessPoint_extract(ev);
-              //     match (from.extract_rap(), to.extract_rap()) {
-              //           (Some(x), Some(y)) => {
-              //             if !live_vars.contains(x) && !live_vars.contains(y) {
-              //               self.append_processed_external_event(ev.clone(), *l, collection);
-              //             }
-              //           }
-              //           (Some(x), _) | (_, Some(x)) => {
-              //             if !live_vars.contains(x) {
-              //               self.append_processed_external_event(ev.clone(), *l, collection);
-              //             }
-              //           }
-              //           _ => self.append_processed_external_event(ev.clone(), *l, collection)
-              //         }
-                  
-              //   }
-              // }
+              // have to append events for variables declared inside the block
             }
             ExternalEvent::StaticBorrow{from: from_ro, to: to_ro} => {
                 maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone()}, line_number, collection);

@@ -7,7 +7,10 @@
 
 
 to fix/implement:
-
+- [ ] Handle owners that are declared inside conditional blocks
+- [ ] Typecheck function ctxt to determine what type of return annotation to make
+- [ ] Implement new state calculation system
+- [ ] Remove struct members that are not utilized from the timeline
 - [ ] Implement hoverable anonymous owner interactions in code panel
 - [ x ] Reference aliasing
 - [ x ] Fix annotated source gen to handle `</>` characters 

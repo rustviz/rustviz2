@@ -661,6 +661,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
     res
   }
+  // we only care about fetching the declarations in the current block, which is why these functions are not mutually recursive
+  pub fn get_decl_of_expr(&self, expr: &'tcx Expr) -> HashSet<ResourceAccessPoint> {
+    match expr.kind {
+      ExprKind::Block(b, _) => self.get_decl_of_block(b),
+      _ => HashSet::new() // maybe should handle match expressions as well? 
+    }
+  }
 
   pub fn get_decl_of_stmt(&self, stmt: &'tcx Stmt) -> HashSet<ResourceAccessPoint> {
     let mut res = HashSet::new();
@@ -670,7 +677,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           PatKind::Binding(_, _, ident, _) => {
             ident.to_string()
           }
-          _ => panic!("unexpected binding pattern")
+          _ => panic!("unexpected let binding pattern")
         };
         res.insert(self.raps.get(&name).unwrap().0.to_owned());
       }
@@ -766,6 +773,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         }
         res
       }
+      // Branch expressions need to be handled a bit differently, 
+      // We want the variables that are live in each block, but not the ones that were declared in 
+      // the blocks (since their timelines should not be split)
       ExprKind::Block(b, _) => {
         let mut res: HashSet<ResourceAccessPoint> = HashSet::new();
         for stmt in b.stmts.iter() {
@@ -777,7 +787,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
           None => {}
         }
-        res
+        res.difference(&self.get_decl_of_block(b)).cloned().collect() // need to remove the variables that were declared in the current block 
       }
       ExprKind::If(guard_expr, if_expr, else_expr) => {
         let mut res: HashSet<ResourceAccessPoint> = HashSet::new();
@@ -787,12 +797,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           Some(e) => {
             res = res.union(&self.get_live_of_expr(&e)).cloned().collect();
           }
-          None => {
-            
-          }
+          None => {}
         }
         res
-
       }
       _ => {
         HashSet::new()

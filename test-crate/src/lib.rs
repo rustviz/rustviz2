@@ -1,21 +1,9 @@
-pub enum Fruit {
-  Apple(String),
-  Banana
-}
-
 fn main () {
-  let mut x = Fruit::Apple(String::from("x"));
-  let mut y = Fruit::Banana;
-  match x {
-    Fruit::Apple(z) => { 
-      println!("x {}", z)
+  let x = 8;
+  if true {
+    let y = x;
+    if true {
+      let z = y;
     }
-    _ => {}
-  };
-
-  match x {
-    c => {
-      y = c;
-    }
-  };
+  }
 }

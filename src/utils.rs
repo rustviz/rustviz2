@@ -136,7 +136,6 @@ fn union_strings (strings: &Vec<String>) -> String {
 
 pub fn generate_annotated_src(annotated_line_map: & mut BTreeMap<usize, Vec<String>>) -> String {
   let mut annotated_str = String::new();
-  println!("annotated line map {:#?}", annotated_line_map);
   for (_k, v) in annotated_line_map {
     annotated_str.push_str(&union_strings(v));
     annotated_str.push('\n');
@@ -146,8 +145,6 @@ pub fn generate_annotated_src(annotated_line_map: & mut BTreeMap<usize, Vec<Stri
   annotated_str = annotated_str.replace(">", "&gt;");
   annotated_str = annotated_str.replace("[_", "<");
   annotated_str = annotated_str.replace("_]", ">");
-
-  println!("annotated str {}", annotated_str);
 
   annotated_str
 }

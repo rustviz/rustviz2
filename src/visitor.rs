@@ -367,17 +367,19 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       ExprKind::If(guard_expr, if_expr, else_expr) => {
         self.visit_expr(&guard_expr);
         self.visit_expr(&if_expr);
-        let else_live = match else_expr {
+        let (else_live, else_decl) = match else_expr {
           Some(e) => {
             self.visit_expr(e);
-            self.get_live_of_expr(e)
+            (self.get_live_of_expr(e), self.get_decl_of_expr(e))
           }
-          None => { HashSet::new() }
+          None => { (HashSet::new(), HashSet::new()) }
         };
         // compute liveness
         let if_live = self.get_live_of_expr(if_expr);
-        let liveness:HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
-
+        let if_decl = self.get_decl_of_expr(if_expr);
+        let mut liveness:HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
+        liveness = liveness.difference(&if_decl).cloned().collect();
+        liveness = liveness.difference(&else_decl).cloned().collect();
         // compute split and merge points
         let line_num = self.expr_to_line(&guard_expr);
         let split = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.lo()).line;

@@ -250,7 +250,7 @@ pub fn render_svg(
     println!("processed line map {:#?}", visualization_data.event_line_map);
 
     let svg_code_template = String::from(
-    "<svg height=\"{{height}}px\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">
+    "<svg width=\"{{tl_width}}px\" height=\"{{height}}px\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">
 
       <desc>{{ visualization_name }}</desc>
 
@@ -510,17 +510,18 @@ pub fn render_svg(
     // data for tl panel
     let (timeline_panel_string, max_width) = timeline_panel::render_timeline_panel(visualization_data);
     
-    let svg_data = SvgData {
+    let mut svg_data = SvgData {
         visualization_name: "vis".to_owned(),
         css: css_string,
         code: code_panel_string,
         diagram: timeline_panel_string,
         tl_id: "tl_".to_owned() + "vis",
-        tl_width: cmp::max(max_width, 200),
+        tl_width: 400,
         height: (num_lines * LINE_SPACE as i32 + 80) + 50,
     };
 
     let final_code_svg_content = handlebars.render("code_svg_template", &svg_data).unwrap();
+    svg_data.tl_width = cmp::max(max_width, 200);
     let final_timeline_svg_content = handlebars
         .render("timeline_svg_template", &svg_data)
         .unwrap();
@@ -528,6 +529,6 @@ pub fn render_svg(
     // write to file
     // utils::create_and_write_to_file(&final_code_svg_content, code_image_file_path); // write svg code
     // utils::create_and_write_to_file(&final_timeline_svg_content, timeline_image_file_path); // write svg timeline
-    //println!("{}", final_code_svg_content);
+    // println!("{}", final_code_svg_content);
     (final_code_svg_content, final_timeline_svg_content)
 }
