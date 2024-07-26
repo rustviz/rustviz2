@@ -215,7 +215,7 @@ preprocessed events : [
                                                         ],
                                                         [
                                                             (
-                                                                9,
+                                                                10,
                                                                 11,
                                                             ),
                                                             (
@@ -281,15 +281,15 @@ preprocessed events : [
                                         decl_vars: {
                                             Owner(
                                                 Owner {
-                                                    name: "z",
-                                                    hash: 3,
+                                                    name: "c",
+                                                    hash: 4,
                                                     is_mut: false,
                                                 },
                                             ),
                                             Owner(
                                                 Owner {
-                                                    name: "c",
-                                                    hash: 4,
+                                                    name: "z",
+                                                    hash: 3,
                                                     is_mut: false,
                                                 },
                                             ),
@@ -308,7 +308,7 @@ preprocessed events : [
                                     ],
                                     [
                                         (
-                                            6,
+                                            7,
                                             12,
                                         ),
                                         (
@@ -371,7 +371,7 @@ preprocessed events : [
                 ],
                 [
                     (
-                        4,
+                        5,
                         13,
                     ),
                     (
@@ -411,8 +411,8 @@ preprocessed events : [
         GoOutOfScope {
             ro: Owner(
                 Owner {
-                    name: "z",
-                    hash: 3,
+                    name: "c",
+                    hash: 4,
                     is_mut: false,
                 },
             ),
@@ -424,12 +424,12 @@ preprocessed events : [
         GoOutOfScope {
             ro: Owner(
                 Owner {
-                    name: "c",
-                    hash: 4,
+                    name: "z",
+                    hash: 3,
                     is_mut: false,
                 },
             ),
-            id: 11,
+            id: 13,
         },
     ),
     (
@@ -442,7 +442,7 @@ preprocessed events : [
                     is_mut: false,
                 },
             ),
-            id: 13,
+            id: 10,
         },
     ),
     (
@@ -455,7 +455,7 @@ preprocessed events : [
                     is_mut: true,
                 },
             ),
-            id: 10,
+            id: 11,
         },
     ),
 ]
@@ -767,7 +767,7 @@ processed events [
                                                         ],
                                                         [
                                                             (
-                                                                9,
+                                                                10,
                                                                 11,
                                                             ),
                                                             (
@@ -833,15 +833,15 @@ processed events [
                                         decl_vars: {
                                             Owner(
                                                 Owner {
-                                                    name: "z",
-                                                    hash: 3,
+                                                    name: "c",
+                                                    hash: 4,
                                                     is_mut: false,
                                                 },
                                             ),
                                             Owner(
                                                 Owner {
-                                                    name: "c",
-                                                    hash: 4,
+                                                    name: "z",
+                                                    hash: 3,
                                                     is_mut: false,
                                                 },
                                             ),
@@ -860,7 +860,7 @@ processed events [
                                     ],
                                     [
                                         (
-                                            6,
+                                            7,
                                             12,
                                         ),
                                         (
@@ -923,7 +923,7 @@ processed events [
                 ],
                 [
                     (
-                        4,
+                        5,
                         13,
                     ),
                     (
@@ -963,8 +963,8 @@ processed events [
         GoOutOfScope {
             ro: Owner(
                 Owner {
-                    name: "z",
-                    hash: 3,
+                    name: "c",
+                    hash: 4,
                     is_mut: false,
                 },
             ),
@@ -976,12 +976,12 @@ processed events [
         GoOutOfScope {
             ro: Owner(
                 Owner {
-                    name: "c",
-                    hash: 4,
+                    name: "z",
+                    hash: 3,
                     is_mut: false,
                 },
             ),
-            id: 11,
+            id: 13,
         },
     ),
     (
@@ -994,7 +994,7 @@ processed events [
                     is_mut: false,
                 },
             ),
-            id: 13,
+            id: 10,
         },
     ),
     (
@@ -1007,544 +1007,11 @@ processed events [
                     is_mut: true,
                 },
             ),
-            id: 10,
+            id: 11,
         },
     ),
 ]
 processed line map {}
-timelines {
-    1: Timeline {
-        resource_access_point: Owner(
-            Owner {
-                name: "x",
-                hash: 1,
-                is_mut: true,
-            },
-        ),
-        history: [
-            (
-                2,
-                Acquire {
-                    from: Anonymous,
-                    is: Value(
-                        Owner(
-                            Owner {
-                                name: "x",
-                                hash: 1,
-                                is_mut: true,
-                            },
-                        ),
-                    ),
-                    id: 0,
-                },
-            ),
-            (
-                4,
-                Branch {
-                    is: Value(
-                        Owner(
-                            Owner {
-                                name: "x",
-                                hash: 1,
-                                is_mut: true,
-                            },
-                        ),
-                    ),
-                    branch_history: [
-                        BranchData {
-                            t_data: TimelineColumnData {
-                                name: "",
-                                x_val: -1,
-                                title: "",
-                                is_ref: false,
-                                is_struct_group: false,
-                                is_member: false,
-                                owner: 0,
-                            },
-                            e_data: [
-                                (
-                                    5,
-                                    Duplicate {
-                                        to: Value(
-                                            Owner(
-                                                Owner {
-                                                    name: "y",
-                                                    hash: 2,
-                                                    is_mut: false,
-                                                },
-                                            ),
-                                        ),
-                                        is: Value(
-                                            Owner(
-                                                Owner {
-                                                    name: "x",
-                                                    hash: 1,
-                                                    is_mut: true,
-                                                },
-                                            ),
-                                        ),
-                                        id: 1,
-                                    },
-                                ),
-                                (
-                                    6,
-                                    Branch {
-                                        is: Value(
-                                            Owner(
-                                                Owner {
-                                                    name: "x",
-                                                    hash: 1,
-                                                    is_mut: true,
-                                                },
-                                            ),
-                                        ),
-                                        branch_history: [
-                                            BranchData {
-                                                t_data: TimelineColumnData {
-                                                    name: "",
-                                                    x_val: -1,
-                                                    title: "",
-                                                    is_ref: false,
-                                                    is_struct_group: false,
-                                                    is_member: false,
-                                                    owner: 0,
-                                                },
-                                                e_data: [
-                                                    (
-                                                        8,
-                                                        Duplicate {
-                                                            to: Value(
-                                                                Owner(
-                                                                    Owner {
-                                                                        name: "c",
-                                                                        hash: 4,
-                                                                        is_mut: false,
-                                                                    },
-                                                                ),
-                                                            ),
-                                                            is: Value(
-                                                                Owner(
-                                                                    Owner {
-                                                                        name: "x",
-                                                                        hash: 1,
-                                                                        is_mut: true,
-                                                                    },
-                                                                ),
-                                                            ),
-                                                            id: 3,
-                                                        },
-                                                    ),
-                                                ],
-                                                width: 0,
-                                            },
-                                            BranchData {
-                                                t_data: TimelineColumnData {
-                                                    name: "",
-                                                    x_val: -1,
-                                                    title: "",
-                                                    is_ref: false,
-                                                    is_struct_group: false,
-                                                    is_member: false,
-                                                    owner: 0,
-                                                },
-                                                e_data: [],
-                                                width: 0,
-                                            },
-                                        ],
-                                        ty: If(
-                                            [
-                                                "If",
-                                                "Else",
-                                            ],
-                                            [
-                                                (
-                                                    6,
-                                                    12,
-                                                ),
-                                                (
-                                                    12,
-                                                    12,
-                                                ),
-                                            ],
-                                        ),
-                                        split_point: 6,
-                                        merge_point: 12,
-                                        id: 6,
-                                    },
-                                ),
-                            ],
-                            width: 0,
-                        },
-                        BranchData {
-                            t_data: TimelineColumnData {
-                                name: "",
-                                x_val: -1,
-                                title: "",
-                                is_ref: false,
-                                is_struct_group: false,
-                                is_member: false,
-                                owner: 0,
-                            },
-                            e_data: [],
-                            width: 0,
-                        },
-                    ],
-                    ty: If(
-                        [
-                            "If",
-                            "Else",
-                        ],
-                        [
-                            (
-                                4,
-                                13,
-                            ),
-                            (
-                                13,
-                                13,
-                            ),
-                        ],
-                    ),
-                    split_point: 4,
-                    merge_point: 13,
-                    id: 7,
-                },
-            ),
-            (
-                14,
-                OwnerGoOutOfScope,
-            ),
-        ],
-    },
-    2: Timeline {
-        resource_access_point: Owner(
-            Owner {
-                name: "y",
-                hash: 2,
-                is_mut: false,
-            },
-        ),
-        history: [
-            (
-                5,
-                Copy {
-                    from: Value(
-                        Owner(
-                            Owner {
-                                name: "x",
-                                hash: 1,
-                                is_mut: true,
-                            },
-                        ),
-                    ),
-                    is: Value(
-                        Owner(
-                            Owner {
-                                name: "y",
-                                hash: 2,
-                                is_mut: false,
-                            },
-                        ),
-                    ),
-                    id: 1,
-                },
-            ),
-            (
-                6,
-                Branch {
-                    is: Value(
-                        Owner(
-                            Owner {
-                                name: "y",
-                                hash: 2,
-                                is_mut: false,
-                            },
-                        ),
-                    ),
-                    branch_history: [
-                        BranchData {
-                            t_data: TimelineColumnData {
-                                name: "",
-                                x_val: -1,
-                                title: "",
-                                is_ref: false,
-                                is_struct_group: false,
-                                is_member: false,
-                                owner: 0,
-                            },
-                            e_data: [
-                                (
-                                    7,
-                                    Duplicate {
-                                        to: Value(
-                                            Owner(
-                                                Owner {
-                                                    name: "z",
-                                                    hash: 3,
-                                                    is_mut: false,
-                                                },
-                                            ),
-                                        ),
-                                        is: Value(
-                                            Owner(
-                                                Owner {
-                                                    name: "y",
-                                                    hash: 2,
-                                                    is_mut: false,
-                                                },
-                                            ),
-                                        ),
-                                        id: 2,
-                                    },
-                                ),
-                            ],
-                            width: 0,
-                        },
-                        BranchData {
-                            t_data: TimelineColumnData {
-                                name: "",
-                                x_val: -1,
-                                title: "",
-                                is_ref: false,
-                                is_struct_group: false,
-                                is_member: false,
-                                owner: 0,
-                            },
-                            e_data: [],
-                            width: 0,
-                        },
-                    ],
-                    ty: If(
-                        [
-                            "If",
-                            "Else",
-                        ],
-                        [
-                            (
-                                6,
-                                12,
-                            ),
-                            (
-                                12,
-                                12,
-                            ),
-                        ],
-                    ),
-                    split_point: 6,
-                    merge_point: 12,
-                    id: 6,
-                },
-            ),
-            (
-                13,
-                OwnerGoOutOfScope,
-            ),
-        ],
-    },
-    3: Timeline {
-        resource_access_point: Owner(
-            Owner {
-                name: "z",
-                hash: 3,
-                is_mut: false,
-            },
-        ),
-        history: [
-            (
-                7,
-                Copy {
-                    from: Value(
-                        Owner(
-                            Owner {
-                                name: "y",
-                                hash: 2,
-                                is_mut: false,
-                            },
-                        ),
-                    ),
-                    is: Value(
-                        Owner(
-                            Owner {
-                                name: "z",
-                                hash: 3,
-                                is_mut: false,
-                            },
-                        ),
-                    ),
-                    id: 2,
-                },
-            ),
-            (
-                12,
-                OwnerGoOutOfScope,
-            ),
-        ],
-    },
-    4: Timeline {
-        resource_access_point: Owner(
-            Owner {
-                name: "c",
-                hash: 4,
-                is_mut: false,
-            },
-        ),
-        history: [
-            (
-                8,
-                Copy {
-                    from: Value(
-                        Owner(
-                            Owner {
-                                name: "x",
-                                hash: 1,
-                                is_mut: true,
-                            },
-                        ),
-                    ),
-                    is: Value(
-                        Owner(
-                            Owner {
-                                name: "c",
-                                hash: 4,
-                                is_mut: false,
-                            },
-                        ),
-                    ),
-                    id: 3,
-                },
-            ),
-            (
-                9,
-                Branch {
-                    is: Value(
-                        Owner(
-                            Owner {
-                                name: "c",
-                                hash: 4,
-                                is_mut: false,
-                            },
-                        ),
-                    ),
-                    branch_history: [
-                        BranchData {
-                            t_data: TimelineColumnData {
-                                name: "",
-                                x_val: -1,
-                                title: "",
-                                is_ref: false,
-                                is_struct_group: false,
-                                is_member: false,
-                                owner: 0,
-                            },
-                            e_data: [
-                                (
-                                    10,
-                                    Duplicate {
-                                        to: Value(
-                                            Owner(
-                                                Owner {
-                                                    name: "b",
-                                                    hash: 5,
-                                                    is_mut: false,
-                                                },
-                                            ),
-                                        ),
-                                        is: Value(
-                                            Owner(
-                                                Owner {
-                                                    name: "c",
-                                                    hash: 4,
-                                                    is_mut: false,
-                                                },
-                                            ),
-                                        ),
-                                        id: 4,
-                                    },
-                                ),
-                            ],
-                            width: 0,
-                        },
-                        BranchData {
-                            t_data: TimelineColumnData {
-                                name: "",
-                                x_val: -1,
-                                title: "",
-                                is_ref: false,
-                                is_struct_group: false,
-                                is_member: false,
-                                owner: 0,
-                            },
-                            e_data: [],
-                            width: 0,
-                        },
-                    ],
-                    ty: If(
-                        [
-                            "If",
-                            "Else",
-                        ],
-                        [
-                            (
-                                9,
-                                11,
-                            ),
-                            (
-                                11,
-                                11,
-                            ),
-                        ],
-                    ),
-                    split_point: 9,
-                    merge_point: 11,
-                    id: 5,
-                },
-            ),
-            (
-                12,
-                OwnerGoOutOfScope,
-            ),
-        ],
-    },
-    5: Timeline {
-        resource_access_point: Owner(
-            Owner {
-                name: "b",
-                hash: 5,
-                is_mut: false,
-            },
-        ),
-        history: [
-            (
-                10,
-                Copy {
-                    from: Value(
-                        Owner(
-                            Owner {
-                                name: "c",
-                                hash: 4,
-                                is_mut: false,
-                            },
-                        ),
-                    ),
-                    is: Value(
-                        Owner(
-                            Owner {
-                                name: "b",
-                                hash: 5,
-                                is_mut: false,
-                            },
-                        ),
-                    ),
-                    id: 4,
-                },
-            ),
-            (
-                11,
-                OwnerGoOutOfScope,
-            ),
-        ],
-    },
-}
 hash 1, timeline Timeline {
     resource_access_point: Owner(
         Owner {
@@ -1668,6 +1135,15 @@ hash 1, timeline Timeline {
                                                 ),
                                             ],
                                             width: 0,
+                                            states: [
+                                                (
+                                                    7,
+                                                    12,
+                                                    FullPrivilege {
+                                                        s: Full,
+                                                    },
+                                                ),
+                                            ],
                                         },
                                         BranchData {
                                             t_data: TimelineColumnData {
@@ -1681,6 +1157,15 @@ hash 1, timeline Timeline {
                                             },
                                             e_data: [],
                                             width: 0,
+                                            states: [
+                                                (
+                                                    7,
+                                                    12,
+                                                    FullPrivilege {
+                                                        s: Gray,
+                                                    },
+                                                ),
+                                            ],
                                         },
                                     ],
                                     ty: If(
@@ -1690,7 +1175,7 @@ hash 1, timeline Timeline {
                                         ],
                                         [
                                             (
-                                                6,
+                                                7,
                                                 12,
                                             ),
                                             (
@@ -1706,6 +1191,27 @@ hash 1, timeline Timeline {
                             ),
                         ],
                         width: 2,
+                        states: [
+                            (
+                                5,
+                                6,
+                                FullPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                            (
+                                6,
+                                12,
+                                OutOfScope,
+                            ),
+                            (
+                                13,
+                                13,
+                                FullPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                        ],
                     },
                     BranchData {
                         t_data: TimelineColumnData {
@@ -1719,6 +1225,15 @@ hash 1, timeline Timeline {
                         },
                         e_data: [],
                         width: 0,
+                        states: [
+                            (
+                                5,
+                                13,
+                                FullPrivilege {
+                                    s: Gray,
+                                },
+                            ),
+                        ],
                     },
                 ],
                 ty: If(
@@ -1728,7 +1243,7 @@ hash 1, timeline Timeline {
                     ],
                     [
                         (
-                            4,
+                            5,
                             13,
                         ),
                         (
@@ -1747,36 +1262,38 @@ hash 1, timeline Timeline {
             OwnerGoOutOfScope,
         ),
     ],
+    states: [
+        (
+            1,
+            2,
+            OutOfScope,
+        ),
+        (
+            2,
+            4,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            4,
+            13,
+            OutOfScope,
+        ),
+        (
+            14,
+            14,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            14,
+            14,
+            OutOfScope,
+        ),
+    ],
 }
-PREV STATE OutOfScope
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE OutOfScope
 hash 2, timeline Timeline {
     resource_access_point: Owner(
         Owner {
@@ -1860,6 +1377,15 @@ hash 2, timeline Timeline {
                             ),
                         ],
                         width: 0,
+                        states: [
+                            (
+                                7,
+                                12,
+                                FullPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                        ],
                     },
                     BranchData {
                         t_data: TimelineColumnData {
@@ -1873,6 +1399,15 @@ hash 2, timeline Timeline {
                         },
                         e_data: [],
                         width: 0,
+                        states: [
+                            (
+                                7,
+                                12,
+                                FullPrivilege {
+                                    s: Gray,
+                                },
+                            ),
+                        ],
                     },
                 ],
                 ty: If(
@@ -1882,7 +1417,7 @@ hash 2, timeline Timeline {
                     ],
                     [
                         (
-                            6,
+                            7,
                             12,
                         ),
                         (
@@ -1901,21 +1436,38 @@ hash 2, timeline Timeline {
             OwnerGoOutOfScope,
         ),
     ],
+    states: [
+        (
+            1,
+            5,
+            OutOfScope,
+        ),
+        (
+            5,
+            6,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            6,
+            12,
+            OutOfScope,
+        ),
+        (
+            13,
+            13,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            13,
+            13,
+            OutOfScope,
+        ),
+    ],
 }
-PREV STATE OutOfScope
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE OutOfScope
 hash 3, timeline Timeline {
     resource_access_point: Owner(
         Owner {
@@ -1954,8 +1506,26 @@ hash 3, timeline Timeline {
             OwnerGoOutOfScope,
         ),
     ],
+    states: [
+        (
+            1,
+            7,
+            OutOfScope,
+        ),
+        (
+            7,
+            12,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            12,
+            12,
+            OutOfScope,
+        ),
+    ],
 }
-PREV STATE OutOfScope
 hash 4, timeline Timeline {
     resource_access_point: Owner(
         Owner {
@@ -2039,6 +1609,15 @@ hash 4, timeline Timeline {
                             ),
                         ],
                         width: 0,
+                        states: [
+                            (
+                                10,
+                                11,
+                                FullPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                        ],
                     },
                     BranchData {
                         t_data: TimelineColumnData {
@@ -2052,6 +1631,15 @@ hash 4, timeline Timeline {
                         },
                         e_data: [],
                         width: 0,
+                        states: [
+                            (
+                                10,
+                                11,
+                                FullPrivilege {
+                                    s: Gray,
+                                },
+                            ),
+                        ],
                     },
                 ],
                 ty: If(
@@ -2061,7 +1649,7 @@ hash 4, timeline Timeline {
                     ],
                     [
                         (
-                            9,
+                            10,
                             11,
                         ),
                         (
@@ -2080,21 +1668,38 @@ hash 4, timeline Timeline {
             OwnerGoOutOfScope,
         ),
     ],
+    states: [
+        (
+            1,
+            8,
+            OutOfScope,
+        ),
+        (
+            8,
+            9,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            9,
+            11,
+            OutOfScope,
+        ),
+        (
+            12,
+            12,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            12,
+            12,
+            OutOfScope,
+        ),
+    ],
 }
-PREV STATE OutOfScope
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE FullPrivilege {
-    s: Full,
-}
-PREV STATE OutOfScope
 hash 5, timeline Timeline {
     resource_access_point: Owner(
         Owner {
@@ -2133,8 +1738,26 @@ hash 5, timeline Timeline {
             OwnerGoOutOfScope,
         ),
     ],
+    states: [
+        (
+            1,
+            10,
+            OutOfScope,
+        ),
+        (
+            10,
+            11,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            11,
+            11,
+            OutOfScope,
+        ),
+    ],
 }
-PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope

@@ -1,6 +1,6 @@
 extern crate handlebars;
 
-use crate::data::{ExtBranchData, ExternalEvent, ResourceAccessPoint_extract, Visualizable, VisualizationData, LINE_SPACE};
+use crate::data::{BranchType, ExtBranchData, ExternalEvent, ResourceAccessPoint_extract, Visualizable, VisualizationData, LINE_SPACE};
 use crate::svg_frontend::{code_panel, timeline_panel};
 use handlebars::Handlebars;
 use serde::Serialize;
@@ -69,12 +69,25 @@ pub fn mutate_branch_lines(b_data: & mut ExtBranchData, l_map: & mut HashMap<usi
         }
         *l += extra_lines; // update starting line of event
         match e {
-            ExternalEvent::Branch {branches, split_point, merge_point, .. } => {
+            ExternalEvent::Branch {branches, split_point, merge_point, branch_type, .. } => {
                 *split_point = *l; // update split point
                 let mut b_lines = 0;
-                for branch in branches { // mutate branches 
-                    b_lines = max(b_lines, mutate_branch_lines(branch, l_map, extra_lines));      
+                let mut b_extra: Vec<usize> = Vec::new();
+                for branch in branches.iter_mut(){ // mutate branches
+                    let b = mutate_branch_lines(branch, l_map, extra_lines);
+                    b_extra.push(b);
+                    b_lines = max(b_lines, b);
                 }
+
+                // update branches valid starting and end points
+                let mut offset = extra_lines;
+                for i in 0..branches.len() {
+                    let (start, end) = branch_type.get_mut_start_end(i);
+                    *start += offset;
+                    offset += b_extra[i];
+                    *end += offset;
+                }
+                
                 
                 // update merge point
                 extra_lines += b_lines;
@@ -174,14 +187,25 @@ pub fn render_svg(
         }
         match event {
             // need to mutate line numbers of events inside the branch
-            ExternalEvent::Branch { branches, split_point, merge_point, .. } => {
+            ExternalEvent::Branch { branches, split_point, merge_point, branch_type, .. } => {
                 let mut extra_branch_lines: usize = 0;
                 *split_point += extra_lines;
                 branch_line = *line_num + extra_lines;
-                for branch in branches {
-                    extra_branch_lines = max(extra_branch_lines, mutate_branch_lines(branch, & mut line_insertion_map, extra_lines));
+                let mut b_extra: Vec<usize> = Vec::new();
+                for branch in branches.iter_mut() {
+                    let b = mutate_branch_lines(branch, & mut line_insertion_map, extra_lines);
+                    b_extra.push(b);
+                    extra_branch_lines = max(extra_branch_lines, b);
                 }
                 // upate extra lines with total lines computed from traversing the branch
+                let mut offset = extra_lines;
+                for i in 0..branches.len() {
+                    let (start, end) = branch_type.get_mut_start_end(i);
+                    *start += offset;
+                    offset += b_extra[i];
+                    *end += offset;
+                }
+
                 *merge_point += extra_lines + extra_branch_lines;
                 extra_lines += extra_branch_lines;
             }
@@ -480,8 +504,9 @@ pub fn render_svg(
         fill: #b99f35;
         stroke: #b99f35;
     }");
+    visualization_data.compute_states();
 
-    println!("timelines {:#?}", visualization_data.timelines);
+    // println!("timelines {:#?}", visualization_data.timelines);
     
     let a_lines = annotated_src_str.lines();
     let s_lines = source_rs_str.lines();

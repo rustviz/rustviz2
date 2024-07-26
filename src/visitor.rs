@@ -386,7 +386,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         // compute split and merge points
         let line_num = self.expr_to_line(&guard_expr);
         let split = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.lo()).line;
-        let if_end = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.hi()).line;
+        let mut if_end = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.hi()).line;
         let merge = match else_expr {
           Some(e) => self.tcx.sess.source_map().lookup_char_pos(e.span.hi()).line,
           None => self.tcx.sess.source_map().lookup_char_pos(if_expr.span.hi()).line
@@ -406,8 +406,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         );
         let if_map = rustviz_lib::data::create_line_map(&if_ev);
         let else_map = create_line_map(&else_ev);
+        if if_end != merge { if_end += 1; }
         // add if/else branch
-        let b_ty = BranchType::If(vec!["If".to_owned(), "Else".to_owned()], vec![(split, if_end), (if_end, merge)]);
+        let b_ty = BranchType::If(vec!["If".to_owned(), "Else".to_owned()], vec![(split + 1, if_end), (if_end, merge)]);
         self.add_external_event(line_num, 
           ExternalEvent::Branch { 
             live_vars: liveness, 

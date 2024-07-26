@@ -489,21 +489,12 @@ fn render_dot(
     timeline_data: &TimelineColumnData,
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
     visualization_data: &VisualizationData,
-    registry: &Handlebars
+    registry: &Handlebars,
+    resource_hold: bool
 ) {
-    let mut resource_hold = false;
     for (line_number, event) in history.iter() {
         //matching the event
         match event {
-            Event::Acquire{..} => {
-                resource_hold = true;
-            },
-            Event::Copy{..} => {
-                resource_hold = true;
-            },
-            Event::Move{..} => {
-                resource_hold = false;
-            },
             Event::RefDie { .. } => {
                 continue;
             }
@@ -528,7 +519,7 @@ fn render_dot(
                     };
                     append_dot(&split_data, output, &branch.t_data, registry);
 
-                    render_dot(hash, &branch.e_data, &branch.t_data, output, visualization_data, registry);
+                    render_dot(hash, &branch.e_data, &branch.t_data, output, visualization_data, registry, false);
 
                     // render a dot at the end of the timeline
                     let merge_data = EventDotData {
@@ -598,7 +589,15 @@ fn render_dots_string(
             },
             ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) | ResourceAccessPoint::MutRef(_) | ResourceAccessPoint::StaticRef(_) =>
             {
-                render_dot(hash, &timeline.history, &resource_owners_layout[hash], output, visualization_data, registry);
+                let resource_hold = if timeline.resource_access_point.is_owner() {
+                    // we can assume each owner has at least two states (initialization -> gos)
+                    let penultimate_state = timeline.states.get(timeline.states.len() - 2).unwrap().2.clone();
+                    match penultimate_state {
+                        State::FullPrivilege { .. } => true,
+                        _ => false
+                    }
+                } else { false }; // need to change this for when structs can be references
+                render_dot(hash, &timeline.history, &resource_owners_layout[hash], output, visualization_data, registry, resource_hold);
             },
         }
     }
@@ -1391,6 +1390,12 @@ fn create_reference_line_string(
     data: &mut VerticalLineData,
     registry: &Handlebars,
 ) -> String {
+    match state {
+        State::FullPrivilege { s: LineState::Gray } | State::PartialPrivilege { s: LineState::Gray } => {
+            data.opacity = 0.5;
+        }
+        _ => {}
+    }
     match (state, rap.is_mut()) {
         (State::FullPrivilege{..}, true) => {
             data.line_class = String::from("solid");
@@ -1476,29 +1481,19 @@ fn render_timeline(
     hash: &u64,
     rap: &ResourceAccessPoint,
     history: &Vec<(usize, Event)>,
-    prev_state: Option<(usize, usize, State)>,
-    end_state: Option<(usize, usize, State)>,
+    states: &Vec<(usize, usize, State)>,
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
     visualization_data: &VisualizationData,
     timeline_data: &TimelineColumnData,
     registry: &Handlebars
 ) {
-
+    if rap.is_fn() { return; } // functions have no timelines
     for (_, ev) in history {
         match ev {
             Event::Branch { is, branch_history, ty, split_point, merge_point, id } => {
-                // calculate state just before the split
-                // println!("prev_state {:#?}", prev_state);
-                let root_states = visualization_data.fetch_states(hash, history, prev_state.clone(), None);
-                // println!("root_states {:#?}", root_states);
-                let begin_state = root_states.iter().find(|&item| item.1 == *split_point).unwrap().clone();
+                let begin_state = states.iter().find(|&item| item.1 == *split_point).unwrap().clone();
                 let p_state = convert_back(&begin_state.2);
-                // println!("p_state {:#?}", begin_state);
-                // println!("split {}", split_point);
-                // println!("merge {}", merge_point);
                 for (i, branch) in branch_history.iter().enumerate() {
-                    // render line from split to branch
-                    // println!("branch {:#?}", branch);
                     let mut split_line_data = VerticalLineData {
                         line_class: String::new(),
                         hash: *hash,
@@ -1510,34 +1505,37 @@ fn render_timeline(
                         opacity: 1.0
                     };
 
-                    if branch.e_data.is_empty() {
+                    if branch.e_data.is_empty() || i != 0{
                         // println!("here");
                         split_line_data.opacity = 0.5;
                     }
                     append_line(&p_state, &mut split_line_data, rap, timeline_data, output, registry);
 
-                    // convert beginning state
-                    let b_state = branch_state_converter(&p_state);
-                    let (start, end) = ty.get_start_end(i);
-                    // println!("start end for branch {}, : {} - {}", i, start, end);
-                    let start_val = min(start + 1, *merge_point);
-                    let begin = Some((*split_point + 1, start_val, b_state));
-                    // println!("begin state for branch {}, : {:#?}", i, begin);
+                    // // convert beginning state
+                    // let b_state = branch_state_converter(&p_state);
+                    // let (start, end) = ty.get_start_end(i);
+                    // // println!("start end for branch {}, : {} - {}", i, start, end);
+                    // let start_val = min(start + 1, *merge_point);
+                    // let begin = Some((*split_point + 1, start_val, b_state));
+                    // // println!("begin state for branch {}, : {:#?}", i, begin);
 
-                    // convert ending state
-                    let b_states = visualization_data.fetch_states(hash, &branch.e_data, begin.clone(), None);
-                    // println!("states {:#?}", b_states);
-                    let e_state = b_states.last().unwrap().2.clone();
-                    let end_val = min(end + 1, *merge_point);
-                    let end = Some((end_val, *merge_point, branch_state_converter(&e_state)));
+                    // // convert ending state
+                    // let b_states = visualization_data.fetch_states(hash, &branch.e_data, begin.clone(), None);
+                    // // println!("states {:#?}", b_states);
+                    let e_state = branch.states.last().unwrap().2.clone();
+                    // let end_val = min(end + 1, *merge_point);
+                    // let end = Some((end_val, *merge_point, branch_state_converter(&e_state)));
 
-                    // println!("end state for branch {}, : {:#?}", i, end);
+                    // // println!("end state for branch {}, : {:#?}", i, end);
 
                     render_timeline(hash, 
-                        rap, &branch.e_data, 
-                        begin,
-                        end,
-                        output, visualization_data, &branch.t_data, registry);
+                        rap, 
+                        &branch.e_data,
+                        &branch.states, 
+                        output, 
+                        visualization_data, 
+                        &branch.t_data, 
+                        registry);
                     
                     // render line from branch to merge
                     let mut merge_line_data = VerticalLineData {
@@ -1562,33 +1560,31 @@ fn render_timeline(
         }
     }
 
-    let rap_states = visualization_data.fetch_states(hash, history, prev_state, end_state);
-    let mut cleaned_rap_states: Vec<(usize, usize, State)> = Vec::new();
-    let mut i: usize = 0;
-    while i < rap_states.len() {
-        match &rap_states[i].2 { // merge partial privilege states together
-            State::PartialPrivilege { .. } => {
-                let mut j = i + 1;
-                let mut ending_range = rap_states[i].1;
-                while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
-                    ending_range = rap_states[j].1;
-                    j += 1;
-                }
-                cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
-                i = j;
-            }
-            _ => {
-                cleaned_rap_states.push(rap_states[i].clone());
-                i += 1;
-            }
-        }
-    }
+    // let rap_states = visualization_data.fetch_states(hash, history, prev_state, end_state);
+    // let mut cleaned_rap_states: Vec<(usize, usize, State)> = Vec::new();
+    // let mut i: usize = 0;
+    // while i < rap_states.len() {
+    //     match &rap_states[i].2 { // merge partial privilege states together
+    //         State::PartialPrivilege { .. } => {
+    //             let mut j = i + 1;
+    //             let mut ending_range = rap_states[i].1;
+    //             while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
+    //                 ending_range = rap_states[j].1;
+    //                 j += 1;
+    //             }
+    //             cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
+    //             i = j;
+    //         }
+    //         _ => {
+    //             cleaned_rap_states.push(rap_states[i].clone());
+    //             i += 1;
+    //         }
+    //     }
+    // }
     // println!("states when rendering timeline {:#?}", cleaned_rap_states);
-    for (line_start, line_end, state) in cleaned_rap_states.iter() {
+    for (line_start, line_end, state) in states {
         // println!("{} -> start: {}, end: {}, state: {}", visualization_data.get_name_from_hash(hash).unwrap(), line_start, line_end, state); // DEBUG PURPOSES
-        let data = match rap {
-            ResourceAccessPoint::Function(_) => None,
-            _ => Some(VerticalLineData {
+        let mut data = VerticalLineData {
                 line_class: String::new(),
                 hash: *hash,
                 x1: timeline_data.x_val as f64,
@@ -1597,10 +1593,9 @@ fn render_timeline(
                 y2: get_y_axis_pos(*line_end),
                 title: state.print_message_with_name(rap.name()),
                 opacity: 1.0
-            })
         };
-        if data.is_some() && *line_start != *line_end{
-            append_line(state, & mut data.unwrap(), rap, timeline_data, output, registry);
+        if *line_start != *line_end {
+            append_line(state, & mut data, rap, timeline_data, output, registry);
         }
     }
 }
@@ -1620,7 +1615,7 @@ fn render_timelines(
             _ => {
                 println!("hash {}, timeline {:#?}", hash, timeline);
                 let t_data = resource_owners_layout.get(hash).unwrap();
-                render_timeline(hash, rap, &timeline.history, None, None, output, visualization_data, t_data, registry);
+                render_timeline(hash, rap, &timeline.history, &timeline.states, output, visualization_data, t_data, registry);
             }
         }
     }

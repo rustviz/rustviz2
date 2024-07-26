@@ -1,3 +1,4 @@
+use core::time;
 use std::collections::{HashSet, BTreeMap};
 use std::vec::Vec;
 use std::fmt::{Formatter, Result, Display};
@@ -12,6 +13,9 @@ use std::cmp::Ordering;
 pub static LINE_SPACE: i64 = 30;
 // Top level Api that the Timeline object supports
 pub trait Visualizable {
+    fn compute_branch_states(&self, history: & mut Vec<(usize, Event)>, states: &mut Vec<(usize, usize, State)>, hash: &u64, valid_range: (usize, usize), branch_start: usize, branch_end: usize, previous_state: State) -> State;
+    fn compute_timeline_states(&self, history: & mut Vec<(usize, Event)>, states: &mut Vec<(usize, usize, State)>, hash: &u64);
+    fn compute_states(&mut self);
     fn append_decl_branch_events(&mut self, b_history: &Vec<(usize, ExternalEvent)>);
     fn append_branch_event(&self, event: &ExternalEvent, line_number: usize, is: &ResourceTy, b_history: &mut Vec<(usize, Event)>);
     fn event_of_exteranl_event(&self, line_num: usize, ext_ev: &ExternalEvent, to_o: bool) -> Vec<(usize, Event)>;
@@ -272,6 +276,15 @@ impl BranchType {
             }
         }
     }
+    pub fn get_mut_start_end(& mut self, index: usize) -> & mut (usize, usize) {
+        match self {
+            BranchType::If(_, v) 
+            | BranchType::Loop(_, v) 
+            | BranchType::Match(_, v) => {
+                v.get_mut(index).unwrap()
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -447,7 +460,8 @@ impl ExternalEvent {
 pub struct BranchData {
   pub t_data: TimelineColumnData,
   pub e_data: Vec<(usize, Event)>,
-  pub width: usize
+  pub width: usize,
+  pub states: Vec<(usize, usize, State)>
 }
 // ASSUMPTION: a reference must return resource before borrow;
 //
@@ -581,7 +595,7 @@ pub enum Event {
 
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LineState {
     Full,
     Gray
@@ -698,7 +712,7 @@ impl Ord for State {
             match s {
                 ResourceMoved { .. } | RevokedPrivilege { .. } => 0,
                 PartialPrivilege { .. } => 1,
-                FullPrivilege {..}=> 2,
+                FullPrivilege {..} => 2,
                 Invalid | OutOfScope => 3,
             }
         }
@@ -712,7 +726,13 @@ impl Ord for State {
 
 impl PartialEq for State {
     fn eq(&self, other: &State) -> bool {
-        self.cmp(other) == Ordering::Equal
+        match (self, other) {
+            (State::OutOfScope, State::OutOfScope) => true,
+            (State::PartialPrivilege { s }, State::PartialPrivilege { s: s2 }) => s == s2,
+            (State::FullPrivilege { s }, State::FullPrivilege { s: s2 }) => s == s2,
+            (State::ResourceMoved { .. }, State::ResourceMoved { .. }) => true,
+            _ => false
+        }
     }
 }
 
@@ -733,6 +753,24 @@ pub fn convert_back(s: &State) -> State {
         State::PartialPrivilege { .. } => State::PartialPrivilege { s: LineState::Full },
         _ => s.clone() 
     }
+}
+
+// merge redundant states together
+pub fn clean_states(states: &Vec<(usize, usize, State)>) -> Vec<(usize, usize, State)> {
+    let mut cleaned_states: Vec<(usize, usize, State)> = Vec::new();
+    let mut i = 0;
+    while i < states.len() {
+        let mut j = i + 1;
+        let mut ending_range = states[i].1;
+        while j < states.len() && states[j].2 == states[i].2 {
+            ending_range = states[j].1;
+            j += 1;
+        }
+        cleaned_states.push((states[i].0, ending_range, states[i].2.clone()));
+        i = j;
+    }
+
+    cleaned_states
 }
 
 
@@ -886,12 +924,13 @@ impl Event {
 
 // a vector of ownership transfer history of a specific variable,
 // in a sorted order by line number.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Timeline {
     pub resource_access_point: ResourceAccessPoint,    // a reference of an Owner or a (TODO) Reference, 
                                 // since Functions don't have a timeline 
     // line number in usize
     pub history: Vec<(usize, Event)>,
+    pub states: Vec<(usize, usize, State)>
 }
 
 // a vector of structs information
@@ -1144,15 +1183,121 @@ impl Visualizable for VisualizationData {
             (_, Event::Duplicate { to: ResourceTy::Caller,..}) => State::OutOfScope,
             (_, Event::Duplicate { .. }) => (*previous_state).clone(),
 
-            // Branching logic
-
-            (_, Event::Branch { .. }) => {
+            (_, Event::Branch { .. }) => { // technically not necessary
                 State::OutOfScope
             }
+            (_, Event::OwnerGoOutOfScope) | (_, Event::RefGoOutOfScope) => State::OutOfScope,
             
 
             (_, _) => State::Invalid,
         }
+    }
+
+    fn compute_branch_states(&self, 
+    history: & mut Vec<(usize, Event)>, 
+    states: & mut Vec<(usize, usize, State)>, 
+    hash: &u64, 
+    valid_range: (usize, usize),
+    branch_start: usize,
+    branch_end: usize,
+    mut previous_state: State) -> State{
+        // an empty branch - rendered as the same as previous state
+        if history.is_empty() {
+            states.push((branch_start, branch_end, branch_state_converter(&previous_state)));
+            return previous_state;
+        }
+
+        let (begin, end) = valid_range;
+        // Render opaque line if branch does not begin at split point
+        if begin != branch_start {
+            states.push((branch_start, begin, branch_state_converter(&previous_state)));
+        }
+
+        let mut previous_line = begin;
+        for (l, e) in history {
+            states.push((previous_line, *l, previous_state.clone()));
+            match e {
+                Event::Branch { branch_history, ty, split_point, merge_point, .. } => {
+                    // Timeline is empty in the middle during a branch
+                    states.push((*split_point, *merge_point, State::OutOfScope));
+                    let mut ending_states: Vec<State> = Vec::new();
+                    for (i, branch) in branch_history.iter_mut().enumerate() {
+                        ending_states.push(self.compute_branch_states(
+                            & mut branch.e_data, 
+                            & mut branch.states, 
+                            hash, 
+                            ty.get_start_end(i), 
+                            *split_point + 1,
+                            *merge_point,
+                            previous_state.clone()));
+                    }
+
+                    ending_states.sort(); // partial order of the ending states
+                    previous_state = convert_back(&ending_states.first().unwrap());
+                    previous_line = *merge_point + 1; // timeline starts one line after the curly brace
+                }
+                _ => {
+                    previous_state = self.calc_state(&previous_state, e, *l, hash);
+                    previous_line = *l;
+                }
+            }
+        }
+        states.push((previous_line, end, previous_state.clone()));
+
+        // Render opaque line if branch does not end at merge point
+        if end != branch_end {
+            states.push((end, branch_end, branch_state_converter(&previous_state)));
+        }
+
+        *states = clean_states(&states);
+
+        states.last().unwrap().2.clone() // return the last state in the branch
+    }
+
+
+    fn compute_timeline_states(&self, history: & mut Vec<(usize, Event)>, states: & mut Vec<(usize, usize, State)>, hash: &u64) {
+        let mut previous_line = 1;
+        let mut previous_state = State::OutOfScope;
+        for (l, e) in history {
+            states.push((previous_line, *l, previous_state.clone()));
+            match e {
+                Event::Branch { branch_history, ty, split_point, merge_point, .. } => {
+                    // Timeline is empty in the middle during a branch
+                    states.push((*split_point, *merge_point, State::OutOfScope));
+                    let mut ending_states: Vec<State> = Vec::new();
+                    for (i, branch) in branch_history.iter_mut().enumerate() {
+                        ending_states.push(self.compute_branch_states(
+                            & mut branch.e_data, 
+                            & mut branch.states, 
+                            hash, 
+                            ty.get_start_end(i), 
+                            *split_point + 1,
+                            *merge_point,
+                            previous_state.clone()));
+                    }
+
+                    ending_states.sort(); // partial order of the ending states
+                    previous_state = convert_back(&ending_states.first().unwrap());
+                    previous_line = *merge_point + 1; // timeline starts one line after the curly brace
+
+                }
+                _ => {
+                    previous_state = self.calc_state(&previous_state, e, *l, hash);
+                    previous_line = *l;
+                }
+            }
+        }
+        states.push((previous_line, previous_line, previous_state));
+        *states = clean_states(&states);
+    }
+
+
+    fn compute_states(&mut self) {
+        let mut timelines = self.timelines.clone(); // I am a lazy rust programmer
+        for (hash, timeline) in timelines.iter_mut() {
+            self.compute_timeline_states(& mut timeline.history, &mut timeline.states, hash);
+        }
+        self.timelines = timelines;
     }
 
     fn fetch_states(&self, hash: &u64,
@@ -1263,6 +1408,7 @@ impl Visualizable for VisualizationData {
                 let timeline = Timeline {
                     resource_access_point: resource_access_point.clone(),
                     history: Vec::new(),
+                    states: Vec::new()
                 };
                 self.timelines.insert(**hash, timeline);
             },
@@ -1394,7 +1540,7 @@ impl Visualizable for VisualizationData {
                             is_struct_group: false,
                             is_member: false, 
                             owner: 0
-                          }, e_data: new_b_history, width: 0 });
+                          }, e_data: new_b_history, width: 0, states: Vec::new() });
                     }
 
                     b_history.push((line_number,  
@@ -1495,9 +1641,15 @@ impl Visualizable for VisualizationData {
                             is_struct_group: false,
                             is_member: false, 
                             owner: 0
-                        }, e_data: b_history, width: 0 });
+                        }, e_data: b_history, width: 0, states: Vec::new() });
                     }
-                    maybe_append_event(self, &is.clone(), Event::Branch { is: is, branch_history: branch_history, ty: branch_type.clone(), split_point: split_point, merge_point: merge_point, id: id}, line_number);
+                    maybe_append_event(self, &is.clone(), Event::Branch { 
+                                        is: is, 
+                                        branch_history: branch_history, 
+                                        ty: branch_type.clone(), 
+                                        split_point: split_point, 
+                                        merge_point: merge_point, 
+                                        id: id}, line_number);
                 }
 
                 // have to append events for variables declared inside the block
@@ -1584,12 +1736,3 @@ impl Visualizable for VisualizationData {
         }
     }
 }
-
-/* TODO use this function to create a single copy of resource owner in resource_access_point_map,
- and use hash to refer to it */ 
-// impl VisualizationData {
-//     fn create_resource_access_point(&mut self, ro: ResourceAccessPoint) -> &ResourceAccessPoint {
-//         self.resource_access_point_map.entry(ro.get_hash()).or_insert(ro);
-//         self.resource_access_point_map.get(ro.get_hash())
-//     }
-// }
