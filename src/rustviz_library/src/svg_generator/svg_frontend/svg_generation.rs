@@ -51,9 +51,10 @@ fn sort_branch_external_events(b_data: & mut ExtBranchData) {
 }
 
 pub fn mutate_branch_lines(b_data: & mut ExtBranchData, l_map: & mut HashMap<usize, usize>, mut extra_lines: usize) -> usize {
+    let old_extra_lines = extra_lines;
     let old_line_map = b_data.line_map.clone();
     let mut new_line_map: BTreeMap<usize, Vec<ExternalEvent>> = BTreeMap::new();
-    let mut skippable_ev: HashSet<(usize, ExternalEvent)> = HashSet::new();
+    let mut skippable_ev: HashSet<usize> = HashSet::new();
 
     // mutate actual events
     let mut i: usize = 0;
@@ -63,7 +64,7 @@ pub fn mutate_branch_lines(b_data: & mut ExtBranchData, l_map: & mut HashMap<usi
         let line_num = *l;
         let new_line_num = *l + extra_lines;
         let event = e.clone();
-        if skippable_ev.contains(&(line_num, event.clone())) {
+        if skippable_ev.contains(&e.get_id()) {
             i = i + 1;
             continue;
         }
@@ -71,26 +72,14 @@ pub fn mutate_branch_lines(b_data: & mut ExtBranchData, l_map: & mut HashMap<usi
         match e {
             ExternalEvent::Branch {branches, split_point, merge_point, branch_type, .. } => {
                 *split_point = *l; // update split point
-                let mut b_lines = 0;
-                let mut b_extra: Vec<usize> = Vec::new();
-                for branch in branches.iter_mut(){ // mutate branches
+                for (j, branch) in branches.iter_mut().enumerate(){ // mutate branches
+                    let (start, end) = branch_type.get_mut_start_end(j);
+                    *start += extra_lines;
                     let b = mutate_branch_lines(branch, l_map, extra_lines);
-                    b_extra.push(b);
-                    b_lines = max(b_lines, b);
-                }
-
-                // update branches valid starting and end points
-                let mut offset = extra_lines;
-                for i in 0..branches.len() {
-                    let (start, end) = branch_type.get_mut_start_end(i);
-                    *start += offset;
-                    offset += b_extra[i];
-                    *end += offset;
+                    extra_lines += b;
+                    *end += extra_lines;
                 }
                 
-                
-                // update merge point
-                extra_lines += b_lines;
                 *merge_point += extra_lines;
             }
             _ => {
@@ -98,22 +87,22 @@ pub fn mutate_branch_lines(b_data: & mut ExtBranchData, l_map: & mut HashMap<usi
                 let res = old_line_map.get(&line_num).cloned();
                 let ex = match res {
                     Some(ev) => { // if there are multiple arrow events on this line
-                        if *ev.get(0).unwrap() == event { // if event is the first arrow event
+                        if *ev.get(0).unwrap() == event { // if event is the first arrow event (ie it is our first time here)
                             for e in ev.clone() {
+                                skippable_ev.insert(e.get_id()); // they all become skippable
                                 let mut j = i;
                                 while j < size {
-                                    let (l, p_e) = b_data.e_data.get_mut(i).unwrap();
-                                    if *l == line_num && e == *p_e {
+                                    let (l, p_e) = b_data.e_data.get_mut(j).unwrap();
+                                    if p_e.get_id() == e.get_id(){
                                         *l = new_line_num;
                                         break;
                                     }
                                     j += 1;
                                 }
-                                skippable_ev.insert((line_num, e)); // they all become skippable
                             }
                             let ev_len = ev.len() - 1;
                             new_line_map.insert(new_line_num, ev); // insert new line number into new event line map
-                            l_map.insert(line_num, ev_len);
+                            l_map.insert(new_line_num, ev_len);
                             ev_len
                         }
                         else {
@@ -132,7 +121,7 @@ pub fn mutate_branch_lines(b_data: & mut ExtBranchData, l_map: & mut HashMap<usi
 
     // replace line_map
     b_data.line_map = new_line_map;
-    extra_lines
+    extra_lines - old_extra_lines
 
 }
 
@@ -176,38 +165,30 @@ pub fn render_svg(
     let size: usize = visualization_data.preprocess_external_events.len();
     let mut event_line_map_replace: BTreeMap<usize, Vec<ExternalEvent>> = BTreeMap::new();
     let mut extra_lines: usize = 0;
-    let mut skippable_ev: HashSet<(usize, ExternalEvent)> = HashSet::new();
+    let mut skippable_ev: HashSet<usize> = HashSet::new();
     let mut line_insertion_map: HashMap<usize, usize> = HashMap::new();
     while i < size {
         let (line_num, event) = visualization_data.preprocess_external_events.get_mut(i).unwrap();
         let mut branch_line = 0;
-        if skippable_ev.contains(&(*line_num, event.clone())) {
+        if skippable_ev.contains(&event.get_id()) {
             i += 1;
             continue;
         }
         match event {
             // need to mutate line numbers of events inside the branch
             ExternalEvent::Branch { branches, split_point, merge_point, branch_type, .. } => {
-                let mut extra_branch_lines: usize = 0;
                 *split_point += extra_lines;
                 branch_line = *line_num + extra_lines;
-                let mut b_extra: Vec<usize> = Vec::new();
-                for branch in branches.iter_mut() {
-                    let b = mutate_branch_lines(branch, & mut line_insertion_map, extra_lines);
-                    b_extra.push(b);
-                    extra_branch_lines = max(extra_branch_lines, b);
-                }
-                // upate extra lines with total lines computed from traversing the branch
-                let mut offset = extra_lines;
-                for i in 0..branches.len() {
-                    let (start, end) = branch_type.get_mut_start_end(i);
-                    *start += offset;
-                    offset += b_extra[i];
-                    *end += offset;
+                for (j, branch) in branches.iter_mut().enumerate() {
+                    let (start, end) = branch_type.get_mut_start_end(j);
+                    *start += extra_lines;
+                    let b = mutate_branch_lines(branch, &mut line_insertion_map, extra_lines);
+                    extra_lines += b;
+                    *end += extra_lines;
                 }
 
-                *merge_point += extra_lines + extra_branch_lines;
-                extra_lines += extra_branch_lines;
+                *merge_point += extra_lines;
+                // extra_lines += extra_branch_lines;
             }
             _ => {}
         }
@@ -224,11 +205,11 @@ pub fn render_svg(
                 if *ev.get(0).unwrap() == event { // if event is the first arrow event
                     for e in ev.clone() { // append all the events in the line map on the same line
                         visualization_data.append_processed_external_event(e.clone(), final_line_num);
-                        skippable_ev.insert((line_num, e)); // they all become skippable 
+                        skippable_ev.insert(e.get_id()); // they all become skippable 
                     }
                     let ev_len = ev.len() - 1;
                     event_line_map_replace.insert(final_line_num, ev); // insert new line number into new event line map
-                    line_insertion_map.insert(line_num, ev_len);
+                    line_insertion_map.insert(final_line_num, ev_len);
                     ev_len
                 }
                 else {
@@ -246,6 +227,8 @@ pub fn render_svg(
 
         i += 1;
     }
+
+    println!("insert line map {:#?}", line_insertion_map);
 
 
 

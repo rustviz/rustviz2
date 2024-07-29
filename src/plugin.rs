@@ -11,7 +11,7 @@ use rustc_utils::{
   mir::borrowck_facts,
 };
 use rustviz_lib::data::ResourceAccessPoint;
-use crate::expr_visitor::ExprVisitor;
+use crate::expr_visitor::{ExprVisitor, RapData};
 use crate::RVPluginArgs;
 use crate::utils::RV1Helper;
 
@@ -47,7 +47,7 @@ fn annotate_struct_field (
 fn annotate_toplevel_fn (
   func_ident: rustc_span::symbol::Ident, 
   line_str: &str, 
-  raps: & HashMap<String, (ResourceAccessPoint, usize)>,
+  raps: & HashMap<String, RapData>,
   a_map: & mut BTreeMap<usize, Vec<String>>,
   hashes: & mut usize,
   m: &TyCtxt)  {
@@ -57,7 +57,7 @@ fn annotate_toplevel_fn (
   let left: usize = m.sess.source_map().lookup_char_pos(func_ident.span.lo()).col_display;
   let right: usize = m.sess.source_map().lookup_char_pos(func_ident.span.hi()).col_display;
   let hash = match raps.get(&func_name) {
-    Some(r) => { *r.0.hash() }
+    Some(r) => { *r.rap.hash() }
     None => {
       let current_hash = *hashes;
       *hashes = (*hashes + 1) % 10;
@@ -79,14 +79,14 @@ fn annotate_enum_variant(
   ctor_name: &str, 
   parent_name: &str,
   variant: & rustc_hir::Variant,
-  rap_map: & HashMap<String, (ResourceAccessPoint, usize)>,
+  rap_map: & HashMap<String, RapData>,
   a_map: & mut BTreeMap<usize, Vec<String>>,
   m: & TyCtxt
 ) {
   let rap_name = format!("{}::{}", parent_name, ctor_name);
   if rap_map.contains_key(&rap_name) {
     let span = variant.ident.span;
-    let hash = rap_map.get(&rap_name).unwrap().0.hash();
+    let hash = rap_map.get(&rap_name).unwrap().rap.hash();
     let line: usize = m.sess.source_map().lookup_char_pos(span.lo()).line;
     let left: usize = m.sess.source_map().lookup_char_pos(span.lo()).col_display;
     let line_str = &a_map[&line][0];
@@ -121,7 +121,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
   let mut a_line_map: BTreeMap<usize, Vec<String>> = BTreeMap::new();
   let mut owner_to_hash: HashMap<String, usize> = HashMap::new();
   let mut pre_events: Vec<(usize, rustviz_lib::data::ExternalEvent)> = Vec::new();
-  let mut rap_map: HashMap<String, (rustviz_lib::data::ResourceAccessPoint, usize)> = HashMap::new();
+  let mut rap_map: HashMap<String, RapData> = HashMap::new();
   for k in a_map.keys() {
     let s = a_map[k].clone();
     a_line_map.insert(*k, vec![s]);
@@ -179,6 +179,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
           annotated_lines: & mut a_line_map,
           id_map: & mut owner_to_hash,
           unique_id: & mut ids,
+          inside_branch: false
         };
         visitor.visit_body(hir_body);
         visitor.print_lifetimes();

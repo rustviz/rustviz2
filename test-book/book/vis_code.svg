@@ -1,4 +1,4 @@
-<svg width="400px" height="580px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg width="400px" height="700px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 
       <desc>vis</desc>
 
@@ -167,20 +167,24 @@
       </g>
 
           <g id="code">
-        <text class="code" x="20" y="90"> <tspan fill="#AAA">1  </tspan>fn main () { </text>
-        <text class="code" x="20" y="120"> <tspan fill="#AAA">2  </tspan>  let mut <tspan data-hash="1">x</tspan> = 5; </text>
-        <text class="code" x="20" y="150"> <tspan fill="#AAA">3  </tspan> </text>
-        <text class="code" x="20" y="180"> <tspan fill="#AAA">4  </tspan>  if <tspan data-hash="1">x</tspan> &lt; 9 { </text>
-        <text class="code" x="20" y="210"> <tspan fill="#AAA">5  </tspan>    let <tspan data-hash="2">y</tspan> = <tspan data-hash="1">x</tspan>; </text>
-        <text class="code" x="20" y="240"> <tspan fill="#AAA">6  </tspan>    if <tspan data-hash="2">y</tspan> &lt; <tspan data-hash="1">x</tspan> { </text>
-        <text class="code" x="20" y="270"> <tspan fill="#AAA">7  </tspan>      let <tspan data-hash="3">z</tspan> = <tspan data-hash="2">y</tspan>; </text>
-        <text class="code" x="20" y="300"> <tspan fill="#AAA">8  </tspan>      let <tspan data-hash="4">c</tspan> = <tspan data-hash="1">x</tspan>; </text>
-        <text class="code" x="20" y="330"> <tspan fill="#AAA">9  </tspan>      if <tspan data-hash="4">c</tspan> &lt; <tspan data-hash="3">z</tspan> { </text>
-        <text class="code" x="20" y="360"> <tspan fill="#AAA">10  </tspan>        let <tspan data-hash="5">b</tspan> = <tspan data-hash="4">c</tspan>; </text>
-        <text class="code" x="20" y="390"> <tspan fill="#AAA">11  </tspan>      } </text>
-        <text class="code" x="20" y="420"> <tspan fill="#AAA">12  </tspan>    } </text>
-        <text class="code" x="20" y="450"> <tspan fill="#AAA">13  </tspan>  } </text>
-        <text class="code" x="20" y="480"> <tspan fill="#AAA">14  </tspan>} </text>
+        <text class="code" x="20" y="90"> <tspan fill="#AAA">1  </tspan>pub enum Fruit { </text>
+        <text class="code" x="20" y="120"> <tspan fill="#AAA">2  </tspan>  <tspan class="fn" data-hash="0" hash="1">Apple</tspan>(u32), </text>
+        <text class="code" x="20" y="150"> <tspan fill="#AAA">3  </tspan>  <tspan class="fn" data-hash="0" hash="3">Banana</tspan> </text>
+        <text class="code" x="20" y="180"> <tspan fill="#AAA">4  </tspan>} </text>
+        <text class="code" x="20" y="210"> <tspan fill="#AAA">5  </tspan> </text>
+        <text class="code" x="20" y="240"> <tspan fill="#AAA">6  </tspan>fn main () { </text>
+        <text class="code" x="20" y="270"> <tspan fill="#AAA">7  </tspan>  let mut <tspan data-hash="2">x</tspan> = <tspan class="fn" data-hash="0" hash="1">Fruit::Apple</tspan>(8); </text>
+        <text class="code" x="20" y="300"> <tspan fill="#AAA">8  </tspan>  let mut <tspan data-hash="4">y</tspan> = <tspan class="fn" data-hash="0" hash="3">Fruit::Banana</tspan>; </text>
+        <text class="code" x="20" y="330"> <tspan fill="#AAA">9  </tspan>  match <tspan data-hash="2">x</tspan> { </text>
+        <text class="code" x="20" y="360"> <tspan fill="#AAA">10  </tspan>    Fruit::Apple(<tspan data-hash="5">z</tspan>) =&gt; {  </text>
+        <text class="code" x="20" y="390"> <tspan fill="#AAA">11  </tspan>      <tspan data-hash="4">y</tspan> = <tspan class="fn" data-hash="0" hash="1">Fruit::Apple</tspan>(<tspan data-hash="5">z</tspan>) </text>
+        <text class="code" x="20" y="420"> <tspan fill="#AAA">12</tspan> </text>
+        <text class="code" x="20" y="450"> <tspan fill="#AAA">13  </tspan>    } </text>
+        <text class="code" x="20" y="480"> <tspan fill="#AAA">14  </tspan>    _ =&gt; { </text>
+        <text class="code" x="20" y="510"> <tspan fill="#AAA">15  </tspan>      <tspan data-hash="4">y</tspan> = <tspan class="fn" data-hash="0" hash="3">Fruit::Banana</tspan> </text>
+        <text class="code" x="20" y="540"> <tspan fill="#AAA">16  </tspan>    } </text>
+        <text class="code" x="20" y="570"> <tspan fill="#AAA">17  </tspan>  }; </text>
+        <text class="code" x="20" y="600"> <tspan fill="#AAA">18  </tspan>} </text>
     </g>
 
 

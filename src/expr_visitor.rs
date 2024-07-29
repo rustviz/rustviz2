@@ -37,6 +37,13 @@ pub struct RefData {
   pub aliasing: VecDeque<String>
 }
 
+#[derive(Debug, Clone)]
+pub struct RapData {
+  pub rap: ResourceAccessPoint, 
+  pub scope: usize,
+  pub is_global: bool
+}
+
 
 pub struct ExprVisitor<'a, 'tcx:'a> {
   pub tcx: TyCtxt<'tcx>,
@@ -44,7 +51,7 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   //pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
   pub borrow_map: HashMap<String, RefData>, //lendee -> (lender, lifetime, ref mutability) 
   pub lenders: HashMap<String, HashSet<ResourceTy>>, //todo, change this logic to shared ptrs when I feel like it
-  pub raps: &'a mut HashMap<String, (ResourceAccessPoint, usize)>,
+  pub raps: &'a mut HashMap<String, RapData>,
   pub current_scope: usize,
   pub analysis_result : HashMap<usize, Vec<String>>,
   pub event_line_map: &'a mut BTreeMap<usize, Vec<ExternalEvent>>,
@@ -53,8 +60,8 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub source_map: & 'a BTreeMap<usize, String>,
   pub annotated_lines: & 'a mut BTreeMap<usize, Vec<String>>,
   pub id_map: & 'a mut HashMap<String, usize>,
-
-  pub unique_id: & 'a mut usize
+  pub unique_id: & 'a mut usize,
+  pub inside_branch: bool
 }
 
 impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
@@ -113,45 +120,46 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn add_owner(&mut self, name: String, mutability: bool) {
-    self.add_rap(ResourceAccessPoint::Owner(Owner{name: name, hash: self.rap_hashes as u64, is_mut: mutability}));
+  pub fn add_owner(&mut self, name: String, mutability: bool, scope: usize, is_global: bool) {
+    self.add_rap(ResourceAccessPoint::Owner(Owner{name: name, hash: self.rap_hashes as u64, is_mut: mutability}), scope, is_global);
   }
 
-  pub fn add_ref(&mut self, name: String, ref_mutability: bool, lhs_mut: bool, line_num: usize, lender: ResourceTy, alia: VecDeque<String>) {
+  pub fn add_ref(&mut self, name: String, ref_mutability: bool, lhs_mut: bool, line_num: usize, lender: ResourceTy, alia: VecDeque<String>, scope: usize, is_global: bool) {
     match ref_mutability {
       true => {
-        self.add_mut_ref(name.clone(), lhs_mut);
+        self.add_mut_ref(name.clone(), lhs_mut, scope, is_global);
       }
       false => { 
-        self.add_static_ref(name.clone(), lhs_mut);
+        self.add_static_ref(name.clone(), lhs_mut, scope, is_global);
       }
     }
     self.borrow_map.insert(name.clone(), RefData { lender: lender.clone(), lifetime: line_num, ref_mutability: ref_mutability, aliasing: alia });
   }
   
-  pub fn add_static_ref(&mut self, name: String, mutability: bool) {
-    self.add_rap(ResourceAccessPoint::StaticRef(StaticRef { name: name, hash: self.rap_hashes as u64, is_mut: mutability }));
+  pub fn add_static_ref(&mut self, name: String, mutability: bool, scope: usize, is_global: bool) {
+    self.add_rap(ResourceAccessPoint::StaticRef(StaticRef { name: name, hash: self.rap_hashes as u64, is_mut: mutability }), scope, is_global);
   }
 
-  pub fn add_mut_ref(&mut self, name: String, mutability: bool) {
-    self.add_rap(ResourceAccessPoint::MutRef(MutRef { name: name, hash: self.rap_hashes as u64, is_mut: mutability }));
+  pub fn add_mut_ref(&mut self, name: String, mutability: bool, scope: usize, is_global: bool) {
+    self.add_rap(ResourceAccessPoint::MutRef(MutRef { name: name, hash: self.rap_hashes as u64, is_mut: mutability }), scope, is_global);
   }
 
   pub fn add_fn(&mut self, name: String) {
-    self.add_rap(ResourceAccessPoint::Function(Function { name: name, hash: self.rap_hashes as u64 }));
+    self.add_rap(ResourceAccessPoint::Function(Function { name: name, hash: self.rap_hashes as u64 }), self.current_scope, true);
   }
 
-  pub fn add_struct(&mut self, name: String, owner: u64, mem: bool, mutability: bool) {
+  pub fn add_struct(&mut self, name: String, owner: u64, mem: bool, mutability: bool, scope: usize, is_global: bool) {
     self.add_rap(ResourceAccessPoint::Struct(Struct { 
       name: name, 
       hash: self.rap_hashes as u64, 
       owner: owner, 
       is_mut: mutability, 
-      is_member: mem }));
+      is_member: mem }),
+      scope, is_global);
   }
 
-  pub fn add_rap(&mut self, r: ResourceAccessPoint) {
-    self.raps.entry(r.name().to_string()).or_insert_with(|| {self.rap_hashes += 1; (r, self.current_scope)});
+  pub fn add_rap(&mut self, r: ResourceAccessPoint, scope: usize, is_global: bool) {
+    self.raps.entry(r.name().to_string()).or_insert_with(|| {self.rap_hashes += 1; RapData{rap: r, scope, is_global}});
   }
 
   pub fn update_rap(&mut self, r: &ResourceAccessPoint, line_num: usize) {
@@ -224,14 +232,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     match expr.kind {
       ExprKind::Path(QPath::Resolved(_, p)) => {
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        ResourceTy::Value(self.raps.get(&name).unwrap().0.to_owned())
+        ResourceTy::Value(self.raps.get(&name).unwrap().rap.to_owned())
       }
       ExprKind::Field(expr, ident) => {
         match expr {
           Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             let total_name = format!("{}.{}", name, ident.as_str());
-            ResourceTy::Value(self.raps.get(&total_name).unwrap().0.to_owned())
+            ResourceTy::Value(self.raps.get(&total_name).unwrap().rap.to_owned())
           }
           _ => { panic!("unexpected field expr") }
         } 
@@ -286,7 +294,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     match expr.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        ResourceTy::Value(self.raps.get(&name).unwrap().0.to_owned())
+        ResourceTy::Value(self.raps.get(&name).unwrap().rap.to_owned())
       }
       ExprKind::Unary(rustc_hir::UnOp::Deref, expr) => {
         let rhs_rap = self.fetch_rap(&expr);
@@ -300,11 +308,11 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::AddrOf(_, _, expr) | ExprKind::Unary(_, expr) => self.get_rap(expr),
       ExprKind::Call(fn_expr, _) => {
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
-        ResourceTy::Value(self.raps.get(&fn_name).unwrap().0.to_owned())
+        ResourceTy::Value(self.raps.get(&fn_name).unwrap().rap.to_owned())
       }
       ExprKind::MethodCall(name_and_generic_args, ..) => {
         let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
-        ResourceTy::Value(self.raps.get(&fn_name).unwrap().0.to_owned())
+        ResourceTy::Value(self.raps.get(&fn_name).unwrap().rap.to_owned())
       }
       ExprKind::Block(b, _) => {
         match b.expr {
@@ -318,7 +326,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             let field_name: String = ident.as_str().to_owned();
             let total_name = format!("{}.{}", name, field_name);
-            ResourceTy::Value(self.raps.get(&total_name).unwrap().0.to_owned())
+            ResourceTy::Value(self.raps.get(&total_name).unwrap().rap.to_owned())
           }
           _ => { panic!("unexpected field expr") }
         } 
@@ -334,7 +342,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     let arg_ty = tycheck_results.node_type(arg.hir_id);
     let is_copyable = arg_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(arg.hir_id.owner));
     let from_ro = self.get_rap(arg);
-    let to_ro = ResourceTy::Value(self.raps.get(&fn_name).unwrap().0.to_owned());
+    let to_ro = ResourceTy::Value(self.raps.get(&fn_name).unwrap().rap.to_owned());
     if arg_ty.is_ref() {
       match arg_ty.ref_mutability().unwrap() {
         Mutability::Not => self.add_ev(line_num, Evt::PassBySRef, to_ro, from_ro),
@@ -357,7 +365,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           self.borrow_map.get(&name).unwrap().to_owned().lender
         }
         else{
-          ResourceTy::Value(self.raps.get(&name).unwrap().0.to_owned())
+          ResourceTy::Value(self.raps.get(&name).unwrap().rap.to_owned())
         }
       }
       ExprKind::Call(..) | ExprKind::MethodCall(..) | ExprKind::Lit(_) => {
@@ -396,7 +404,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
               self.borrow_map.get(&name).unwrap().to_owned().lender
             }
             else{
-              ResourceTy::Value(self.raps.get(&name).unwrap().0.to_owned())
+              ResourceTy::Value(self.raps.get(&name).unwrap().rap.to_owned())
             }
           }
           _ => { panic!("unexpected field expr") }
@@ -511,23 +519,24 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       lhs_mutability, 
       self.expr_to_line(&rhs_expr),
       lender,
-      aliasing);
+      aliasing,
+      self.current_scope, !self.inside_branch);
     }
     else if lhs_ty.is_adt() && !self.ty_is_special_owner(lhs_ty) {
       match lhs_ty.ty_adt_def().unwrap().adt_kind() {
         AdtKind::Struct => {
           let owner_hash = self.rap_hashes as u64;
-          self.add_struct(lhs_name.clone(), owner_hash, false, lhs_mutability);
+          self.add_struct(lhs_name.clone(), owner_hash, false, lhs_mutability, self.current_scope,!self.inside_branch);
           for field in lhs_ty.ty_adt_def().unwrap().all_fields() {
             let field_name = format!("{}.{}", lhs_name.clone(), field.name.as_str());
-            self.add_struct(field_name, owner_hash, true, lhs_mutability);
+            self.add_struct(field_name, owner_hash, true, lhs_mutability, self.current_scope,  !self.inside_branch);
           }
         },
         AdtKind::Union => {
           panic!("lhs union not implemented yet")
         },
         AdtKind::Enum => {
-          self.add_owner(lhs_name, lhs_mutability);
+          self.add_owner(lhs_name, lhs_mutability, self.current_scope, !self.inside_branch);
         }
       }
     }
@@ -535,7 +544,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       panic!("cannot have fn as lhs of expr");
     }
     else { 
-      self.add_owner(lhs_name, lhs_mutability);
+      self.add_owner(lhs_name, lhs_mutability, self.current_scope, !self.inside_branch);
     }
   }
 
@@ -544,7 +553,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Call(..) | ExprKind::Binary(..) | ExprKind::Lit(_) | ExprKind::MethodCall(..) => None,
       ExprKind::Path(QPath::Resolved(_,p)) => {
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        Some(self.raps.get(&name).unwrap().0.to_owned())
+        Some(self.raps.get(&name).unwrap().rap.to_owned())
       }
       ExprKind::AddrOf(_, _, expr) | ExprKind::Unary(_, expr) => self.fetch_rap(expr),
       ExprKind::Block(b, _) => {
@@ -559,7 +568,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             let field_name: String = ident.as_str().to_owned();
             let total_name = format!("{}.{}", name, field_name);
-            Some(self.raps.get(&total_name).unwrap().0.to_owned())
+            Some(self.raps.get(&total_name).unwrap().rap.to_owned())
           }
           _ => { panic!("unexpected field expr") }
         } 
@@ -598,64 +607,142 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       PatKind::Wild => {
         String::from("Wild")
       }
+      PatKind::Tuple(pat_list, _) => {
+        let mut res = String::from("(");
+        for (i, p) in pat_list.iter().enumerate() {
+          res.push_str(&self.get_name_of_pat(p));
+          if i < pat_list.len() - 1{
+            res.push_str(", ");
+          }
+          else {
+            res.push(')');
+          }
+        }
+        res
+      }
       _ => panic!("unexpected pat kind {:#?}", pat)
     }
   }
 
-  pub fn get_decl_of_pat(&mut self, pat: &Pat, ty_results: &TypeckResults, parent: &ResourceTy, scope: usize) -> HashSet<ResourceAccessPoint> {
-    let mut res = HashSet::new();
+  pub fn get_dec_of_pat2(
+  &mut self, 
+  pat: &Pat, 
+  ty_results: & 'tcx TypeckResults<'tcx>, 
+  parent: &ResourceTy,
+  parent_ty: Ty, 
+  scope: usize, 
+  res: & mut Vec<(ResourceAccessPoint, Evt)>) {
     match pat.kind {
       PatKind::TupleStruct(_p, tuple_members, _) => {
         for p in tuple_members.iter() {
-          let other: HashSet<ResourceAccessPoint> = self.get_decl_of_pat(p, ty_results, parent, scope);
-          res = res.union(&other).cloned().collect();
+          self.get_dec_of_pat2(p, ty_results, parent, parent_ty, scope, res);
         }
-
       }
       PatKind::Binding(mode, id, ident, _) => {
         // hacky fix for GoOutOfScope events
-        let old_scope = self.current_scope;
-        self.current_scope = scope; 
+        let old_scope = self.current_scope; 
         // add raps that appear in binding
         let muta = bool_of_mut(mode.1);
         let line_num = self.span_to_line(&ident.span);
-        let ty = ty_results.node_type(id);
+        let ty: Ty = ty_results.node_type(id);
         let name = ident.to_string();
         if ty.is_ref() {
           let ref_mutability = bool_of_mut(ty.ref_mutability().unwrap());
-          self.add_ref(name.clone(), ref_mutability, muta, line_num, parent.clone(), VecDeque::new());
+          self.add_ref(name.clone(), ref_mutability, muta, line_num, parent.clone(), VecDeque::new(), scope, false);
         }
         else if ty.is_adt() {
           match ty.ty_adt_def().unwrap().adt_kind() {
             AdtKind::Struct => {
               let owner_hash = self.rap_hashes as u64;
-              self.add_struct(name.clone(), owner_hash, false, muta);
+              self.add_struct(name.clone(), owner_hash, false, muta, scope, false);
               for field in ty.ty_adt_def().unwrap().all_fields() {
                 let field_name = format!("{}.{}", name, field.name.as_str());
-                self.add_struct(field_name, owner_hash, true, muta);
+                self.add_struct(field_name, owner_hash, true, muta, scope, false);
               }
             },
             AdtKind::Union => {
               panic!("union not implemented yet")
             },
             AdtKind::Enum => {
-              self.add_owner(name.clone(), muta);
+              self.add_owner(name.clone(), muta, scope, false);
             }
           }
           
         }
         else {
-          self.add_owner(name.clone(), muta);
+          self.add_owner(name.clone(), muta, scope, false);
         }
-        self.current_scope = old_scope;
 
-        res.insert(self.raps.get(&name).unwrap().0.to_owned());
+        let evt = if parent_ty.is_ref() {
+          if bool_of_mut(parent_ty.ref_mutability().unwrap()) { Evt::MBorrow }
+          else { Evt::SBorrow }
+        }
+        else {
+          if ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(pat.hir_id.owner)) { Evt::Copy }
+          else { Evt::Move }
+        };
+
+        res.push((self.raps.get(&name).unwrap().rap.to_owned(), evt));
       }
       _ => {}
+      
     }
-    res
-
   }
+
+  // pub fn get_decl_of_pat(&mut self, pat: &Pat, ty_results: &TypeckResults, parent: &ResourceTy, scope: usize) -> HashSet<ResourceAccessPoint> {
+  //   let mut res = HashSet::new();
+  //   match pat.kind {
+  //     PatKind::TupleStruct(_p, tuple_members, _) => {
+  //       for p in tuple_members.iter() {
+  //         let other: HashSet<ResourceAccessPoint> = self.get_decl_of_pat(p, ty_results, parent, scope);
+  //         res = res.union(&other).cloned().collect();
+  //       }
+
+  //     }
+  //     PatKind::Binding(mode, id, ident, _) => {
+  //       // hacky fix for GoOutOfScope events
+  //       let old_scope = self.current_scope;
+  //       self.current_scope = scope; 
+  //       // add raps that appear in binding
+  //       let muta = bool_of_mut(mode.1);
+  //       let line_num = self.span_to_line(&ident.span);
+  //       let ty = ty_results.node_type(id);
+  //       let name = ident.to_string();
+  //       if ty.is_ref() {
+  //         let ref_mutability = bool_of_mut(ty.ref_mutability().unwrap());
+  //         self.add_ref(name.clone(), ref_mutability, muta, line_num, parent.clone(), VecDeque::new());
+  //       }
+  //       else if ty.is_adt() {
+  //         match ty.ty_adt_def().unwrap().adt_kind() {
+  //           AdtKind::Struct => {
+  //             let owner_hash = self.rap_hashes as u64;
+  //             self.add_struct(name.clone(), owner_hash, false, muta, scope);
+  //             for field in ty.ty_adt_def().unwrap().all_fields() {
+  //               let field_name = format!("{}.{}", name, field.name.as_str());
+  //               self.add_struct(field_name, owner_hash, true, muta);
+  //             }
+  //           },
+  //           AdtKind::Union => {
+  //             panic!("union not implemented yet")
+  //           },
+  //           AdtKind::Enum => {
+  //             self.add_owner(name.clone(), muta);
+  //           }
+  //         }
+          
+  //       }
+  //       else {
+  //         self.add_owner(name.clone(), muta);
+  //       }
+  //       self.current_scope = old_scope;
+
+  //       res.insert(self.raps.get(&name).unwrap().rap.to_owned());
+  //     }
+  //     _ => {}
+  //   }
+  //   res
+
+  // }
 
   pub fn get_decl_of_block(&self, block: & 'tcx rustc_hir::Block) -> HashSet<ResourceAccessPoint>{
     let mut res:HashSet<ResourceAccessPoint> = HashSet::new();
@@ -682,7 +769,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
           _ => panic!("unexpected let binding pattern")
         };
-        res.insert(self.raps.get(&name).unwrap().0.to_owned());
+        res.insert(self.raps.get(&name).unwrap().rap.to_owned());
       }
       _ => {}
     }
@@ -699,7 +786,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
           _ => {
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-            HashSet::from([self.raps.get(&name).unwrap().0.to_owned()])
+            HashSet::from([self.raps.get(&name).unwrap().rap.to_owned()])
           }
         }
       }
@@ -709,7 +796,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             let field_name: String = ident.as_str().to_owned();
             let total_name = format!("{}.{}", name, field_name);
-            HashSet::from([self.raps.get(&total_name).unwrap().0.to_owned()])
+            HashSet::from([self.raps.get(&total_name).unwrap().rap.to_owned()])
           }
           _ => { panic!("unexpected field expr") }
         } 
@@ -770,7 +857,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       }
       ExprKind::MethodCall(_, rcvr, args, _) => {
         let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
-        let mut res = HashSet::from([self.raps.get(&rcvr_name).unwrap().0.to_owned()]);
+        let mut res = HashSet::from([self.raps.get(&rcvr_name).unwrap().rap.to_owned()]);
         for a_expr in args.iter() {
           res = res.union(&self.get_live_of_expr(&a_expr)).cloned().collect();
         }
@@ -801,6 +888,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             res = res.union(&self.get_live_of_expr(&e)).cloned().collect();
           }
           None => {}
+        }
+        res
+      }
+      ExprKind::Tup(expr_list) => {
+        let mut res: HashSet<ResourceAccessPoint> = HashSet::new();
+        for e in expr_list.iter() {
+          res = res.union(&self.get_live_of_expr(e)).cloned().collect();
         }
         res
       }
@@ -892,7 +986,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned()
           }
         };
-        let rhs_rap = self.raps.get(&rhs_name).unwrap().0.to_owned();
+        let rhs_rap = self.raps.get(&rhs_name).unwrap().rap.to_owned();
         self.update_rap(&rhs_rap, line_num);
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
       },
@@ -902,7 +996,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let line_num = self.span_to_line(&fn_expr.span);
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
         println!("fn_name {:#?}", fn_name);
-        let rhs_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
+        let rhs_rap = self.raps.get(&fn_name).unwrap().rap.to_owned();
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
       },
       
@@ -970,7 +1064,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let line_num = self.span_to_line(&rcvr.span);
         let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
         //let type_check = self.tcx.typeck(name_and_generic_args.hir_id.owner);
-        let rhs_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
+        let rhs_rap = self.raps.get(&fn_name).unwrap().rap.to_owned();
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
       }
       // Struct intializer list:
@@ -980,7 +1074,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         self.add_ev(line_num, Evt::Bind, lhs.clone(), ResourceTy::Anonymous);
         for field in expr_fields.iter() {
             let new_lhs_name = format!("{}.{}", lhs.name(), field.ident.as_str());
-            let field_rap = self.raps.get(&new_lhs_name).unwrap().0.to_owned();
+            let field_rap = self.raps.get(&new_lhs_name).unwrap().rap.to_owned();
             let field_ty = self.tcx.typeck(field.expr.hir_id.owner).node_type(field.expr.hir_id);
             let is_copyable = field_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(field.expr.hir_id.owner));
             let e = if field_ty.is_ref() {
@@ -1004,7 +1098,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             let line_num = self.span_to_line(&p.span);
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             let total_name = format!("{}.{}", name, id.as_str());
-            let rhs_rap = self.raps.get(&total_name).unwrap().0.to_owned();
+            let rhs_rap = self.raps.get(&total_name).unwrap().rap.to_owned();
             self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
           }
           _ => panic!("unexpected field expr")
@@ -1042,12 +1136,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   pub fn print_out_of_scope(&mut self){
     for (_, rap) in self.raps.clone().iter() {
       // need this to avoid duplicating out of scope events, this is due to the fact that RAPS is a map that lives over multiple fn ctxts
-      if !rap.0.is_fn() {
+      if !rap.rap.is_fn() && rap.is_global {
         let mut duplicate = false;
         for (_l, e) in self.preprocessed_events.iter() {
           match e.is_gos_ev() {
             Some(r) => {
-              if *r == rap.0 {
+              if *r == rap.rap {
                 duplicate = true;
                 break;
               }
@@ -1056,7 +1150,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
         }
         if !duplicate {
-          self.add_external_event(rap.1, ExternalEvent::GoOutOfScope { ro: rap.0.clone(), id: *self.unique_id });
+          self.add_external_event(rap.scope, ExternalEvent::GoOutOfScope { ro: rap.rap.clone(), id: *self.unique_id });
           *self.unique_id += 1;
         }
       }
@@ -1104,7 +1198,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
 
     // Add events
     for (k, RefData {lender: r_ty, lifetime, ref_mutability: ref_mut, aliasing: _}) in &vec {
-      let from_ro = self.raps.get(k).unwrap().0.to_owned();
+      let from_ro = self.raps.get(k).unwrap().rap.to_owned();
       let to_ro = match r_ty {
         ResourceTy::Anonymous => ResourceTy::Deref(from_ro.clone()),
         _ => r_ty.clone()

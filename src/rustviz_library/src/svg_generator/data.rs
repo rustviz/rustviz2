@@ -1558,8 +1558,13 @@ impl Visualizable for VisualizationData {
                 if *from == *is || *from == could_be {
                     b_history.extend(self.event_of_exteranl_event(line_number, event, false));
                 }
-                  else if *to == *is || *to == could_be {
+                else if *to == *is || *to == could_be {
                     b_history.extend(self.event_of_exteranl_event(line_number, event, true));
+                }
+                else if let Some(r) = event.is_gos_ev() {
+                    if *r.name() == is.real_name() {
+                        b_history.extend(self.event_of_exteranl_event(line_number, event, true));
+                    }
                 }
             }
         }

@@ -10,7 +10,7 @@ use rustc_middle::{
   ty::{TyCtxt,Ty, adjustment::*},
 };
 use core::borrow;
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use rustc_utils::mir::borrowck_facts::get_body_with_borrowck_facts;
 
 // these are the visitor trait itself
@@ -84,22 +84,22 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           self.add_ref(name.clone(), 
           bool_of_mut(ty.ref_mutability().unwrap()),
           bool_of_mut(binding_annotation.1), line_num, 
-          ResourceTy::Anonymous, VecDeque::new());
+          ResourceTy::Anonymous, VecDeque::new(), self.current_scope, !self.inside_branch);
         }
         else if ty.is_adt() && !self.ty_is_special_owner(ty){ // kind of weird given we don't have a InitStructParam
           let owner_hash = self.rap_hashes as u64;
-          self.add_struct(name.clone(), owner_hash, false, bool_of_mut(binding_annotation.1));
+          self.add_struct(name.clone(), owner_hash, false, bool_of_mut(binding_annotation.1), self.current_scope, !self.inside_branch);
           for field in ty.ty_adt_def().unwrap().all_fields() {
             let field_name = format!("{}.{}", name.clone(), field.name.as_str());
-            self.add_struct(field_name, owner_hash, true, bool_of_mut(binding_annotation.1));
+            self.add_struct(field_name, owner_hash, true, bool_of_mut(binding_annotation.1), self.current_scope, !self.inside_branch);
           }
         }
         else {
-          self.add_owner(name.clone(), bool_of_mut(binding_annotation.1));
+          self.add_owner(name.clone(), bool_of_mut(binding_annotation.1), self.current_scope, !self.inside_branch);
         }
-        self.add_external_event(line_num, ExternalEvent::InitRefParam { param: self.raps.get(&name).unwrap().0.to_owned(), id: *self.unique_id });
+        self.add_external_event(line_num, ExternalEvent::InitRefParam { param: self.raps.get(&name).unwrap().rap.to_owned(), id: *self.unique_id });
         *self.unique_id += 1;
-        self.annotate_src(name.clone(), ident.span, false, *self.raps.get(&name).unwrap().0.hash());
+        self.annotate_src(name.clone(), ident.span, false, *self.raps.get(&name).unwrap().rap.hash());
       }
       _=>{}
     }
@@ -136,7 +136,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                     }
                   _ => {
                     //self.visit_expr(fn_expr);
-                    println!("fn expr {:#?}", fn_expr);
+                    // println!("fn expr {:#?}", fn_expr);
                     let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
                     println!("function name {}", fn_name);
                     self.add_fn(fn_name.clone());
@@ -179,11 +179,11 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
         let fn_name =self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
         self.add_fn(fn_name.clone());
-        println!("raps {:#?}", self.raps);
-        println!("rcvr name {}", rcvr_name);
-        let rcvr_rap = self.raps.get(&rcvr_name).unwrap().0.to_owned();
+        // println!("raps {:#?}", self.raps);
+        // println!("rcvr name {}", rcvr_name);
+        let rcvr_rap = self.raps.get(&rcvr_name).unwrap().rap.to_owned();
         self.update_rap(&rcvr_rap, line_num);
-        let fn_rap = self.raps.get(&fn_name).unwrap().0.to_owned();
+        let fn_rap = self.raps.get(&fn_name).unwrap().rap.to_owned();
         // typecheck the whole function body
         let adjustment_map = self.tcx.typeck(name_and_generic_args.hir_id.owner).adjustments();
         match adjustment_map.get(rcvr.hir_id) {
@@ -229,7 +229,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         self.visit_expr(rhs_expr); // visit rhs side first to order moves?
         let line_num = self.expr_to_line(&lhs_expr);
         let lhs_rty = self.resource_of_lhs(lhs_expr);
-        let lhs_rap = self.raps.get(&lhs_rty.real_name()).unwrap().0.clone();
+        let lhs_rap = self.raps.get(&lhs_rty.real_name()).unwrap().rap.clone();
         let lhs_ty = self.tcx.typeck(lhs_expr.hir_id.owner).node_type(lhs_expr.hir_id);
         let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(lhs_expr.hir_id.owner));
         let e = if lhs_ty.is_ref() {
@@ -360,7 +360,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           _ => ()
         }
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        let r = &self.raps.get(&name).unwrap().0.clone();
+        let r = &self.raps.get(&name).unwrap().rap.clone();
         let line_num = self.span_to_line(&p.span);
         self.update_rap(r, line_num);
       }
@@ -369,6 +369,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       }
       ExprKind::If(guard_expr, if_expr, else_expr) => {
         self.visit_expr(&guard_expr);
+        self.inside_branch = true;
         self.visit_expr(&if_expr);
         let (else_live, else_decl) = match else_expr {
           Some(e) => {
@@ -377,12 +378,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           }
           None => { (HashSet::new(), HashSet::new()) }
         };
+        self.inside_branch = false;
         // compute liveness
         let if_live = self.get_live_of_expr(if_expr);
         let if_decl = self.get_decl_of_expr(if_expr);
-        let mut liveness:HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
-        // liveness = liveness.difference(&if_decl).cloned().collect();
-        // liveness = liveness.difference(&else_decl).cloned().collect();
+        let liveness:HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
+
         // compute split and merge points
         let line_num = self.expr_to_line(&guard_expr);
         let split = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.lo()).line;
@@ -394,8 +395,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
 
         // filter events that happened in the if/else block
         // println!("split {}, end_if {}, merge {}", split, if_end, merge);
-        let if_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, split, if_end)).cloned().collect();
-        let else_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, if_end, merge)).cloned().collect();
+        let mut if_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, split, if_end)).cloned().collect();
+        let mut else_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, if_end, merge)).cloned().collect();
         self.preprocessed_events.retain(|(l, _)| 
           if *l <= merge && *l >= split {
             false
@@ -404,7 +405,20 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             true
           }
         );
-        let if_map = rustviz_lib::data::create_line_map(&if_ev);
+
+        // add gos events 
+        for var in if_decl.iter() {
+          if_ev.push((if_end, ExternalEvent::GoOutOfScope { ro: var.clone(), id: *self.unique_id }));
+          *self.unique_id += 1;
+        }
+
+        for var in else_decl.iter() {
+          else_ev.push((merge, ExternalEvent::GoOutOfScope { ro: var.clone(), id: *self.unique_id }));
+          *self.unique_id += 1;
+        }
+
+        
+        let if_map = create_line_map(&if_ev);
         let else_map = create_line_map(&else_ev);
         if if_end != merge { if_end += 1; }
         // add if/else branch
@@ -414,12 +428,11 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             live_vars: liveness, 
             branches: vec![ExtBranchData{ e_data: if_ev, line_map: if_map, decl_vars: if_decl }, 
                           ExtBranchData { e_data: else_ev, line_map: else_map, decl_vars: else_decl }], 
-            branch_type:b_ty, 
+            branch_type: b_ty, 
             split_point: split, 
             merge_point: merge,
             id: *self.unique_id });
             *self.unique_id += 1;
-        // println!("poopoo eve {:#?}", self.preprocessed_events);  
       }
 
       ExprKind::Loop(block, _, loop_ty, span) => {
@@ -442,23 +455,30 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         }
       }
 
-      // EXTREMELY SCUFFED - WILL NOT WORK FOR BASICALLY EVERY CASE, will have to come back and think of a better solution
+
       ExprKind::Match(guard_expr, arms, source) => {
         self.visit_expr(guard_expr);
-        let parent = match self.get_rap(guard_expr) { // TODO: this will fail with matching tuples: ex match (a, b, c)
-          ResourceTy::Value(ResourceAccessPoint::Function(_)) => ResourceTy::Anonymous,
-          p => p
+        // First, get everything that is being matched on 
+        // Additionally, need types of everything that is being matched on (ie, is it a reference or is it being borrowed)
+
+        let typeck_res = self.tcx.typeck(expr.hir_id.owner);
+
+        // To my knowledge a match has to either contain a singular expression or Tuple
+        let (parents, parents_ty) = match guard_expr.kind {
+          ExprKind::Tup(fields) => {
+            let mut res = Vec::new();
+            let mut res_ty = Vec::new();
+            for field in fields.iter() {
+              res.push(self.get_rap(&field));
+              res_ty.push(typeck_res.node_type(field.hir_id));
+            }
+            (res, res_ty)
+          }
+          _ => {
+            (vec![self.get_rap(&guard_expr)], vec![typeck_res.node_type(guard_expr.hir_id)])
+          }
         };
         let typeck_res = self.tcx.typeck(guard_expr.hir_id.owner);
-        let parent_ty = typeck_res.node_type(guard_expr.hir_id);
-        let parent_ev = if parent_ty.is_ref() {
-          if bool_of_mut(parent_ty.ref_mutability().unwrap()) { Evt::MBorrow }
-          else { Evt::SBorrow }
-        }
-        else {
-          if parent_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(guard_expr.hir_id.owner)) { Evt::Copy }
-          else { Evt::Move }
-        };
 
         let split = self.tcx.sess.source_map().lookup_char_pos(guard_expr.span.hi()).line; // TODO: might need to alter this
         let merge = self.tcx.sess.source_map().lookup_char_pos(expr.span.hi()).line;
@@ -472,95 +492,135 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         match source {
           rustc_hir::MatchSource::Normal => {
             for arm in arms.iter() {
+              let mut branch_e_data: Vec<(usize, ExternalEvent)> = Vec::new();
+              let mut callback_events: Vec<(ResourceTy, ResourceTy, Evt)> = Vec::new();
+
               // get line info
               let begin = self.tcx.sess.source_map().lookup_char_pos(arm.body.span.lo()).line;
               let end = self.tcx.sess.source_map().lookup_char_pos(arm.body.span.hi()).line;
+              // println!("begin {} | end {}", begin, end);
               let pat_line = self.span_to_line(&arm.pat.span);
-              
-              // add/fetch raps that are initialized in arm expr 
-              let pat_decls = self.get_decl_of_pat(&arm.pat, typeck_res, &parent, end);
-
-              // visit expr
-              self.visit_expr(arm.body);
-
-              // get liveness info
-              liveness = liveness.union(&self.get_live_of_expr(arm.body)).cloned().collect();
-              liveness = liveness.difference(&pat_decls).cloned().collect(); // subtract decls from live variables
-
-              // get name of constructor
-              let constructor_name = self.get_name_of_pat(arm.pat);
-              let cons_rap = match self.raps.get(&constructor_name) {
-                Some((r, _)) => r.clone(),
-                None => {
-                  self.add_fn(constructor_name.clone());
-                  self.raps.get(&constructor_name).unwrap().0.clone()
-                }
-              };
-
-              // get event info
-              let mut branch_e_data: Vec<(usize, ExternalEvent)> = Vec::new();
-              // append event that happens when matching
-              // branch_e_data.push((pat_line, self.ext_ev_of_evt(parent_ev.clone(), ResourceTy::Value(cons_rap), parent.clone())));
-
-              // for v in pat_decls.iter() { // will need to append events at the end of the branch that return resources
-              //   self.add_external_event(pat_line, ExternalEvent::Bind { from: ResourceTy::Anonymous, to: ResourceTy::Value(v.clone()) });
-              // }
-
-              let temp: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev_match(i, begin, end, &liveness)).cloned().collect();
-              for elem in temp {
-                branch_e_data.push(elem);
-              }
-
-              // append raps that are declared inside the block (if there is one)
-              let mut var_decls = pat_decls.clone();         
-              match arm.body.kind {
-                ExprKind::Block(b, _) => {
-                  var_decls = var_decls.union(&self.get_decl_of_block(b)).cloned().collect();
-                }
-                _ => {}
-              }
-
               b_slices.push((begin, end));
               b_ty_names.push(self.get_name_of_pat(arm.pat));
 
+              
+              // add/fetch raps that are initialized in arm expr
+              // need to also get their types, in order to figure out if we are moving, copying or borrowing something into the block
+              let mut pat_decls: HashSet<ResourceAccessPoint> = HashSet::new();
+              // println!("arm pat {:#?}", arm.pat);
+              match arm.pat.kind {
+                PatKind::TupleStruct(_, pat_list, _) | PatKind::Tuple(pat_list, _)=> {
+                  for (i, p) in pat_list.iter().enumerate() {
+                    let mut associated_ro = Vec::new();
+                    self.get_dec_of_pat2(p, &typeck_res, &parents[i], parents_ty[i], end, & mut associated_ro);
+                    let temp: Vec<ResourceAccessPoint> = associated_ro.iter().map(|(r, _)| {r.clone()}).collect();
+                    let temp2: HashSet<ResourceAccessPoint> = temp.into_iter().collect();
+                    pat_decls.extend(temp2);
+                    for (to_ro, e) in associated_ro.iter() {
+                      branch_e_data.push((pat_line, self.ext_ev_of_evt(e.clone(), ResourceTy::Value(to_ro.clone()), parents[i].clone(), *self.unique_id)));
+                      *self.unique_id += 1;
 
-              // for each var decl append a GoOutOfScope
-              // for v in var_decls.iter() {
-              //   self.add_external_event(end, ExternalEvent::GoOutOfScope { ro: v.clone() })
-              // }
+                      match e {
+                        Evt::SBorrow => {
+                          callback_events.push((parents[i].clone(), ResourceTy::Value(to_ro.clone()), Evt::SDie));
+                        }
+                        Evt::MBorrow => {
+                          callback_events.push((parents[i].clone(), ResourceTy::Value(to_ro.clone()), Evt::MDie));
+                        }
+                        _ => {}
+                      }
+                    }
+                  }
+                }
+                _ => {
+                  for i in 0..parents.len() {
+                    let mut associated_ro = Vec::new();
+                    self.get_dec_of_pat2(arm.pat, &typeck_res, &parents[i], parents_ty[i], end, & mut associated_ro);
+                    let temp: Vec<ResourceAccessPoint> = associated_ro.iter().map(|(r, _)| {r.clone()}).collect();
+                    let temp2: HashSet<ResourceAccessPoint> = temp.into_iter().collect();
+                    pat_decls.extend(temp2);
+                    for (to_ro, e) in associated_ro.iter() {
+                      branch_e_data.push((pat_line, self.ext_ev_of_evt(e.clone(), ResourceTy::Value(to_ro.clone()),parents[i].clone(), *self.unique_id)));
+                      *self.unique_id += 1;
+                      match e {               // A borrow, mut/immut must be returned at the end of the block
+                        Evt::SBorrow => {
+                          callback_events.push((parents[i].clone(), ResourceTy::Value(to_ro.clone()), Evt::SDie));
+                        }
+                        Evt::MBorrow => {
+                          callback_events.push((parents[i].clone(), ResourceTy::Value(to_ro.clone()), Evt::MDie));
+                        }
+                        _ => {}
+                      }
+                    }
+                  }
+                }
+              }
+
+              
+              // println!("branch events {:#?}", branch_e_data);
+              // println!("callbacks {:#?}", callback_events);
+              // println!("ro to partials {:#?}", ro_to_partials);
+              // let pat_decls = self.get_decl_of_pat(&arm.pat, typeck_res, &parent, end);
+              // annotate those events 
+              // a move/copy is simple (if any of the patterns have type move/copy, a move/copy occurs)
+              // A borrow, mut/immut must be returned at the end of the block
+
+              // Should think about introducing partial moves, copies, borrows, etc (where a portion of the data is borrowed)
+
+              // visit expr
+              self.inside_branch = true;
+              self.visit_expr(arm.body);
+              self.inside_branch = false;
+
+              // update liveness info
+              liveness = liveness.union(&self.get_live_of_expr(arm.body)).cloned().collect();
+              liveness = liveness.difference(&pat_decls).cloned().collect();
+              let arm_decls: HashSet<ResourceAccessPoint> = pat_decls.union(&self.get_decl_of_expr(arm.body)).cloned().collect();
+
+
+              // get events that occured in the arm
+              branch_e_data.extend(
+                self.preprocessed_events.iter().filter(|i| self.filter_ev(i, begin, end)).cloned()
+              );
+
+              // remove elements from global container
+              self.preprocessed_events.retain(|(l, _)| 
+                if *l <= end && *l >= begin {
+                  false
+                }
+                else {
+                  true
+                }
+              );
+
+              // add callback events
+              for (to, from, e) in callback_events {
+                let name = from.real_name();
+                self.borrow_map.remove(&name);
+                branch_e_data.push((end, self.ext_ev_of_evt(e, to, from, *self.unique_id)));
+                *self.unique_id += 1;
+              }
+
+              // add gos events
+              for r in arm_decls.iter() {
+                branch_e_data.push((end, ExternalEvent::GoOutOfScope { ro: r.clone(), id: *self.unique_id }));
+                *self.unique_id += 1;
+              }
 
               // branch_e_data.push((end, self.ext_ev_of_evt(parent_ev.clone(), ResourceTy::Anonymous, parent.clone())));
-              // let branch_line_map = create_line_map(&branch_e_data);
+              let branch_line_map = create_line_map(&branch_e_data);
 
-              //branch_data.push(ExtBranchData { e_data: branch_e_data, line_map: branch_line_map,  });
+              branch_data.push(ExtBranchData { e_data: branch_e_data, line_map: branch_line_map, decl_vars: arm_decls});
             }
-
-            // filter events from main events
-            self.preprocessed_events.retain(|(l, e)| 
-              if *l <= merge && *l >= split {
-                let (from, to) = ResourceAccessPoint_extract(e);
-                let ev_is_live = match (from.extract_rap(), to.extract_rap()) {
-                  (Some(x), Some(y)) => {
-                    liveness.contains(x) || liveness.contains(y)
-                  }
-                  (Some(x), _) | (_, Some(x)) => {
-                    liveness.contains(x)
-                  }
-                  _ => false
-                };
-                !ev_is_live
-              }
-              else {
-                true
-              }
-            );
             // add branch event
-            // self.add_external_event(split, ExternalEvent::Branch { 
-            //   live_vars: liveness, 
-            //   branches: branch_data, 
-            //   branch_type: BranchType::Match(b_ty_names, b_slices), 
-            //   split_point: split, 
-            //   merge_point: merge });
+            self.add_external_event(split, ExternalEvent::Branch { 
+              live_vars: liveness, 
+              branches: branch_data, 
+              branch_type: BranchType::Match(b_ty_names, b_slices), 
+              split_point: split, 
+              merge_point: merge - 1, // TODO: fix
+              id: *self.unique_id });
+            *self.unique_id += 1;
           }
           _ => {}
         }
@@ -604,7 +664,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           Some(expr) => {
             self.visit_expr(expr);
             self.define_lhs(lhs_var.clone(), bool_of_mut(binding_annotation.1), expr, lhs_ty);
-            self.match_rhs(ResourceTy::Value(self.raps.get(&lhs_var).unwrap().0.to_owned()), expr, e);
+            self.match_rhs(ResourceTy::Value(self.raps.get(&lhs_var).unwrap().rap.to_owned()), expr, e);
           }
            _ => {} // in the case of a declaration ex: let a; nothing happens
         }
