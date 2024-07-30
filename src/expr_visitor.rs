@@ -61,7 +61,8 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   pub annotated_lines: & 'a mut BTreeMap<usize, Vec<String>>,
   pub id_map: & 'a mut HashMap<String, usize>,
   pub unique_id: & 'a mut usize,
-  pub inside_branch: bool
+  pub inside_branch: bool,
+  pub fn_ret: bool
 }
 
 impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{

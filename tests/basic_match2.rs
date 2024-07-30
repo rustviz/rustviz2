@@ -5,6 +5,11 @@ pub enum Fruit {
   Grapes(String)
 }
 
+fn f() -> String {
+  let h = String::from("hello");
+  h
+}
+
 fn main () {
   let mut x = Some(String::from("hello"));
   let mut y = Fruit::Banana;

@@ -4,7 +4,7 @@ use rustc_span::source_map::SourceMap;
 // use aquascope::analysis::{AquascopeAnalysis,
 //   boundaries::PermissionsBoundary};
 use rustc_hir::intravisit::Visitor;
-use rustc_hir::{ItemKind};
+use rustc_hir::{ItemKind, FnRetTy};
 use rustc_middle::ty::TyCtxt;
 use rustc_utils::{
   source_map::range::CharRange,
@@ -158,6 +158,12 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
         let def_id = tcx.hir().body_owner_def_id(*body_id);
         let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, def_id);
         let body = &bwf.body;
+        let output = match fn_sig.decl.output {
+          FnRetTy::Return(ty) => {
+            true
+          }
+          _ => false
+        };
         // Our analysis begins here. Things are printed out.
         // run the AquascopeAnalysis and get the result
         //let result=AquascopeAnalysis::run(tcx,*body_id);
@@ -179,7 +185,8 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
           annotated_lines: & mut a_line_map,
           id_map: & mut owner_to_hash,
           unique_id: & mut ids,
-          inside_branch: false
+          inside_branch: false,
+          fn_ret: output
         };
         visitor.visit_body(hir_body);
         visitor.print_lifetimes();

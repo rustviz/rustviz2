@@ -306,13 +306,27 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                 let mut parent_branch_data: Vec<TimelineColumnData> = Vec::new();
                 match ty { // TODO: will have to change this for match expr
                     BranchType::Match(..) => {
-                      let if_bw = branch_history.get(0).unwrap().width;
-                      let else_bw = branch_history.get(1).unwrap().width;
-                      let if_offset_coefficient: i64 = -1 * ((if_bw + 1) as i64); // + 1 for padding between branches
-                      let else_offset_coefficient: i64 = (else_bw + 1) as i64;
+                        for i in 0..branch_history.len() / 2 {
+                            let b_data = branch_history.get_mut(i).unwrap();
+                            let left_side_coeffificent = -1 * ((b_data.width + i + 1) as i64);
+                            b_data.t_data.x_val = parent_data.x_val + (left_side_coeffificent * BRANCH_WEIGHT);
+                            parent_branch_data.push(b_data.t_data.clone());
+                        }
 
-                      branch_history.get_mut(0).unwrap().t_data.x_val = parent_data.x_val + (if_offset_coefficient * BRANCH_WEIGHT);
-                      branch_history.get_mut(1).unwrap().t_data.x_val = parent_data.x_val + (else_offset_coefficient * BRANCH_WEIGHT);
+                        let halfway = branch_history.len() / 2;
+                        for i in halfway..branch_history.len() {
+                            let b_data = branch_history.get_mut(i).unwrap();
+                            let righ_side_coeffificent = ((b_data.width + (i - halfway) + 1) as i64);
+                            b_data.t_data.x_val = parent_data.x_val + (righ_side_coeffificent * BRANCH_WEIGHT);
+                            parent_branch_data.push(b_data.t_data.clone());
+                        }
+                    //   let if_bw = branch_history.get(0).unwrap().width;
+                    //   let else_bw = branch_history.get(1).unwrap().width;
+                    //   let if_offset_coefficient: i64 = -1 * ((if_bw + 1) as i64); // + 1 for padding between branches
+                    //   let else_offset_coefficient: i64 = (else_bw + 1) as i64;
+
+                    //   branch_history.get_mut(0).unwrap().t_data.x_val = parent_data.x_val + (if_offset_coefficient * BRANCH_WEIGHT);
+                    //   branch_history.get_mut(1).unwrap().t_data.x_val = parent_data.x_val + (else_offset_coefficient * BRANCH_WEIGHT);
                     }
                     _ => {
                         let if_bw = branch_history.get(0).unwrap().width;
@@ -322,10 +336,10 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
 
                         branch_history.get_mut(0).unwrap().t_data.x_val = parent_data.x_val + (if_offset_coefficient * BRANCH_WEIGHT);
                         branch_history.get_mut(1).unwrap().t_data.x_val = parent_data.x_val + (else_offset_coefficient * BRANCH_WEIGHT);
+                        parent_branch_data.push(branch_history.get(0).unwrap().t_data.clone());
+                        parent_branch_data.push(branch_history.get(1).unwrap().t_data.clone());
                     }
                 }
-                parent_branch_data.push(branch_history.get(0).unwrap().t_data.clone());
-                parent_branch_data.push(branch_history.get(1).unwrap().t_data.clone());
 
                 // recurse
                 for (i, branch) in branch_history.iter_mut().enumerate() {

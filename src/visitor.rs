@@ -37,31 +37,32 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     match body.value { // handle return expression if there is one
       Expr{kind: ExprKind::Block(b, _), ..} => {
         match b.expr {
-          Some(e) => {
-            let tycheck_results = self.tcx.typeck(e.hir_id.owner);
-            let lhs_ty = tycheck_results.node_type(e.hir_id);
-            // TODO: only append this event if parent fn ctxt doesn't return void
-            let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(e.hir_id.owner));
-            let evt = if lhs_ty.is_ref() {
-              match lhs_ty.ref_mutability().unwrap() {
-                Mutability::Not => Evt::Copy,
-                Mutability::Mut => Evt::Move,
-              }
-            } else {
-              match is_copyable {
-                true => Evt::Copy, 
-                false => Evt::Move
-              }
-            };
+          Some(e) => { // only append this event if parent fn ctxt doesn't return void
+            if self.fn_ret {
+              let tycheck_results = self.tcx.typeck(e.hir_id.owner);
+              let lhs_ty = tycheck_results.node_type(e.hir_id);
+              let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(e.hir_id.owner));
+              let evt = if lhs_ty.is_ref() {
+                match lhs_ty.ref_mutability().unwrap() {
+                  Mutability::Not => Evt::Copy,
+                  Mutability::Mut => Evt::Move,
+                }
+              } else {
+                match is_copyable {
+                  true => Evt::Copy, 
+                  false => Evt::Move
+                }
+              };
 
-            let to_ro = ResourceTy::Caller;
-            let from_ro = match self.fetch_rap(e) {
-              Some(r) => ResourceTy::Value(r), // todo, technically need to check for deref here
-              None => ResourceTy::Anonymous
-            };
-            
-            let line_num = self.expr_to_line(e);
-            self.add_ev(line_num, evt, to_ro, from_ro);
+              let to_ro = ResourceTy::Caller;
+              let from_ro = match self.fetch_rap(e) {
+                Some(r) => ResourceTy::Value(r), // todo, technically need to check for deref here
+                None => ResourceTy::Anonymous
+              };
+              
+              let line_num = self.expr_to_line(e);
+              self.add_ev(line_num, evt, to_ro, from_ro);
+            }
           }
           _ => {}
         }

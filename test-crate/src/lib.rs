@@ -1,17 +1,27 @@
+#[derive(Debug)]
 pub enum Fruit {
   Apple(u32),
-  Banana
+  Banana,
+  Grapes(String)
+}
+
+fn f() -> String {
+  let h = String::from("hello");
+  h
 }
 
 fn main () {
-  let mut x = Fruit::Apple(8);
+  let mut x = Some(String::from("hello"));
   let mut y = Fruit::Banana;
-  match x {
-    Fruit::Apple(z) => { 
-      y = Fruit::Apple(z)
+  match (& mut x, y) {
+    (Some(s), c) => {
+      s.push_str(" world");
+      println!("s {}", s);
     }
-    _ => {
-      y = Fruit::Banana
+    z => {
+    
     }
-  };
+  }
+
+  // println!("{:#?}", x);
 }
