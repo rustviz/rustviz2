@@ -7,12 +7,13 @@
 
 
 to fix/implement:
-- [ ] Handle owners that are declared inside conditional blocks
-- [ ] Typecheck function ctxt to determine what type of return annotation to make
-- [ ] Implement new state calculation system
+- [ x ] Handle owners that are declared inside conditional blocks
+- [ x ] Typecheck function ctxt to determine what type of return annotation to make
+- [ x ] Implement new state calculation system
 - [ ] Remove struct members that are not utilized from the timeline
 - [ ] Implement hoverable anonymous owner interactions in code panel
-- [ ] Fix Resource dropping (breaks with conditionals it seems)
+- [ ] Weird phantom annotated src bug that seems to appear when there are \t characters
+- [ x ] Fix Resource dropping (breaks with conditionals it seems)
 - [ x ] Reference aliasing
 - [ x ] Fix annotated source gen to handle `</>` characters 
 - [ ] Let-if/match expressions (new conditional move event)

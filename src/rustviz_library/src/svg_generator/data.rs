@@ -285,6 +285,13 @@ impl BranchType {
             }
         }
     }
+    pub fn string_of_branch(&self, index: usize) -> String {
+      match self {
+        BranchType::If(x, _) | BranchType::Loop(x, _) | BranchType::Match(x,_) => {
+            x.get(index).unwrap().clone()
+        }
+    }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

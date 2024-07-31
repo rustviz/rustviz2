@@ -279,7 +279,7 @@ fn compute_width(events: & mut Vec<(usize, Event)>) -> usize {
             Event::Branch { branch_history, ..} => {
                 let mut b_width = 0;
                 // DFS to calculate width of each branch
-                for branch in & mut *branch_history {
+                for branch in branch_history.iter_mut() {
                     let branch_w = compute_width(& mut branch.e_data);
                     branch.width = branch_w; // store branch width for later DOES NOT INCLUDE PADDING BETWEEN BRANCHES AT SAME LEVEL
                     b_width += branch_w;
@@ -304,29 +304,40 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                 }
                 // update the xvalue based on width
                 let mut parent_branch_data: Vec<TimelineColumnData> = Vec::new();
-                match ty { // TODO: will have to change this for match expr
+                println!("parent_data x_val: {:#?}", parent_data.x_val);
+                match ty {
                     BranchType::Match(..) => {
-                        for i in 0..branch_history.len() / 2 {
+                        let halfway = branch_history.len() / 2;
+                        let mut running_x = parent_data.x_val;
+                        for i in (0..halfway).rev() {
                             let b_data = branch_history.get_mut(i).unwrap();
-                            let left_side_coeffificent = -1 * ((b_data.width + i + 1) as i64);
-                            b_data.t_data.x_val = parent_data.x_val + (left_side_coeffificent * BRANCH_WEIGHT);
-                            parent_branch_data.push(b_data.t_data.clone());
+                            let b_width = b_data.width;
+                            let padding = if i == halfway - 1 {1} else {0};
+                            let left_side_coefficient = -1 * (b_width + padding) as i64;
+                            // println!("left side {}, coefficient {}", ty.string_of_branch(i), left_side_coefficient);
+                            let x = left_side_coefficient * BRANCH_WEIGHT;
+                            running_x += x;
+                            b_data.t_data.x_val = running_x;
+                            running_x -= 2 * BRANCH_WEIGHT;
+                        }
+                        for i in 0..halfway {
+                          let b_data = branch_history.get(i).unwrap();
+                          parent_branch_data.push(b_data.t_data.clone());
                         }
 
-                        let halfway = branch_history.len() / 2;
+                        running_x = parent_data.x_val;
                         for i in halfway..branch_history.len() {
                             let b_data = branch_history.get_mut(i).unwrap();
-                            let righ_side_coeffificent = ((b_data.width + (i - halfway) + 1) as i64);
-                            b_data.t_data.x_val = parent_data.x_val + (righ_side_coeffificent * BRANCH_WEIGHT);
+                            let b_width = b_data.width;
+                            let padding = if i == halfway {1} else {0};
+                            let right_side_coefficient = (b_width + padding) as i64;
+                            // println!("right side {}, coefficient {}", ty.string_of_branch(i), right_side_coefficient);
+                            let x = right_side_coefficient * BRANCH_WEIGHT;
+                            running_x += x;
+                            b_data.t_data.x_val = running_x;
+                            running_x += 2 * BRANCH_WEIGHT;
                             parent_branch_data.push(b_data.t_data.clone());
                         }
-                    //   let if_bw = branch_history.get(0).unwrap().width;
-                    //   let else_bw = branch_history.get(1).unwrap().width;
-                    //   let if_offset_coefficient: i64 = -1 * ((if_bw + 1) as i64); // + 1 for padding between branches
-                    //   let else_offset_coefficient: i64 = (else_bw + 1) as i64;
-
-                    //   branch_history.get_mut(0).unwrap().t_data.x_val = parent_data.x_val + (if_offset_coefficient * BRANCH_WEIGHT);
-                    //   branch_history.get_mut(1).unwrap().t_data.x_val = parent_data.x_val + (else_offset_coefficient * BRANCH_WEIGHT);
                     }
                     _ => {
                         let if_bw = branch_history.get(0).unwrap().width;
@@ -370,6 +381,8 @@ fn compute_column_layout<'a>(
         let width = compute_width(&mut timeline.history);
         w_map.insert(*h, width as i64);
     }
+
+    println!("w_map {:#?}", w_map);
 
     
     for (hash, timeline) in visualization_data.timelines.iter() {
