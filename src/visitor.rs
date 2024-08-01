@@ -176,10 +176,25 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         // println!("typeck res: {:#?}", self.tcx.typeck(name_and_generic_args.hir_id.owner));
         // println!("item local id {:#?}", name_and_generic_args.hir_id.local_id);
         // println!("caller local id {:#?}", rcvr.hir_id.local_id);
-        self.visit_expr(rcvr);
-        let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
-        let fn_name =self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
+        // println!("path {:#?}", name_and_generic_args);
+        // println!("rcvr {:#?}", rcvr);
+        // println!("args {:#?}", args);
+        let fn_name = name_and_generic_args.ident.as_str().to_owned();
         self.add_fn(fn_name.clone());
+        // need to recurse down to the 
+        self.visit_expr(rcvr);
+        match rcvr.kind {
+          ExprKind::MethodCall(p_seg, ..) => {
+            let rcvr_name = p_seg.ident.as_str().to_owned();
+            // let fn_ty = self.tcx.typeck(name_and_generic_args.hir_id.owner).node_type_opt(p_seg.hir_id);
+            // let is_copy = self.is_return_type_copyable(rcvr);
+            // println!("is copy {}", is_copy);
+            // println!("fn_ty {:#?}", fn_ty);
+            return;
+          }
+          _ => {}
+        }
+        let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
         // println!("raps {:#?}", self.raps);
         // println!("rcvr name {}", rcvr_name);
         let rcvr_rap = self.raps.get(&rcvr_name).unwrap().rap.to_owned();

@@ -13,6 +13,7 @@ to fix/implement:
 - [ ] Remove struct members that are not utilized from the timeline
 - [ ] Implement hoverable anonymous owner interactions in code panel
 - [ ] Weird phantom annotated src bug that seems to appear when there are \t characters
+- [ ] Add highlighting for passbyref events
 - [ x ] Fix Resource dropping (breaks with conditionals it seems)
 - [ x ] Reference aliasing
 - [ x ] Fix annotated source gen to handle `</>` characters 

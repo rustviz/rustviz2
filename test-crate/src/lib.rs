@@ -1,33 +1,6 @@
-pub enum Fruit {
-  Apple(u32),
-  Banana,
-  Grape,
-  Strawberry,
-  Guava,
-  Bean
-}
 
 fn main () {
-  let mut x = Fruit::Apple(8);
-  let mut y = Fruit::Banana;
-  match x {
-    Fruit::Apple(z) => { 
-      y = Fruit::Apple(z);
-    }
-    Fruit::Grape  => {
-      y = Fruit::Banana
-    }
-    Fruit::Banana => {
-      y = Fruit::Banana
-    }
-    Fruit::Strawberry => {
-      y = Fruit::Banana
-    }
-    Fruit::Guava => {
-      y = Fruit::Banana
-    }
-    Fruit::Bean => {
-      y = Fruit::Banana
-    }
-  };
+  let mut v: Vec<i32> = Vec::new();
+  v.push(8);
+  let z: &i32 = v.get(0).unwrap();
 }

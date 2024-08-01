@@ -1,9 +1,172 @@
-t `Fruit`
-fn_name "Fruit::Apple"
-t `Fruit`
-fn_name "Fruit::Apple"
+t `std::vec::Vec<i32>`
+fn_name "Vec::new"
+path PathSegment {
+    ident: push#0,
+    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).14),
+    res: Err,
+    args: None,
+    infer_args: true,
+}
+rcvr Expr {
+    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).15),
+    kind: Path(
+        Resolved(
+            None,
+            Path {
+                span: src/lib.rs:4:3: 4:4 (#0),
+                res: Local(
+                    HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                ),
+                segments: [
+                    PathSegment {
+                        ident: v#0,
+                        hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).16),
+                        res: Local(
+                            HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                        ),
+                        args: None,
+                        infer_args: true,
+                    },
+                ],
+            },
+        ),
+    ),
+    span: src/lib.rs:4:3: 4:4 (#0),
+}
+args [
+    Expr {
+        hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).17),
+        kind: Lit(
+            Spanned {
+                node: Int(
+                    Pu128(
+                        8,
+                    ),
+                    Unsuffixed,
+                ),
+                span: src/lib.rs:4:10: 4:11 (#0),
+            },
+        ),
+        span: src/lib.rs:4:10: 4:11 (#0),
+    },
+]
+path PathSegment {
+    ident: unwrap#0,
+    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).25),
+    res: Err,
+    args: None,
+    infer_args: true,
+}
+rcvr Expr {
+    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).26),
+    kind: MethodCall(
+        PathSegment {
+            ident: get#0,
+            hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).27),
+            res: Err,
+            args: None,
+            infer_args: true,
+        },
+        Expr {
+            hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).28),
+            kind: Path(
+                Resolved(
+                    None,
+                    Path {
+                        span: src/lib.rs:5:17: 5:18 (#0),
+                        res: Local(
+                            HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                        ),
+                        segments: [
+                            PathSegment {
+                                ident: v#0,
+                                hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).29),
+                                res: Local(
+                                    HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                                ),
+                                args: None,
+                                infer_args: true,
+                            },
+                        ],
+                    },
+                ),
+            ),
+            span: src/lib.rs:5:17: 5:18 (#0),
+        },
+        [
+            Expr {
+                hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).30),
+                kind: Lit(
+                    Spanned {
+                        node: Int(
+                            Pu128(
+                                0,
+                            ),
+                            Unsuffixed,
+                        ),
+                        span: src/lib.rs:5:23: 5:24 (#0),
+                    },
+                ),
+                span: src/lib.rs:5:23: 5:24 (#0),
+            },
+        ],
+        src/lib.rs:5:19: 5:25 (#0),
+    ),
+    span: src/lib.rs:5:17: 5:25 (#0),
+}
+args []
+path PathSegment {
+    ident: get#0,
+    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).27),
+    res: Err,
+    args: None,
+    infer_args: true,
+}
+rcvr Expr {
+    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).28),
+    kind: Path(
+        Resolved(
+            None,
+            Path {
+                span: src/lib.rs:5:17: 5:18 (#0),
+                res: Local(
+                    HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                ),
+                segments: [
+                    PathSegment {
+                        ident: v#0,
+                        hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).29),
+                        res: Local(
+                            HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                        ),
+                        args: None,
+                        infer_args: true,
+                    },
+                ],
+            },
+        ),
+    ),
+    span: src/lib.rs:5:17: 5:18 (#0),
+}
+args [
+    Expr {
+        hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).30),
+        kind: Lit(
+            Spanned {
+                node: Int(
+                    Pu128(
+                        0,
+                    ),
+                    Unsuffixed,
+                ),
+                span: src/lib.rs:5:23: 5:24 (#0),
+            },
+        ),
+        span: src/lib.rs:5:23: 5:24 (#0),
+    },
+]
 unrecognized expr Expr {
-    hir_id: HirId(DefId(0:17 ~ test_crate[8e1d]::main).6),
+    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).17),
     kind: Lit(
         Spanned {
             node: Int(
@@ -12,24 +175,58 @@ unrecognized expr Expr {
                 ),
                 Unsuffixed,
             ),
-            span: src/lib.rs:11:28: 11:29 (#0),
+            span: src/lib.rs:4:10: 4:11 (#0),
         },
     ),
-    span: src/lib.rs:11:28: 11:29 (#0),
+    span: src/lib.rs:4:10: 4:11 (#0),
 }
-BORROW MAP {}
+unrecognized expr Expr {
+    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).30),
+    kind: Lit(
+        Spanned {
+            node: Int(
+                Pu128(
+                    0,
+                ),
+                Unsuffixed,
+            ),
+            span: src/lib.rs:5:23: 5:24 (#0),
+        },
+    ),
+    span: src/lib.rs:5:23: 5:24 (#0),
+}
+BORROW MAP {
+    "z": RefData {
+        lender: Anonymous,
+        lifetime: 5,
+        ref_mutability: false,
+        aliasing: [],
+    },
+}
 lender to refs {}
-ultimate refs {}
+ultimate refs {
+    "z",
+}
 preprocessed events : [
     (
-        11,
-        Copy {
-            from: Anonymous,
-            to: Value(
+        3,
+        Move {
+            from: Value(
                 Function(
                     Function {
-                        name: "Fruit::Apple",
+                        name: "Vec::new",
                         hash: 1,
+                    },
+                ),
+            ),
+            to: Value(
+                Struct(
+                    Struct {
+                        name: "v",
+                        hash: 2,
+                        owner: 2,
+                        is_mut: true,
+                        is_member: false,
                     },
                 ),
             ),
@@ -37,22 +234,24 @@ preprocessed events : [
         },
     ),
     (
-        11,
-        Move {
+        4,
+        PassByMutableReference {
             from: Value(
-                Function(
-                    Function {
-                        name: "Fruit::Apple",
-                        hash: 1,
+                Struct(
+                    Struct {
+                        name: "v",
+                        hash: 2,
+                        owner: 2,
+                        is_mut: true,
+                        is_member: false,
                     },
                 ),
             ),
             to: Value(
-                Owner(
-                    Owner {
-                        name: "x",
-                        hash: 2,
-                        is_mut: true,
+                Function(
+                    Function {
+                        name: "push",
+                        hash: 5,
                     },
                 ),
             ),
@@ -60,22 +259,14 @@ preprocessed events : [
         },
     ),
     (
-        12,
-        Move {
-            from: Value(
+        4,
+        Copy {
+            from: Anonymous,
+            to: Value(
                 Function(
                     Function {
-                        name: "Fruit::Banana",
-                        hash: 3,
-                    },
-                ),
-            ),
-            to: Value(
-                Owner(
-                    Owner {
-                        name: "y",
-                        hash: 4,
-                        is_mut: true,
+                        name: "push",
+                        hash: 5,
                     },
                 ),
             ),
@@ -83,537 +274,199 @@ preprocessed events : [
         },
     ),
     (
-        13,
-        Branch {
-            live_vars: {
-                Owner(
-                    Owner {
-                        name: "y",
-                        hash: 4,
-                        is_mut: true,
-                    },
-                ),
-                Owner(
-                    Owner {
-                        name: "x",
+        5,
+        PassByStaticReference {
+            from: Value(
+                Struct(
+                    Struct {
+                        name: "v",
                         hash: 2,
+                        owner: 2,
                         is_mut: true,
+                        is_member: false,
                     },
                 ),
-            },
-            branches: [
-                ExtBranchData {
-                    e_data: [
-                        (
-                            14,
-                            Copy {
-                                from: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "x",
-                                            hash: 2,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "z",
-                                            hash: 5,
-                                            is_mut: false,
-                                        },
-                                    ),
-                                ),
-                                id: 3,
-                            },
-                        ),
-                        (
-                            15,
-                            Copy {
-                                from: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "z",
-                                            hash: 5,
-                                            is_mut: false,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Apple",
-                                            hash: 1,
-                                        },
-                                    ),
-                                ),
-                                id: 4,
-                            },
-                        ),
-                        (
-                            15,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Apple",
-                                            hash: 1,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 5,
-                            },
-                        ),
-                        (
-                            16,
-                            GoOutOfScope {
-                                ro: Owner(
-                                    Owner {
-                                        name: "z",
-                                        hash: 5,
-                                        is_mut: false,
-                                    },
-                                ),
-                                id: 6,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        14: [
-                            Copy {
-                                from: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "x",
-                                            hash: 2,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "z",
-                                            hash: 5,
-                                            is_mut: false,
-                                        },
-                                    ),
-                                ),
-                                id: 3,
-                            },
-                        ],
-                        15: [
-                            Copy {
-                                from: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "z",
-                                            hash: 5,
-                                            is_mut: false,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Apple",
-                                            hash: 1,
-                                        },
-                                    ),
-                                ),
-                                id: 4,
-                            },
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Apple",
-                                            hash: 1,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 5,
-                            },
-                        ],
-                    },
-                    decl_vars: {
-                        Owner(
-                            Owner {
-                                name: "z",
-                                hash: 5,
-                                is_mut: false,
-                            },
-                        ),
-                    },
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            18,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 7,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        18: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 7,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            21,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 8,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        21: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 8,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            24,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 9,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        24: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 9,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            27,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 10,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        27: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 10,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            30,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 11,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        30: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 11,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-            ],
-            branch_type: Match(
-                [
-                    "Fruit::Apple",
-                    "Fruit::Grape",
-                    "Fruit::Banana",
-                    "Fruit::Strawberry",
-                    "Fruit::Guava",
-                    "Fruit::Bean",
-                ],
-                [
-                    (
-                        14,
-                        16,
-                    ),
-                    (
-                        17,
-                        19,
-                    ),
-                    (
-                        20,
-                        22,
-                    ),
-                    (
-                        23,
-                        25,
-                    ),
-                    (
-                        26,
-                        28,
-                    ),
-                    (
-                        29,
-                        31,
-                    ),
-                ],
             ),
-            split_point: 13,
-            merge_point: 31,
-            id: 12,
+            to: Value(
+                Function(
+                    Function {
+                        name: "get",
+                        hash: 7,
+                    },
+                ),
+            ),
+            id: 3,
         },
     ),
     (
-        33,
+        5,
+        Copy {
+            from: Anonymous,
+            to: Value(
+                Function(
+                    Function {
+                        name: "get",
+                        hash: 7,
+                    },
+                ),
+            ),
+            id: 4,
+        },
+    ),
+    (
+        5,
+        Copy {
+            from: Value(
+                Function(
+                    Function {
+                        name: "unwrap",
+                        hash: 6,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 5,
+        },
+    ),
+    (
+        5,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 6,
+        },
+    ),
+    (
+        6,
         GoOutOfScope {
-            ro: Owner(
-                Owner {
-                    name: "x",
+            ro: Struct(
+                Struct {
+                    name: "v",
                     hash: 2,
+                    owner: 2,
                     is_mut: true,
+                    is_member: false,
                 },
             ),
-            id: 13,
+            id: 7,
         },
     ),
     (
-        33,
+        6,
         GoOutOfScope {
-            ro: Owner(
-                Owner {
-                    name: "y",
-                    hash: 4,
-                    is_mut: true,
+            ro: StaticRef(
+                StaticRef {
+                    name: "z",
+                    hash: 8,
+                    is_mut: false,
                 },
             ),
-            id: 14,
+            id: 8,
+        },
+    ),
+    (
+        6,
+        GoOutOfScope {
+            ro: Struct(
+                Struct {
+                    name: "v.buf",
+                    hash: 3,
+                    owner: 2,
+                    is_mut: true,
+                    is_member: true,
+                },
+            ),
+            id: 9,
+        },
+    ),
+    (
+        6,
+        GoOutOfScope {
+            ro: Struct(
+                Struct {
+                    name: "v.len",
+                    hash: 4,
+                    owner: 2,
+                    is_mut: true,
+                    is_member: true,
+                },
+            ),
+            id: 10,
         },
     ),
 ]
-ev_line_map: {}
+ev_line_map: {
+    5: [
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 6,
+        },
+    ],
+}
 insert line map {
-    22: 0,
-    28: 0,
-    14: 0,
-    31: 0,
-    25: 0,
-    19: 0,
-    15: 1,
+    5: 0,
 }
 processed events [
     (
-        11,
-        Copy {
-            from: Anonymous,
-            to: Value(
+        3,
+        Move {
+            from: Value(
                 Function(
                     Function {
-                        name: "Fruit::Apple",
+                        name: "Vec::new",
                         hash: 1,
+                    },
+                ),
+            ),
+            to: Value(
+                Struct(
+                    Struct {
+                        name: "v",
+                        hash: 2,
+                        owner: 2,
+                        is_mut: true,
+                        is_member: false,
                     },
                 ),
             ),
@@ -621,22 +474,24 @@ processed events [
         },
     ),
     (
-        11,
-        Move {
+        4,
+        PassByMutableReference {
             from: Value(
-                Function(
-                    Function {
-                        name: "Fruit::Apple",
-                        hash: 1,
+                Struct(
+                    Struct {
+                        name: "v",
+                        hash: 2,
+                        owner: 2,
+                        is_mut: true,
+                        is_member: false,
                     },
                 ),
             ),
             to: Value(
-                Owner(
-                    Owner {
-                        name: "x",
-                        hash: 2,
-                        is_mut: true,
+                Function(
+                    Function {
+                        name: "push",
+                        hash: 5,
                     },
                 ),
             ),
@@ -644,22 +499,14 @@ processed events [
         },
     ),
     (
-        12,
-        Move {
-            from: Value(
+        4,
+        Copy {
+            from: Anonymous,
+            to: Value(
                 Function(
                     Function {
-                        name: "Fruit::Banana",
-                        hash: 3,
-                    },
-                ),
-            ),
-            to: Value(
-                Owner(
-                    Owner {
-                        name: "y",
-                        hash: 4,
-                        is_mut: true,
+                        name: "push",
+                        hash: 5,
                     },
                 ),
             ),
@@ -667,577 +514,241 @@ processed events [
         },
     ),
     (
-        13,
-        Branch {
-            live_vars: {
-                Owner(
-                    Owner {
-                        name: "y",
-                        hash: 4,
-                        is_mut: true,
-                    },
-                ),
-                Owner(
-                    Owner {
-                        name: "x",
+        5,
+        PassByStaticReference {
+            from: Value(
+                Struct(
+                    Struct {
+                        name: "v",
                         hash: 2,
+                        owner: 2,
                         is_mut: true,
+                        is_member: false,
                     },
                 ),
-            },
-            branches: [
-                ExtBranchData {
-                    e_data: [
-                        (
-                            14,
-                            Copy {
-                                from: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "x",
-                                            hash: 2,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "z",
-                                            hash: 5,
-                                            is_mut: false,
-                                        },
-                                    ),
-                                ),
-                                id: 3,
-                            },
-                        ),
-                        (
-                            15,
-                            Copy {
-                                from: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "z",
-                                            hash: 5,
-                                            is_mut: false,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Apple",
-                                            hash: 1,
-                                        },
-                                    ),
-                                ),
-                                id: 4,
-                            },
-                        ),
-                        (
-                            15,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Apple",
-                                            hash: 1,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 5,
-                            },
-                        ),
-                        (
-                            17,
-                            GoOutOfScope {
-                                ro: Owner(
-                                    Owner {
-                                        name: "z",
-                                        hash: 5,
-                                        is_mut: false,
-                                    },
-                                ),
-                                id: 6,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        14: [
-                            Copy {
-                                from: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "x",
-                                            hash: 2,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "z",
-                                            hash: 5,
-                                            is_mut: false,
-                                        },
-                                    ),
-                                ),
-                                id: 3,
-                            },
-                        ],
-                        15: [
-                            Copy {
-                                from: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "z",
-                                            hash: 5,
-                                            is_mut: false,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Apple",
-                                            hash: 1,
-                                        },
-                                    ),
-                                ),
-                                id: 4,
-                            },
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Apple",
-                                            hash: 1,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 5,
-                            },
-                        ],
-                    },
-                    decl_vars: {
-                        Owner(
-                            Owner {
-                                name: "z",
-                                hash: 5,
-                                is_mut: false,
-                            },
-                        ),
-                    },
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            19,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 7,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        19: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 7,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            22,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 8,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        22: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 8,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            25,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 9,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        25: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 9,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            28,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 10,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        28: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 10,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-                ExtBranchData {
-                    e_data: [
-                        (
-                            31,
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 11,
-                            },
-                        ),
-                    ],
-                    line_map: {
-                        31: [
-                            Move {
-                                from: Value(
-                                    Function(
-                                        Function {
-                                            name: "Fruit::Banana",
-                                            hash: 3,
-                                        },
-                                    ),
-                                ),
-                                to: Value(
-                                    Owner(
-                                        Owner {
-                                            name: "y",
-                                            hash: 4,
-                                            is_mut: true,
-                                        },
-                                    ),
-                                ),
-                                id: 11,
-                            },
-                        ],
-                    },
-                    decl_vars: {},
-                },
-            ],
-            branch_type: Match(
-                [
-                    "Fruit::Apple",
-                    "Fruit::Grape",
-                    "Fruit::Banana",
-                    "Fruit::Strawberry",
-                    "Fruit::Guava",
-                    "Fruit::Bean",
-                ],
-                [
-                    (
-                        14,
-                        17,
-                    ),
-                    (
-                        18,
-                        20,
-                    ),
-                    (
-                        21,
-                        23,
-                    ),
-                    (
-                        24,
-                        26,
-                    ),
-                    (
-                        27,
-                        29,
-                    ),
-                    (
-                        30,
-                        32,
-                    ),
-                ],
             ),
-            split_point: 13,
-            merge_point: 32,
-            id: 12,
+            to: Value(
+                Function(
+                    Function {
+                        name: "get",
+                        hash: 7,
+                    },
+                ),
+            ),
+            id: 3,
         },
     ),
     (
-        34,
+        5,
+        Copy {
+            from: Anonymous,
+            to: Value(
+                Function(
+                    Function {
+                        name: "get",
+                        hash: 7,
+                    },
+                ),
+            ),
+            id: 4,
+        },
+    ),
+    (
+        5,
+        Copy {
+            from: Value(
+                Function(
+                    Function {
+                        name: "unwrap",
+                        hash: 6,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 5,
+        },
+    ),
+    (
+        5,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 6,
+        },
+    ),
+    (
+        6,
         GoOutOfScope {
-            ro: Owner(
-                Owner {
-                    name: "x",
+            ro: Struct(
+                Struct {
+                    name: "v",
                     hash: 2,
+                    owner: 2,
                     is_mut: true,
+                    is_member: false,
                 },
             ),
-            id: 13,
+            id: 7,
         },
     ),
     (
-        34,
+        6,
         GoOutOfScope {
-            ro: Owner(
-                Owner {
-                    name: "y",
-                    hash: 4,
-                    is_mut: true,
+            ro: StaticRef(
+                StaticRef {
+                    name: "z",
+                    hash: 8,
+                    is_mut: false,
                 },
             ),
-            id: 14,
+            id: 8,
+        },
+    ),
+    (
+        6,
+        GoOutOfScope {
+            ro: Struct(
+                Struct {
+                    name: "v.buf",
+                    hash: 3,
+                    owner: 2,
+                    is_mut: true,
+                    is_member: true,
+                },
+            ),
+            id: 9,
+        },
+    ),
+    (
+        6,
+        GoOutOfScope {
+            ro: Struct(
+                Struct {
+                    name: "v.len",
+                    hash: 4,
+                    owner: 2,
+                    is_mut: true,
+                    is_member: true,
+                },
+            ),
+            id: 10,
         },
     ),
 ]
-processed line map {}
-w_map {
-    5: 0,
-    2: 10,
-    1: 0,
-    3: 0,
-    4: 10,
+processed line map {
+    5: [
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "z",
+                        hash: 8,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 6,
+        },
+    ],
 }
-parent_data x_val: 195
-left side Fruit::Banana, coefficient -1
-x_val 120
-left side Fruit::Grape, coefficient 0
-x_val 70
-left side Fruit::Apple, coefficient 0
-x_val 20
-right side Fruit::Strawberry, coefficient 1
-x_val 270
-right side Fruit::Guava, coefficient 0
-x_val 320
-right side Fruit::Bean, coefficient 0
-x_val 370
-parent_data x_val: 515
-left side Fruit::Banana, coefficient -1
-x_val 440
-left side Fruit::Grape, coefficient 0
-x_val 390
-left side Fruit::Apple, coefficient 0
-x_val 340
-right side Fruit::Strawberry, coefficient 1
-x_val 590
-right side Fruit::Guava, coefficient 0
-x_val 640
-right side Fruit::Bean, coefficient 0
-x_val 690
+w_map {
+    1: 0,
+    4: 0,
+    7: 0,
+    5: 0,
+    3: 0,
+    8: 0,
+    6: 0,
+    2: 0,
+}
 hash 2, timeline Timeline {
-    resource_access_point: Owner(
-        Owner {
-            name: "x",
+    resource_access_point: Struct(
+        Struct {
+            name: "v",
             hash: 2,
+            owner: 2,
             is_mut: true,
+            is_member: false,
         },
     ),
     history: [
         (
-            11,
+            3,
             Acquire {
                 from: Value(
                     Function(
                         Function {
-                            name: "Fruit::Apple",
+                            name: "Vec::new",
                             hash: 1,
                         },
                     ),
                 ),
                 is: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
+                    Struct(
+                        Struct {
+                            name: "v",
                             hash: 2,
+                            owner: 2,
                             is_mut: true,
+                            is_member: false,
+                        },
+                    ),
+                ),
+                id: 0,
+            },
+        ),
+        (
+            4,
+            MutableLend {
+                to: Value(
+                    Function(
+                        Function {
+                            name: "push",
+                            hash: 5,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Struct(
+                        Struct {
+                            name: "v",
+                            hash: 2,
+                            owner: 2,
+                            is_mut: true,
+                            is_member: false,
                         },
                     ),
                 ),
@@ -1245,758 +756,49 @@ hash 2, timeline Timeline {
             },
         ),
         (
-            13,
-            Branch {
-                is: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
-                            hash: 2,
-                            is_mut: true,
-                        },
-                    ),
-                ),
-                branch_history: [
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "x",
-                            x_val: 70,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 2,
-                        },
-                        e_data: [
-                            (
-                                14,
-                                Duplicate {
-                                    to: Value(
-                                        Owner(
-                                            Owner {
-                                                name: "z",
-                                                hash: 5,
-                                                is_mut: false,
-                                            },
-                                        ),
-                                    ),
-                                    is: Value(
-                                        Owner(
-                                            Owner {
-                                                name: "x",
-                                                hash: 2,
-                                                is_mut: true,
-                                            },
-                                        ),
-                                    ),
-                                    id: 3,
-                                },
-                            ),
-                        ],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                17,
-                                FullPrivilege {
-                                    s: Full,
-                                },
-                            ),
-                            (
-                                17,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "x",
-                            x_val: 120,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 2,
-                        },
-                        e_data: [],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "x",
-                            x_val: 170,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 2,
-                        },
-                        e_data: [],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "x",
-                            x_val: 220,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 2,
-                        },
-                        e_data: [],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "x",
-                            x_val: 270,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 2,
-                        },
-                        e_data: [],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "x",
-                            x_val: 320,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 2,
-                        },
-                        e_data: [],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                ],
-                ty: Match(
-                    [
-                        "Fruit::Apple",
-                        "Fruit::Grape",
-                        "Fruit::Banana",
-                        "Fruit::Strawberry",
-                        "Fruit::Guava",
-                        "Fruit::Bean",
-                    ],
-                    [
-                        (
-                            14,
-                            17,
-                        ),
-                        (
-                            18,
-                            20,
-                        ),
-                        (
-                            21,
-                            23,
-                        ),
-                        (
-                            24,
-                            26,
-                        ),
-                        (
-                            27,
-                            29,
-                        ),
-                        (
-                            30,
-                            32,
-                        ),
-                    ],
-                ),
-                split_point: 13,
-                merge_point: 32,
-                id: 12,
-            },
-        ),
-        (
-            34,
-            OwnerGoOutOfScope,
-        ),
-    ],
-    states: [
-        (
-            1,
-            11,
-            OutOfScope,
-        ),
-        (
-            11,
-            13,
-            FullPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            13,
-            32,
-            OutOfScope,
-        ),
-        (
-            33,
-            34,
-            FullPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            34,
-            34,
-            OutOfScope,
-        ),
-    ],
-}
-hash 4, timeline Timeline {
-    resource_access_point: Owner(
-        Owner {
-            name: "y",
-            hash: 4,
-            is_mut: true,
-        },
-    ),
-    history: [
-        (
-            12,
-            Acquire {
+            4,
+            MutableReacquire {
                 from: Value(
                     Function(
                         Function {
-                            name: "Fruit::Banana",
-                            hash: 3,
-                        },
-                    ),
-                ),
-                is: Value(
-                    Owner(
-                        Owner {
-                            name: "y",
-                            hash: 4,
-                            is_mut: true,
-                        },
-                    ),
-                ),
-                id: 2,
-            },
-        ),
-        (
-            13,
-            Branch {
-                is: Value(
-                    Owner(
-                        Owner {
-                            name: "y",
-                            hash: 4,
-                            is_mut: true,
-                        },
-                    ),
-                ),
-                branch_history: [
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "y",
-                            x_val: 390,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;y&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 4,
-                        },
-                        e_data: [
-                            (
-                                15,
-                                Acquire {
-                                    from: Value(
-                                        Function(
-                                            Function {
-                                                name: "Fruit::Apple",
-                                                hash: 1,
-                                            },
-                                        ),
-                                    ),
-                                    is: Value(
-                                        Owner(
-                                            Owner {
-                                                name: "y",
-                                                hash: 4,
-                                                is_mut: true,
-                                            },
-                                        ),
-                                    ),
-                                    id: 5,
-                                },
-                            ),
-                        ],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                17,
-                                FullPrivilege {
-                                    s: Full,
-                                },
-                            ),
-                            (
-                                17,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "y",
-                            x_val: 440,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;y&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 4,
-                        },
-                        e_data: [
-                            (
-                                19,
-                                Acquire {
-                                    from: Value(
-                                        Function(
-                                            Function {
-                                                name: "Fruit::Banana",
-                                                hash: 3,
-                                            },
-                                        ),
-                                    ),
-                                    is: Value(
-                                        Owner(
-                                            Owner {
-                                                name: "y",
-                                                hash: 4,
-                                                is_mut: true,
-                                            },
-                                        ),
-                                    ),
-                                    id: 7,
-                                },
-                            ),
-                        ],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                18,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                            (
-                                18,
-                                20,
-                                FullPrivilege {
-                                    s: Full,
-                                },
-                            ),
-                            (
-                                20,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "y",
-                            x_val: 490,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;y&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 4,
-                        },
-                        e_data: [
-                            (
-                                22,
-                                Acquire {
-                                    from: Value(
-                                        Function(
-                                            Function {
-                                                name: "Fruit::Banana",
-                                                hash: 3,
-                                            },
-                                        ),
-                                    ),
-                                    is: Value(
-                                        Owner(
-                                            Owner {
-                                                name: "y",
-                                                hash: 4,
-                                                is_mut: true,
-                                            },
-                                        ),
-                                    ),
-                                    id: 8,
-                                },
-                            ),
-                        ],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                21,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                            (
-                                21,
-                                23,
-                                FullPrivilege {
-                                    s: Full,
-                                },
-                            ),
-                            (
-                                23,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "y",
-                            x_val: 540,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;y&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 4,
-                        },
-                        e_data: [
-                            (
-                                25,
-                                Acquire {
-                                    from: Value(
-                                        Function(
-                                            Function {
-                                                name: "Fruit::Banana",
-                                                hash: 3,
-                                            },
-                                        ),
-                                    ),
-                                    is: Value(
-                                        Owner(
-                                            Owner {
-                                                name: "y",
-                                                hash: 4,
-                                                is_mut: true,
-                                            },
-                                        ),
-                                    ),
-                                    id: 9,
-                                },
-                            ),
-                        ],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                24,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                            (
-                                24,
-                                26,
-                                FullPrivilege {
-                                    s: Full,
-                                },
-                            ),
-                            (
-                                26,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "y",
-                            x_val: 590,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;y&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 4,
-                        },
-                        e_data: [
-                            (
-                                28,
-                                Acquire {
-                                    from: Value(
-                                        Function(
-                                            Function {
-                                                name: "Fruit::Banana",
-                                                hash: 3,
-                                            },
-                                        ),
-                                    ),
-                                    is: Value(
-                                        Owner(
-                                            Owner {
-                                                name: "y",
-                                                hash: 4,
-                                                is_mut: true,
-                                            },
-                                        ),
-                                    ),
-                                    id: 10,
-                                },
-                            ),
-                        ],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                27,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                            (
-                                27,
-                                29,
-                                FullPrivilege {
-                                    s: Full,
-                                },
-                            ),
-                            (
-                                29,
-                                32,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                        ],
-                    },
-                    BranchData {
-                        t_data: TimelineColumnData {
-                            name: "y",
-                            x_val: 640,
-                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;y&lt;/span&gt;, mutable",
-                            is_ref: false,
-                            is_struct_group: false,
-                            is_member: false,
-                            owner: 4,
-                        },
-                        e_data: [
-                            (
-                                31,
-                                Acquire {
-                                    from: Value(
-                                        Function(
-                                            Function {
-                                                name: "Fruit::Banana",
-                                                hash: 3,
-                                            },
-                                        ),
-                                    ),
-                                    is: Value(
-                                        Owner(
-                                            Owner {
-                                                name: "y",
-                                                hash: 4,
-                                                is_mut: true,
-                                            },
-                                        ),
-                                    ),
-                                    id: 11,
-                                },
-                            ),
-                        ],
-                        width: 0,
-                        states: [
-                            (
-                                14,
-                                30,
-                                FullPrivilege {
-                                    s: Gray,
-                                },
-                            ),
-                            (
-                                30,
-                                32,
-                                FullPrivilege {
-                                    s: Full,
-                                },
-                            ),
-                        ],
-                    },
-                ],
-                ty: Match(
-                    [
-                        "Fruit::Apple",
-                        "Fruit::Grape",
-                        "Fruit::Banana",
-                        "Fruit::Strawberry",
-                        "Fruit::Guava",
-                        "Fruit::Bean",
-                    ],
-                    [
-                        (
-                            14,
-                            17,
-                        ),
-                        (
-                            18,
-                            20,
-                        ),
-                        (
-                            21,
-                            23,
-                        ),
-                        (
-                            24,
-                            26,
-                        ),
-                        (
-                            27,
-                            29,
-                        ),
-                        (
-                            30,
-                            32,
-                        ),
-                    ],
-                ),
-                split_point: 13,
-                merge_point: 32,
-                id: 12,
-            },
-        ),
-        (
-            34,
-            OwnerGoOutOfScope,
-        ),
-    ],
-    states: [
-        (
-            1,
-            12,
-            OutOfScope,
-        ),
-        (
-            12,
-            13,
-            FullPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            13,
-            32,
-            OutOfScope,
-        ),
-        (
-            33,
-            34,
-            FullPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            34,
-            34,
-            OutOfScope,
-        ),
-    ],
-}
-hash 5, timeline Timeline {
-    resource_access_point: Owner(
-        Owner {
-            name: "z",
-            hash: 5,
-            is_mut: false,
-        },
-    ),
-    history: [
-        (
-            14,
-            Copy {
-                from: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
-                            hash: 2,
-                            is_mut: true,
-                        },
-                    ),
-                ),
-                is: Value(
-                    Owner(
-                        Owner {
-                            name: "z",
+                            name: "push",
                             hash: 5,
-                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Struct(
+                        Struct {
+                            name: "v",
+                            hash: 2,
+                            owner: 2,
+                            is_mut: true,
+                            is_member: false,
+                        },
+                    ),
+                ),
+                id: 1,
+            },
+        ),
+        (
+            5,
+            StaticLend {
+                to: Value(
+                    Function(
+                        Function {
+                            name: "get",
+                            hash: 7,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Struct(
+                        Struct {
+                            name: "v",
+                            hash: 2,
+                            owner: 2,
+                            is_mut: true,
+                            is_member: false,
                         },
                     ),
                 ),
@@ -2004,53 +806,258 @@ hash 5, timeline Timeline {
             },
         ),
         (
-            15,
-            Duplicate {
-                to: Value(
+            5,
+            StaticReacquire {
+                from: Value(
                     Function(
                         Function {
-                            name: "Fruit::Apple",
-                            hash: 1,
+                            name: "get",
+                            hash: 7,
                         },
                     ),
                 ),
                 is: Value(
-                    Owner(
-                        Owner {
-                            name: "z",
-                            hash: 5,
-                            is_mut: false,
+                    Struct(
+                        Struct {
+                            name: "v",
+                            hash: 2,
+                            owner: 2,
+                            is_mut: true,
+                            is_member: false,
                         },
                     ),
                 ),
-                id: 4,
+                id: 3,
             },
         ),
         (
-            17,
+            6,
             OwnerGoOutOfScope,
         ),
     ],
     states: [
         (
             1,
-            14,
+            3,
             OutOfScope,
         ),
         (
-            14,
-            17,
+            3,
+            4,
             FullPrivilege {
                 s: Full,
             },
         ),
         (
-            17,
-            17,
+            4,
+            4,
+            RevokedPrivilege {
+                to: Anonymous,
+                borrow_to: Value(
+                    Function(
+                        Function {
+                            name: "push",
+                            hash: 5,
+                        },
+                    ),
+                ),
+                prev_state: FullPrivilege {
+                    s: Full,
+                },
+            },
+        ),
+        (
+            4,
+            5,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            5,
+            5,
+            PartialPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            5,
+            6,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            6,
+            6,
             OutOfScope,
         ),
     ],
 }
+hash 3, timeline Timeline {
+    resource_access_point: Struct(
+        Struct {
+            name: "v.buf",
+            hash: 3,
+            owner: 2,
+            is_mut: true,
+            is_member: true,
+        },
+    ),
+    history: [
+        (
+            6,
+            OwnerGoOutOfScope,
+        ),
+    ],
+    states: [
+        (
+            1,
+            6,
+            OutOfScope,
+        ),
+    ],
+}
+hash 4, timeline Timeline {
+    resource_access_point: Struct(
+        Struct {
+            name: "v.len",
+            hash: 4,
+            owner: 2,
+            is_mut: true,
+            is_member: true,
+        },
+    ),
+    history: [
+        (
+            6,
+            OwnerGoOutOfScope,
+        ),
+    ],
+    states: [
+        (
+            1,
+            6,
+            OutOfScope,
+        ),
+    ],
+}
+hash 8, timeline Timeline {
+    resource_access_point: StaticRef(
+        StaticRef {
+            name: "z",
+            hash: 8,
+            is_mut: false,
+        },
+    ),
+    history: [
+        (
+            5,
+            Copy {
+                from: Value(
+                    Function(
+                        Function {
+                            name: "unwrap",
+                            hash: 6,
+                        },
+                    ),
+                ),
+                is: Value(
+                    StaticRef(
+                        StaticRef {
+                            name: "z",
+                            hash: 8,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 5,
+            },
+        ),
+        (
+            5,
+            StaticReacquire {
+                from: Value(
+                    StaticRef(
+                        StaticRef {
+                            name: "z",
+                            hash: 8,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Deref(
+                    StaticRef(
+                        StaticRef {
+                            name: "z",
+                            hash: 8,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 6,
+            },
+        ),
+        (
+            5,
+            StaticDie {
+                to: Deref(
+                    StaticRef(
+                        StaticRef {
+                            name: "z",
+                            hash: 8,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Value(
+                    StaticRef(
+                        StaticRef {
+                            name: "z",
+                            hash: 8,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 6,
+            },
+        ),
+        (
+            6,
+            RefGoOutOfScope,
+        ),
+    ],
+    states: [
+        (
+            1,
+            5,
+            OutOfScope,
+        ),
+        (
+            5,
+            5,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            5,
+            5,
+            Invalid,
+        ),
+        (
+            5,
+            6,
+            Invalid,
+        ),
+        (
+            6,
+            6,
+            Invalid,
+        ),
+    ],
+}
+PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope

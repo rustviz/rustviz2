@@ -106,13 +106,21 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
       self.annotate_expr(exp2);
     }
     ExprKind::MethodCall(name_and_generic_args, rcvr, args, _) => {
-      let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
-      let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
-      self.annotate_src(rcvr_name.clone(), rcvr.span, false, *self.raps.get(&rcvr_name).unwrap().rap.hash());
+      let fn_name = name_and_generic_args.ident.as_str().to_owned();
       self.annotate_src(fn_name.clone(), name_and_generic_args.ident.span, true, *self.raps.get(&fn_name).unwrap().rap.hash());
       for arg in args.iter() {
         self.annotate_expr(arg);
       }
+      match rcvr.kind {
+        ExprKind::MethodCall(_p_seg, ..) => {
+          self.annotate_expr(rcvr);
+          return;
+        }
+        _ => {}
+      }
+      let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
+      self.annotate_src(rcvr_name.clone(), rcvr.span, false, *self.raps.get(&rcvr_name).unwrap().rap.hash());
+
     }
     ExprKind::Assign(exp1, exp2, _) | ExprKind::AssignOp(_, exp1, exp2) => {
       self.annotate_expr(exp1);
