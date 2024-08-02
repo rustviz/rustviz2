@@ -11,7 +11,7 @@ use rustc_middle::{
 };
 use core::borrow;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
-use rustc_utils::mir::borrowck_facts::get_body_with_borrowck_facts;
+use rustc_utils::mir::{borrowck_facts::get_body_with_borrowck_facts, body::BodyExt};
 
 // these are the visitor trait itself
 // the visitor will walk through the hir
@@ -26,7 +26,22 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     for param in body.params {
       self.visit_param(param);
     }
-    // let borrow_data = get_body_with_borrowck_facts(self.tcx, body.value.hir_id.owner.def_id);
+    let borrow_data = get_body_with_borrowck_facts(self.tcx, body.value.hir_id.owner.def_id);
+    let borrow_set = &borrow_data.borrow_set;
+    let location_map = &borrow_set.location_map;
+    println!("body string {}", borrow_data.body.to_string(self.tcx).unwrap());
+    println!("name map {:#?}", borrow_data.body.debug_info_name_map());
+    println!("locals map {:#?}", borrow_set.local_map);
+    println!("activation map {:#?}, ", borrow_set.activation_map);
+    for location in borrow_data.body.all_locations() {
+      match location_map.get(&location) {
+        Some(b_data) => { println!("borrow_data for location {:#?} : {:#?}", location, b_data);
+          println!("hir_id {:#?}", borrow_data.body.location_to_hir_id(location.clone()));
+          println!("expr {:#?}", self.tcx.hir().expect_expr(borrow_data.body.location_to_hir_id(location.clone())));
+        }
+        None => {  }
+      }
+    }
     // println!("location map {:#?}", borrow_data.borrow_set.location_map);
     // println!("activation map{:#?}", borrow_data.borrow_set.activation_map);
     // println!("local_map {:#?}", borrow_data.borrow_set.local_map);

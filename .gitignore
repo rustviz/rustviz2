@@ -3,3 +3,6 @@ aquascope/target/
 print/aquascope/Cargo.lock
 Cargo.lock
 .vscode/
+test-crate/src/vis*
+test-crate/target/
+test-crate/Cargo.lock

@@ -1,88 +1,158 @@
-t `std::vec::Vec<i32>`
-fn_name "Vec::new"
-path PathSegment {
-    ident: push#0,
-    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).14),
-    res: Err,
-    args: None,
-    infer_args: true,
+body string fn main() -> () {
+    let mut _0: ();
+    let mut _5: std::option::Option<&'?8 i32>;
+    let mut _6: &'?9 [i32];
+    let _7: &'?10 [i32];
+    let mut _8: &'?11 std::vec::Vec<i32>;
+    scope 1 {
+        scope 2 {
+            debug x => _1;
+            scope 5 {
+                debug y => _2;
+                scope 9 {
+                    debug v => _3;
+                    scope 13 {
+                        debug c => _4;
+                    }
+                    scope 14 {
+                        let _4: &'?7 i32;
+                        scope 15 {
+                            scope 16 {
+                                scope 17 {
+                                }
+                                scope 18 {
+                                }
+                            }
+                        }
+                    }
+                }
+                scope 10 {
+                    let _3: std::vec::Vec<i32> as UserTypeProjection { base: UserType(0), projs: [] };
+                    scope 11 {
+                        scope 12 {
+                        }
+                    }
+                }
+            }
+            scope 6 {
+                let _2: &'?6 i32;
+                scope 7 {
+                    scope 8 {
+                    }
+                }
+            }
+        }
+        scope 3 {
+            let _1: i32;
+            scope 4 {
+            }
+        }
+    }
+
+    bb0: {
+        StorageLive(_1);
+        _1 = const 7_i32;
+        FakeRead(ForLet(None), _1);
+        StorageLive(_2);
+        _2 = &'?2 _1;
+        FakeRead(ForLet(None), _2);
+        StorageLive(_3);
+        _3 = std::vec::Vec::<i32>::new() -> [return: bb1, unwind: bb7];
+    }
+
+    bb1: {
+        FakeRead(ForLet(None), _3);
+        AscribeUserType(_3, o, UserTypeProjection { base: UserType(2), projs: [] });
+        StorageLive(_4);
+        StorageLive(_5);
+        StorageLive(_6);
+        StorageLive(_7);
+        StorageLive(_8);
+        _8 = &'?3 _3;
+        _7 = <std::vec::Vec<i32> as std::ops::Deref>::deref(move _8) -> [return: bb2, unwind: bb6];
+    }
+
+    bb2: {
+        _6 = &'?4 (*_7);
+        StorageDead(_8);
+        _5 = core::slice::<impl [i32]>::get::<usize>(move _6, const 0_usize) -> [return: bb3, unwind: bb6];
+    }
+
+    bb3: {
+        StorageDead(_6);
+        _4 = std::option::Option::<&'?5 i32>::unwrap(move _5) -> [return: bb4, unwind: bb6];
+    }
+
+    bb4: {
+        StorageDead(_5);
+        FakeRead(ForLet(None), _4);
+        StorageDead(_7);
+        _0 = const ();
+        StorageDead(_4);
+        drop(_3) -> [return: bb5, unwind: bb7];
+    }
+
+    bb5: {
+        StorageDead(_3);
+        StorageDead(_2);
+        StorageDead(_1);
+        return;
+    }
+
+    bb6 (cleanup): {
+        drop(_3) -> [return: bb7, unwind terminate(cleanup)];
+    }
+
+    bb7 (cleanup): {
+        resume;
+    }
 }
-rcvr Expr {
-    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).15),
-    kind: Path(
-        Resolved(
-            None,
-            Path {
-                span: src/lib.rs:4:3: 4:4 (#0),
-                res: Local(
-                    HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
-                ),
-                segments: [
-                    PathSegment {
-                        ident: v#0,
-                        hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).16),
-                        res: Local(
-                            HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
-                        ),
-                        args: None,
-                        infer_args: true,
-                    },
-                ],
-            },
-        ),
-    ),
-    span: src/lib.rs:4:3: 4:4 (#0),
+
+name map {
+    "y": _2,
+    "c": _4,
+    "x": _1,
+    "v": _3,
 }
-args [
-    Expr {
-        hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).17),
-        kind: Lit(
-            Spanned {
-                node: Int(
-                    Pu128(
-                        8,
-                    ),
-                    Unsuffixed,
-                ),
-                span: src/lib.rs:4:10: 4:11 (#0),
-            },
-        ),
-        span: src/lib.rs:4:10: 4:11 (#0),
+locals map {
+    _1: {
+        bw0,
     },
-]
-path PathSegment {
-    ident: unwrap#0,
-    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).25),
-    res: Err,
-    args: None,
-    infer_args: true,
+    _3: {
+        bw1,
+    },
 }
-rcvr Expr {
-    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).26),
-    kind: MethodCall(
-        PathSegment {
-            ident: get#0,
-            hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).27),
-            res: Err,
-            args: None,
-            infer_args: true,
-        },
+activation map {}, 
+borrow_data for location bb0[4] : BorrowData {
+    reserve_location: bb0[4],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?2,
+    borrowed_place: _1,
+    assigned_place: _2,
+}
+hir_id HirId(DefId(0:3 ~ test_crate[7d47]::main).6)
+expr Expr {
+    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).6),
+    kind: AddrOf(
+        Ref,
+        Not,
         Expr {
-            hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).28),
+            hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).7),
             kind: Path(
                 Resolved(
                     None,
                     Path {
-                        span: src/lib.rs:5:17: 5:18 (#0),
+                        span: src/lib.rs:4:12: 4:13 (#0),
                         res: Local(
-                            HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                            HirId(DefId(0:3 ~ test_crate[7d47]::main).4),
                         ),
                         segments: [
                             PathSegment {
-                                ident: v#0,
-                                hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).29),
+                                ident: x#0,
+                                hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).8),
                                 res: Local(
-                                    HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                                    HirId(DefId(0:3 ~ test_crate[7d47]::main).4),
                                 ),
                                 args: None,
                                 infer_args: true,
@@ -91,53 +161,36 @@ rcvr Expr {
                     },
                 ),
             ),
-            span: src/lib.rs:5:17: 5:18 (#0),
+            span: src/lib.rs:4:12: 4:13 (#0),
         },
-        [
-            Expr {
-                hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).30),
-                kind: Lit(
-                    Spanned {
-                        node: Int(
-                            Pu128(
-                                0,
-                            ),
-                            Unsuffixed,
-                        ),
-                        span: src/lib.rs:5:23: 5:24 (#0),
-                    },
-                ),
-                span: src/lib.rs:5:23: 5:24 (#0),
-            },
-        ],
-        src/lib.rs:5:19: 5:25 (#0),
     ),
-    span: src/lib.rs:5:17: 5:25 (#0),
+    span: src/lib.rs:4:11: 4:13 (#0),
 }
-args []
-path PathSegment {
-    ident: get#0,
-    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).27),
-    res: Err,
-    args: None,
-    infer_args: true,
+borrow_data for location bb1[7] : BorrowData {
+    reserve_location: bb1[7],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?3,
+    borrowed_place: _3,
+    assigned_place: _8,
 }
-rcvr Expr {
-    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).28),
+hir_id HirId(DefId(0:3 ~ test_crate[7d47]::main).28)
+expr Expr {
+    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).28),
     kind: Path(
         Resolved(
             None,
             Path {
-                span: src/lib.rs:5:17: 5:18 (#0),
+                span: src/lib.rs:6:11: 6:12 (#0),
                 res: Local(
-                    HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                    HirId(DefId(0:3 ~ test_crate[7d47]::main).22),
                 ),
                 segments: [
                     PathSegment {
                         ident: v#0,
-                        hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).29),
+                        hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).29),
                         res: Local(
-                            HirId(DefId(0:3 ~ test_crate[8e1d]::main).12),
+                            HirId(DefId(0:3 ~ test_crate[7d47]::main).22),
                         ),
                         args: None,
                         infer_args: true,
@@ -146,42 +199,27 @@ rcvr Expr {
             },
         ),
     ),
-    span: src/lib.rs:5:17: 5:18 (#0),
+    span: src/lib.rs:6:11: 6:12 (#0),
 }
-args [
-    Expr {
-        hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).30),
-        kind: Lit(
-            Spanned {
-                node: Int(
-                    Pu128(
-                        0,
-                    ),
-                    Unsuffixed,
-                ),
-                span: src/lib.rs:5:23: 5:24 (#0),
-            },
-        ),
-        span: src/lib.rs:5:23: 5:24 (#0),
-    },
-]
+t `std::vec::Vec<i32>`
+fn_name "Vec::new"
 unrecognized expr Expr {
-    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).17),
+    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).2),
     kind: Lit(
         Spanned {
             node: Int(
                 Pu128(
-                    8,
+                    7,
                 ),
                 Unsuffixed,
             ),
-            span: src/lib.rs:4:10: 4:11 (#0),
+            span: src/lib.rs:3:11: 3:12 (#0),
         },
     ),
-    span: src/lib.rs:4:10: 4:11 (#0),
+    span: src/lib.rs:3:11: 3:12 (#0),
 }
 unrecognized expr Expr {
-    hir_id: HirId(DefId(0:3 ~ test_crate[8e1d]::main).30),
+    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).30),
     kind: Lit(
         Spanned {
             node: Int(
@@ -190,43 +228,53 @@ unrecognized expr Expr {
                 ),
                 Unsuffixed,
             ),
-            span: src/lib.rs:5:23: 5:24 (#0),
+            span: src/lib.rs:6:17: 6:18 (#0),
         },
     ),
-    span: src/lib.rs:5:23: 5:24 (#0),
+    span: src/lib.rs:6:17: 6:18 (#0),
 }
 BORROW MAP {
-    "z": RefData {
+    "y": RefData {
+        lender: Value(
+            Owner(
+                Owner {
+                    name: "x",
+                    hash: 1,
+                    is_mut: false,
+                },
+            ),
+        ),
+        lifetime: 4,
+        ref_mutability: false,
+        aliasing: [],
+    },
+    "c": RefData {
         lender: Anonymous,
-        lifetime: 5,
+        lifetime: 6,
         ref_mutability: false,
         aliasing: [],
     },
 }
-lender to refs {}
+lender to refs {
+    "x": {
+        "y",
+    },
+}
 ultimate refs {
-    "z",
+    "c",
+    "y",
 }
 preprocessed events : [
     (
         3,
-        Move {
-            from: Value(
-                Function(
-                    Function {
-                        name: "Vec::new",
-                        hash: 1,
-                    },
-                ),
-            ),
+        Bind {
+            from: Anonymous,
             to: Value(
-                Struct(
-                    Struct {
-                        name: "v",
-                        hash: 2,
-                        owner: 2,
-                        is_mut: true,
-                        is_member: false,
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
                     },
                 ),
             ),
@@ -235,23 +283,22 @@ preprocessed events : [
     ),
     (
         4,
-        PassByMutableReference {
+        StaticBorrow {
             from: Value(
-                Struct(
-                    Struct {
-                        name: "v",
-                        hash: 2,
-                        owner: 2,
-                        is_mut: true,
-                        is_member: false,
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
                     },
                 ),
             ),
             to: Value(
-                Function(
-                    Function {
-                        name: "push",
-                        hash: 5,
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 2,
+                        is_mut: false,
                     },
                 ),
             ),
@@ -260,99 +307,21 @@ preprocessed events : [
     ),
     (
         4,
-        Copy {
-            from: Anonymous,
-            to: Value(
-                Function(
-                    Function {
-                        name: "push",
-                        hash: 5,
-                    },
-                ),
-            ),
-            id: 2,
-        },
-    ),
-    (
-        5,
-        PassByStaticReference {
-            from: Value(
-                Struct(
-                    Struct {
-                        name: "v",
-                        hash: 2,
-                        owner: 2,
-                        is_mut: true,
-                        is_member: false,
-                    },
-                ),
-            ),
-            to: Value(
-                Function(
-                    Function {
-                        name: "get",
-                        hash: 7,
-                    },
-                ),
-            ),
-            id: 3,
-        },
-    ),
-    (
-        5,
-        Copy {
-            from: Anonymous,
-            to: Value(
-                Function(
-                    Function {
-                        name: "get",
-                        hash: 7,
-                    },
-                ),
-            ),
-            id: 4,
-        },
-    ),
-    (
-        5,
-        Copy {
-            from: Value(
-                Function(
-                    Function {
-                        name: "unwrap",
-                        hash: 6,
-                    },
-                ),
-            ),
-            to: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "z",
-                        hash: 8,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            id: 5,
-        },
-    ),
-    (
-        5,
         StaticDie {
             from: Value(
                 StaticRef(
                     StaticRef {
-                        name: "z",
-                        hash: 8,
+                        name: "y",
+                        hash: 2,
                         is_mut: false,
                     },
                 ),
             ),
-            to: Deref(
-                StaticRef(
-                    StaticRef {
-                        name: "z",
-                        hash: 8,
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
                         is_mut: false,
                     },
                 ),
@@ -361,27 +330,124 @@ preprocessed events : [
         },
     ),
     (
+        5,
+        Move {
+            from: Value(
+                Function(
+                    Function {
+                        name: "Vec::new",
+                        hash: 3,
+                    },
+                ),
+            ),
+            to: Value(
+                Struct(
+                    Struct {
+                        name: "v",
+                        hash: 4,
+                        owner: 4,
+                        is_mut: false,
+                        is_member: false,
+                    },
+                ),
+            ),
+            id: 2,
+        },
+    ),
+    (
         6,
-        GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v",
-                    hash: 2,
-                    owner: 2,
-                    is_mut: true,
-                    is_member: false,
-                },
+        PassByStaticReference {
+            from: Value(
+                Struct(
+                    Struct {
+                        name: "v",
+                        hash: 4,
+                        owner: 4,
+                        is_mut: false,
+                        is_member: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Function(
+                    Function {
+                        name: "get",
+                        hash: 8,
+                    },
+                ),
+            ),
+            id: 3,
+        },
+    ),
+    (
+        6,
+        Copy {
+            from: Anonymous,
+            to: Value(
+                Function(
+                    Function {
+                        name: "get",
+                        hash: 8,
+                    },
+                ),
+            ),
+            id: 4,
+        },
+    ),
+    (
+        6,
+        Copy {
+            from: Value(
+                Function(
+                    Function {
+                        name: "unwrap",
+                        hash: 7,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 9,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 5,
+        },
+    ),
+    (
+        6,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 9,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 9,
+                        is_mut: false,
+                    },
+                ),
             ),
             id: 7,
         },
     ),
     (
-        6,
+        7,
         GoOutOfScope {
             ro: StaticRef(
                 StaticRef {
-                    name: "z",
-                    hash: 8,
+                    name: "c",
+                    hash: 9,
                     is_mut: false,
                 },
             ),
@@ -389,44 +455,129 @@ preprocessed events : [
         },
     ),
     (
-        6,
+        7,
         GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v.buf",
-                    hash: 3,
-                    owner: 2,
-                    is_mut: true,
-                    is_member: true,
+            ro: StaticRef(
+                StaticRef {
+                    name: "y",
+                    hash: 2,
+                    is_mut: false,
                 },
             ),
             id: 9,
         },
     ),
     (
-        6,
+        7,
         GoOutOfScope {
             ro: Struct(
                 Struct {
                     name: "v.len",
-                    hash: 4,
-                    owner: 2,
-                    is_mut: true,
+                    hash: 6,
+                    owner: 4,
+                    is_mut: false,
                     is_member: true,
                 },
             ),
             id: 10,
+        },
+    ),
+    (
+        7,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "x",
+                    hash: 1,
+                    is_mut: false,
+                },
+            ),
+            id: 11,
+        },
+    ),
+    (
+        7,
+        GoOutOfScope {
+            ro: Struct(
+                Struct {
+                    name: "v",
+                    hash: 4,
+                    owner: 4,
+                    is_mut: false,
+                    is_member: false,
+                },
+            ),
+            id: 12,
+        },
+    ),
+    (
+        7,
+        GoOutOfScope {
+            ro: Struct(
+                Struct {
+                    name: "v.buf",
+                    hash: 5,
+                    owner: 4,
+                    is_mut: false,
+                    is_member: true,
+                },
+            ),
+            id: 13,
         },
     ),
 ]
 ev_line_map: {
-    5: [
+    4: [
         StaticDie {
             from: Value(
                 StaticRef(
                     StaticRef {
-                        name: "z",
-                        hash: 8,
+                        name: "y",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 6,
+        },
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 1,
+        },
+    ],
+    6: [
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 9,
                         is_mut: false,
                     },
                 ),
@@ -434,39 +585,31 @@ ev_line_map: {
             to: Deref(
                 StaticRef(
                     StaticRef {
-                        name: "z",
-                        hash: 8,
+                        name: "c",
+                        hash: 9,
                         is_mut: false,
                     },
                 ),
             ),
-            id: 6,
+            id: 7,
         },
     ],
 }
 insert line map {
-    5: 0,
+    7: 0,
+    4: 1,
 }
 processed events [
     (
         3,
-        Move {
-            from: Value(
-                Function(
-                    Function {
-                        name: "Vec::new",
-                        hash: 1,
-                    },
-                ),
-            ),
+        Bind {
+            from: Anonymous,
             to: Value(
-                Struct(
-                    Struct {
-                        name: "v",
-                        hash: 2,
-                        owner: 2,
-                        is_mut: true,
-                        is_member: false,
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
                     },
                 ),
             ),
@@ -475,23 +618,22 @@ processed events [
     ),
     (
         4,
-        PassByMutableReference {
+        StaticBorrow {
             from: Value(
-                Struct(
-                    Struct {
-                        name: "v",
-                        hash: 2,
-                        owner: 2,
-                        is_mut: true,
-                        is_member: false,
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
                     },
                 ),
             ),
             to: Value(
-                Function(
-                    Function {
-                        name: "push",
-                        hash: 5,
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 2,
+                        is_mut: false,
                     },
                 ),
             ),
@@ -500,13 +642,71 @@ processed events [
     ),
     (
         4,
-        Copy {
-            from: Anonymous,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
+            ),
             to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 6,
+        },
+    ),
+    (
+        4,
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 1,
+        },
+    ),
+    (
+        6,
+        Move {
+            from: Value(
                 Function(
                     Function {
-                        name: "push",
-                        hash: 5,
+                        name: "Vec::new",
+                        hash: 3,
+                    },
+                ),
+            ),
+            to: Value(
+                Struct(
+                    Struct {
+                        name: "v",
+                        hash: 4,
+                        owner: 4,
+                        is_mut: false,
+                        is_member: false,
                     },
                 ),
             ),
@@ -514,15 +714,15 @@ processed events [
         },
     ),
     (
-        5,
+        7,
         PassByStaticReference {
             from: Value(
                 Struct(
                     Struct {
                         name: "v",
-                        hash: 2,
-                        owner: 2,
-                        is_mut: true,
+                        hash: 4,
+                        owner: 4,
+                        is_mut: false,
                         is_member: false,
                     },
                 ),
@@ -531,7 +731,7 @@ processed events [
                 Function(
                     Function {
                         name: "get",
-                        hash: 7,
+                        hash: 8,
                     },
                 ),
             ),
@@ -539,14 +739,14 @@ processed events [
         },
     ),
     (
-        5,
+        7,
         Copy {
             from: Anonymous,
             to: Value(
                 Function(
                     Function {
                         name: "get",
-                        hash: 7,
+                        hash: 8,
                     },
                 ),
             ),
@@ -554,21 +754,21 @@ processed events [
         },
     ),
     (
-        5,
+        7,
         Copy {
             from: Value(
                 Function(
                     Function {
                         name: "unwrap",
-                        hash: 6,
+                        hash: 7,
                     },
                 ),
             ),
             to: Value(
                 StaticRef(
                     StaticRef {
-                        name: "z",
-                        hash: 8,
+                        name: "c",
+                        hash: 9,
                         is_mut: false,
                     },
                 ),
@@ -577,13 +777,13 @@ processed events [
         },
     ),
     (
-        5,
+        7,
         StaticDie {
             from: Value(
                 StaticRef(
                     StaticRef {
-                        name: "z",
-                        hash: 8,
+                        name: "c",
+                        hash: 9,
                         is_mut: false,
                     },
                 ),
@@ -591,37 +791,22 @@ processed events [
             to: Deref(
                 StaticRef(
                     StaticRef {
-                        name: "z",
-                        hash: 8,
+                        name: "c",
+                        hash: 9,
                         is_mut: false,
                     },
                 ),
-            ),
-            id: 6,
-        },
-    ),
-    (
-        6,
-        GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v",
-                    hash: 2,
-                    owner: 2,
-                    is_mut: true,
-                    is_member: false,
-                },
             ),
             id: 7,
         },
     ),
     (
-        6,
+        8,
         GoOutOfScope {
             ro: StaticRef(
                 StaticRef {
-                    name: "z",
-                    hash: 8,
+                    name: "c",
+                    hash: 9,
                     is_mut: false,
                 },
             ),
@@ -629,44 +814,129 @@ processed events [
         },
     ),
     (
-        6,
+        8,
         GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v.buf",
-                    hash: 3,
-                    owner: 2,
-                    is_mut: true,
-                    is_member: true,
+            ro: StaticRef(
+                StaticRef {
+                    name: "y",
+                    hash: 2,
+                    is_mut: false,
                 },
             ),
             id: 9,
         },
     ),
     (
-        6,
+        8,
         GoOutOfScope {
             ro: Struct(
                 Struct {
                     name: "v.len",
-                    hash: 4,
-                    owner: 2,
-                    is_mut: true,
+                    hash: 6,
+                    owner: 4,
+                    is_mut: false,
                     is_member: true,
                 },
             ),
             id: 10,
         },
     ),
+    (
+        8,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "x",
+                    hash: 1,
+                    is_mut: false,
+                },
+            ),
+            id: 11,
+        },
+    ),
+    (
+        8,
+        GoOutOfScope {
+            ro: Struct(
+                Struct {
+                    name: "v",
+                    hash: 4,
+                    owner: 4,
+                    is_mut: false,
+                    is_member: false,
+                },
+            ),
+            id: 12,
+        },
+    ),
+    (
+        8,
+        GoOutOfScope {
+            ro: Struct(
+                Struct {
+                    name: "v.buf",
+                    hash: 5,
+                    owner: 4,
+                    is_mut: false,
+                    is_member: true,
+                },
+            ),
+            id: 13,
+        },
+    ),
 ]
 processed line map {
-    5: [
+    4: [
         StaticDie {
             from: Value(
                 StaticRef(
                     StaticRef {
-                        name: "z",
-                        hash: 8,
+                        name: "y",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 6,
+        },
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 1,
+        },
+    ],
+    7: [
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 9,
                         is_mut: false,
                     },
                 ),
@@ -674,56 +944,46 @@ processed line map {
             to: Deref(
                 StaticRef(
                     StaticRef {
-                        name: "z",
-                        hash: 8,
+                        name: "c",
+                        hash: 9,
                         is_mut: false,
                     },
                 ),
             ),
-            id: 6,
+            id: 7,
         },
     ],
 }
 w_map {
-    1: 0,
-    4: 0,
     7: 0,
     5: 0,
-    3: 0,
     8: 0,
+    9: 0,
     6: 0,
+    1: 0,
     2: 0,
+    3: 0,
+    4: 0,
 }
-hash 2, timeline Timeline {
-    resource_access_point: Struct(
-        Struct {
-            name: "v",
-            hash: 2,
-            owner: 2,
-            is_mut: true,
-            is_member: false,
+hash 1, timeline Timeline {
+    resource_access_point: Owner(
+        Owner {
+            name: "x",
+            hash: 1,
+            is_mut: false,
         },
     ),
     history: [
         (
             3,
             Acquire {
-                from: Value(
-                    Function(
-                        Function {
-                            name: "Vec::new",
-                            hash: 1,
-                        },
-                    ),
-                ),
+                from: Anonymous,
                 is: Value(
-                    Struct(
-                        Struct {
-                            name: "v",
-                            hash: 2,
-                            owner: 2,
-                            is_mut: true,
-                            is_member: false,
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: false,
                         },
                     ),
                 ),
@@ -732,23 +992,22 @@ hash 2, timeline Timeline {
         ),
         (
             4,
-            MutableLend {
+            StaticLend {
                 to: Value(
-                    Function(
-                        Function {
-                            name: "push",
-                            hash: 5,
+                    StaticRef(
+                        StaticRef {
+                            name: "y",
+                            hash: 2,
+                            is_mut: false,
                         },
                     ),
                 ),
                 is: Value(
-                    Struct(
-                        Struct {
-                            name: "v",
-                            hash: 2,
-                            owner: 2,
-                            is_mut: true,
-                            is_member: false,
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: false,
                         },
                     ),
                 ),
@@ -757,23 +1016,46 @@ hash 2, timeline Timeline {
         ),
         (
             4,
-            MutableReacquire {
+            StaticReacquire {
                 from: Value(
-                    Function(
-                        Function {
-                            name: "push",
-                            hash: 5,
+                    StaticRef(
+                        StaticRef {
+                            name: "y",
+                            hash: 2,
+                            is_mut: false,
                         },
                     ),
                 ),
                 is: Value(
-                    Struct(
-                        Struct {
-                            name: "v",
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 6,
+            },
+        ),
+        (
+            4,
+            StaticLend {
+                to: Value(
+                    StaticRef(
+                        StaticRef {
+                            name: "y",
                             hash: 2,
-                            owner: 2,
-                            is_mut: true,
-                            is_member: false,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: false,
                         },
                     ),
                 ),
@@ -781,57 +1063,7 @@ hash 2, timeline Timeline {
             },
         ),
         (
-            5,
-            StaticLend {
-                to: Value(
-                    Function(
-                        Function {
-                            name: "get",
-                            hash: 7,
-                        },
-                    ),
-                ),
-                is: Value(
-                    Struct(
-                        Struct {
-                            name: "v",
-                            hash: 2,
-                            owner: 2,
-                            is_mut: true,
-                            is_member: false,
-                        },
-                    ),
-                ),
-                id: 3,
-            },
-        ),
-        (
-            5,
-            StaticReacquire {
-                from: Value(
-                    Function(
-                        Function {
-                            name: "get",
-                            hash: 7,
-                        },
-                    ),
-                ),
-                is: Value(
-                    Struct(
-                        Struct {
-                            name: "v",
-                            hash: 2,
-                            owner: 2,
-                            is_mut: true,
-                            is_member: false,
-                        },
-                    ),
-                ),
-                id: 3,
-            },
-        ),
-        (
-            6,
+            8,
             OwnerGoOutOfScope,
         ),
     ],
@@ -851,69 +1083,145 @@ hash 2, timeline Timeline {
         (
             4,
             4,
-            RevokedPrivilege {
-                to: Anonymous,
-                borrow_to: Value(
-                    Function(
-                        Function {
-                            name: "push",
-                            hash: 5,
-                        },
-                    ),
-                ),
-                prev_state: FullPrivilege {
-                    s: Full,
-                },
-            },
-        ),
-        (
-            4,
-            5,
-            FullPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            5,
-            5,
             PartialPrivilege {
                 s: Full,
             },
         ),
         (
-            5,
-            6,
+            4,
+            4,
             FullPrivilege {
                 s: Full,
             },
         ),
         (
-            6,
-            6,
+            4,
+            8,
+            PartialPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            8,
+            8,
             OutOfScope,
         ),
     ],
 }
-hash 3, timeline Timeline {
-    resource_access_point: Struct(
-        Struct {
-            name: "v.buf",
-            hash: 3,
-            owner: 2,
-            is_mut: true,
-            is_member: true,
+hash 2, timeline Timeline {
+    resource_access_point: StaticRef(
+        StaticRef {
+            name: "y",
+            hash: 2,
+            is_mut: false,
         },
     ),
     history: [
         (
-            6,
-            OwnerGoOutOfScope,
+            4,
+            StaticBorrow {
+                from: Value(
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Value(
+                    StaticRef(
+                        StaticRef {
+                            name: "y",
+                            hash: 2,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 1,
+            },
+        ),
+        (
+            4,
+            StaticDie {
+                to: Value(
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Value(
+                    StaticRef(
+                        StaticRef {
+                            name: "y",
+                            hash: 2,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 6,
+            },
+        ),
+        (
+            4,
+            StaticBorrow {
+                from: Value(
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Value(
+                    StaticRef(
+                        StaticRef {
+                            name: "y",
+                            hash: 2,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 1,
+            },
+        ),
+        (
+            8,
+            RefGoOutOfScope,
         ),
     ],
     states: [
         (
             1,
-            6,
+            4,
+            OutOfScope,
+        ),
+        (
+            4,
+            4,
+            PartialPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            4,
+            4,
+            OutOfScope,
+        ),
+        (
+            4,
+            8,
+            PartialPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            8,
+            8,
             OutOfScope,
         ),
     ],
@@ -921,16 +1229,91 @@ hash 3, timeline Timeline {
 hash 4, timeline Timeline {
     resource_access_point: Struct(
         Struct {
-            name: "v.len",
+            name: "v",
             hash: 4,
-            owner: 2,
-            is_mut: true,
-            is_member: true,
+            owner: 4,
+            is_mut: false,
+            is_member: false,
         },
     ),
     history: [
         (
             6,
+            Acquire {
+                from: Value(
+                    Function(
+                        Function {
+                            name: "Vec::new",
+                            hash: 3,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Struct(
+                        Struct {
+                            name: "v",
+                            hash: 4,
+                            owner: 4,
+                            is_mut: false,
+                            is_member: false,
+                        },
+                    ),
+                ),
+                id: 2,
+            },
+        ),
+        (
+            7,
+            StaticLend {
+                to: Value(
+                    Function(
+                        Function {
+                            name: "get",
+                            hash: 8,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Struct(
+                        Struct {
+                            name: "v",
+                            hash: 4,
+                            owner: 4,
+                            is_mut: false,
+                            is_member: false,
+                        },
+                    ),
+                ),
+                id: 3,
+            },
+        ),
+        (
+            7,
+            StaticReacquire {
+                from: Value(
+                    Function(
+                        Function {
+                            name: "get",
+                            hash: 8,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Struct(
+                        Struct {
+                            name: "v",
+                            hash: 4,
+                            owner: 4,
+                            is_mut: false,
+                            is_member: false,
+                        },
+                    ),
+                ),
+                id: 3,
+            },
+        ),
+        (
+            8,
             OwnerGoOutOfScope,
         ),
     ],
@@ -940,33 +1323,107 @@ hash 4, timeline Timeline {
             6,
             OutOfScope,
         ),
+        (
+            6,
+            7,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            7,
+            7,
+            PartialPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            7,
+            8,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            8,
+            8,
+            OutOfScope,
+        ),
     ],
 }
-hash 8, timeline Timeline {
+hash 5, timeline Timeline {
+    resource_access_point: Struct(
+        Struct {
+            name: "v.buf",
+            hash: 5,
+            owner: 4,
+            is_mut: false,
+            is_member: true,
+        },
+    ),
+    history: [
+        (
+            8,
+            OwnerGoOutOfScope,
+        ),
+    ],
+    states: [
+        (
+            1,
+            8,
+            OutOfScope,
+        ),
+    ],
+}
+hash 6, timeline Timeline {
+    resource_access_point: Struct(
+        Struct {
+            name: "v.len",
+            hash: 6,
+            owner: 4,
+            is_mut: false,
+            is_member: true,
+        },
+    ),
+    history: [
+        (
+            8,
+            OwnerGoOutOfScope,
+        ),
+    ],
+    states: [
+        (
+            1,
+            8,
+            OutOfScope,
+        ),
+    ],
+}
+hash 9, timeline Timeline {
     resource_access_point: StaticRef(
         StaticRef {
-            name: "z",
-            hash: 8,
+            name: "c",
+            hash: 9,
             is_mut: false,
         },
     ),
     history: [
         (
-            5,
+            7,
             Copy {
                 from: Value(
                     Function(
                         Function {
                             name: "unwrap",
-                            hash: 6,
+                            hash: 7,
                         },
                     ),
                 ),
                 is: Value(
                     StaticRef(
                         StaticRef {
-                            name: "z",
-                            hash: 8,
+                            name: "c",
+                            hash: 9,
                             is_mut: false,
                         },
                     ),
@@ -975,13 +1432,13 @@ hash 8, timeline Timeline {
             },
         ),
         (
-            5,
+            7,
             StaticReacquire {
                 from: Value(
                     StaticRef(
                         StaticRef {
-                            name: "z",
-                            hash: 8,
+                            name: "c",
+                            hash: 9,
                             is_mut: false,
                         },
                     ),
@@ -989,23 +1446,23 @@ hash 8, timeline Timeline {
                 is: Deref(
                     StaticRef(
                         StaticRef {
-                            name: "z",
-                            hash: 8,
+                            name: "c",
+                            hash: 9,
                             is_mut: false,
                         },
                     ),
                 ),
-                id: 6,
+                id: 7,
             },
         ),
         (
-            5,
+            7,
             StaticDie {
                 to: Deref(
                     StaticRef(
                         StaticRef {
-                            name: "z",
-                            hash: 8,
+                            name: "c",
+                            hash: 9,
                             is_mut: false,
                         },
                     ),
@@ -1013,50 +1470,52 @@ hash 8, timeline Timeline {
                 is: Value(
                     StaticRef(
                         StaticRef {
-                            name: "z",
-                            hash: 8,
+                            name: "c",
+                            hash: 9,
                             is_mut: false,
                         },
                     ),
                 ),
-                id: 6,
+                id: 7,
             },
         ),
         (
-            6,
+            8,
             RefGoOutOfScope,
         ),
     ],
     states: [
         (
             1,
-            5,
+            7,
             OutOfScope,
         ),
         (
-            5,
-            5,
+            7,
+            7,
             FullPrivilege {
                 s: Full,
             },
         ),
         (
-            5,
-            5,
+            7,
+            7,
             Invalid,
         ),
         (
-            5,
-            6,
+            7,
+            8,
             Invalid,
         ),
         (
-            6,
-            6,
+            8,
+            8,
             Invalid,
         ),
     ],
 }
+PREV STATE OutOfScope
+PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope
