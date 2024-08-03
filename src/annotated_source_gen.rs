@@ -189,7 +189,9 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
         self.annotate_expr(e);
       }
     }
-    _ => { println!("unrecognized expr {:#?}", expr);}
+     _ => { 
+      //println!("unrecognized expr {:#?}", expr);
+      }
   }
 }
 

@@ -996,7 +996,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Call(fn_expr, _) => {
         let line_num = self.span_to_line(&fn_expr.span);
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
-        println!("fn_name {:#?}", fn_name);
         let rhs_rap = self.raps.get(&fn_name).unwrap().rap.to_owned();
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
       },

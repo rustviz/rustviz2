@@ -1,49 +1,66 @@
 body string fn main() -> () {
     let mut _0: ();
-    let mut _5: std::option::Option<&'?8 i32>;
-    let mut _6: &'?9 [i32];
-    let _7: &'?10 [i32];
-    let mut _8: &'?11 std::vec::Vec<i32>;
+    let _4: ();
+    let mut _5: bool;
+    let mut _6: &'?6 i32;
+    let _7: &'?7 i32;
+    let mut _8: (i32, bool);
     scope 1 {
         scope 2 {
             debug x => _1;
             scope 5 {
-                debug y => _2;
-                scope 9 {
-                    debug v => _3;
-                    scope 13 {
-                        debug c => _4;
-                    }
-                    scope 14 {
-                        let _4: &'?7 i32;
+                debug z => _2;
+                scope 8 {
+                    debug c => _3;
+                    scope 12 {
+                        scope 13 {
+                            scope 14 {
+                            }
+                        }
                         scope 15 {
                             scope 16 {
                                 scope 17 {
+                                    scope 18 {
+                                    }
                                 }
-                                scope 18 {
+                                scope 19 {
+                                }
+                            }
+                            scope 20 {
+                                scope 21 {
+                                }
+                                scope 22 {
                                 }
                             }
                         }
                     }
+                    scope 23 {
+                        debug s => _9;
+                    }
+                    scope 24 {
+                        let _9: i32;
+                        scope 25 {
+                            scope 26 {
+                            }
+                        }
+                    }
                 }
-                scope 10 {
-                    let _3: std::vec::Vec<i32> as UserTypeProjection { base: UserType(0), projs: [] };
-                    scope 11 {
-                        scope 12 {
+                scope 9 {
+                    let mut _3: &'?5 i32;
+                    scope 10 {
+                        scope 11 {
                         }
                     }
                 }
             }
             scope 6 {
-                let _2: &'?6 i32;
+                let _2: i32;
                 scope 7 {
-                    scope 8 {
-                    }
                 }
             }
         }
         scope 3 {
-            let _1: i32;
+            let mut _1: i32;
             scope 4 {
             }
         }
@@ -51,218 +68,287 @@ body string fn main() -> () {
 
     bb0: {
         StorageLive(_1);
-        _1 = const 7_i32;
+        _1 = const 9_i32;
         FakeRead(ForLet(None), _1);
         StorageLive(_2);
-        _2 = &'?2 _1;
+        _2 = const 10_i32;
         FakeRead(ForLet(None), _2);
         StorageLive(_3);
-        _3 = std::vec::Vec::<i32>::new() -> [return: bb1, unwind: bb7];
+        _3 = &'?2 _1;
+        FakeRead(ForLet(None), _3);
+        StorageLive(_4);
+        StorageLive(_5);
+        _5 = const true;
+        switchInt(move _5) -> [0: bb3, otherwise: bb1];
     }
 
     bb1: {
-        FakeRead(ForLet(None), _3);
-        AscribeUserType(_3, o, UserTypeProjection { base: UserType(2), projs: [] });
-        StorageLive(_4);
-        StorageLive(_5);
         StorageLive(_6);
         StorageLive(_7);
-        StorageLive(_8);
-        _8 = &'?3 _3;
-        _7 = <std::vec::Vec<i32> as std::ops::Deref>::deref(move _8) -> [return: bb2, unwind: bb6];
+        _7 = &'?3 _2;
+        _6 = &'?4 (*_7);
+        _3 = move _6;
+        StorageDead(_6);
+        StorageDead(_7);
+        _8 = CheckedAdd(_1, const 9_i32);
+        assert(!move (_8.1: bool), "attempt to compute `{} + {}`, which would overflow", _1, const 9_i32) -> [success: bb2, unwind: bb5];
     }
 
     bb2: {
-        _6 = &'?4 (*_7);
-        StorageDead(_8);
-        _5 = core::slice::<impl [i32]>::get::<usize>(move _6, const 0_usize) -> [return: bb3, unwind: bb6];
+        _1 = move (_8.0: i32);
+        _4 = const ();
+        goto -> bb4;
     }
 
     bb3: {
-        StorageDead(_6);
-        _4 = std::option::Option::<&'?5 i32>::unwrap(move _5) -> [return: bb4, unwind: bb6];
+        _4 = const ();
+        goto -> bb4;
     }
 
     bb4: {
         StorageDead(_5);
-        FakeRead(ForLet(None), _4);
-        StorageDead(_7);
-        _0 = const ();
         StorageDead(_4);
-        drop(_3) -> [return: bb5, unwind: bb7];
-    }
-
-    bb5: {
+        StorageLive(_9);
+        _9 = (*_3);
+        FakeRead(ForLet(None), _9);
+        _0 = const ();
+        StorageDead(_9);
         StorageDead(_3);
         StorageDead(_2);
         StorageDead(_1);
         return;
     }
 
-    bb6 (cleanup): {
-        drop(_3) -> [return: bb7, unwind terminate(cleanup)];
-    }
-
-    bb7 (cleanup): {
+    bb5 (cleanup): {
         resume;
     }
 }
 
 name map {
-    "y": _2,
-    "c": _4,
+    "z": _2,
+    "c": _3,
+    "s": _9,
     "x": _1,
-    "v": _3,
 }
 locals map {
     _1: {
         bw0,
     },
-    _3: {
+    _2: {
         bw1,
     },
 }
 activation map {}, 
-borrow_data for location bb0[4] : BorrowData {
-    reserve_location: bb0[4],
+no output facts
+loans live at {
+    LocationIndex(61): [
+        bw0,
+        bw1,
+    ],
+    LocationIndex(58): [
+        bw0,
+        bw1,
+    ],
+    LocationIndex(55): [
+        bw0,
+        bw1,
+    ],
+    LocationIndex(52): [
+        bw0,
+    ],
+    LocationIndex(49): [
+        bw1,
+    ],
+    LocationIndex(46): [
+        bw1,
+    ],
+    LocationIndex(43): [
+        bw1,
+    ],
+    LocationIndex(40): [
+        bw1,
+    ],
+    LocationIndex(37): [
+        bw1,
+    ],
+    LocationIndex(34): [
+        bw1,
+    ],
+    LocationIndex(25): [
+        bw0,
+    ],
+    LocationIndex(22): [
+        bw0,
+    ],
+    LocationIndex(19): [
+        bw0,
+    ],
+    LocationIndex(16): [
+        bw0,
+    ],
+    LocationIndex(59): [
+        bw0,
+        bw1,
+    ],
+    LocationIndex(56): [
+        bw0,
+        bw1,
+    ],
+    LocationIndex(53): [
+        bw0,
+    ],
+    LocationIndex(50): [
+        bw0,
+    ],
+    LocationIndex(47): [
+        bw1,
+    ],
+    LocationIndex(44): [
+        bw1,
+    ],
+    LocationIndex(41): [
+        bw1,
+    ],
+    LocationIndex(38): [
+        bw1,
+    ],
+    LocationIndex(35): [
+        bw1,
+    ],
+    LocationIndex(32): [
+        bw1,
+    ],
+    LocationIndex(23): [
+        bw0,
+    ],
+    LocationIndex(20): [
+        bw0,
+    ],
+    LocationIndex(17): [
+        bw0,
+    ],
+    LocationIndex(60): [
+        bw0,
+        bw1,
+    ],
+    LocationIndex(57): [
+        bw0,
+        bw1,
+    ],
+    LocationIndex(54): [
+        bw0,
+        bw1,
+    ],
+    LocationIndex(51): [
+        bw0,
+    ],
+    LocationIndex(48): [
+        bw1,
+    ],
+    LocationIndex(45): [
+        bw1,
+    ],
+    LocationIndex(42): [
+        bw1,
+    ],
+    LocationIndex(39): [
+        bw1,
+    ],
+    LocationIndex(36): [
+        bw1,
+    ],
+    LocationIndex(33): [
+        bw1,
+    ],
+    LocationIndex(24): [
+        bw0,
+    ],
+    LocationIndex(21): [
+        bw0,
+    ],
+    LocationIndex(18): [
+        bw0,
+    ],
+}
+loan issued at (
+    '?2,
+    bw0,
+    LocationIndex(15),
+)
+borrow_data for location bb0[7] : BorrowData {
+    reserve_location: bb0[7],
     activation_location: NotTwoPhase,
     kind: Shared,
     region: '?2,
     borrowed_place: _1,
-    assigned_place: _2,
+    assigned_place: _3,
 }
-hir_id HirId(DefId(0:3 ~ test_crate[7d47]::main).6)
-expr Expr {
-    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).6),
-    kind: AddrOf(
-        Ref,
-        Not,
-        Expr {
-            hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).7),
-            kind: Path(
-                Resolved(
-                    None,
-                    Path {
-                        span: src/lib.rs:4:12: 4:13 (#0),
-                        res: Local(
-                            HirId(DefId(0:3 ~ test_crate[7d47]::main).4),
-                        ),
-                        segments: [
-                            PathSegment {
-                                ident: x#0,
-                                hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).8),
-                                res: Local(
-                                    HirId(DefId(0:3 ~ test_crate[7d47]::main).4),
-                                ),
-                                args: None,
-                                infer_args: true,
-                            },
-                        ],
-                    },
-                ),
-            ),
-            span: src/lib.rs:4:12: 4:13 (#0),
-        },
-    ),
-    span: src/lib.rs:4:11: 4:13 (#0),
-}
-borrow_data for location bb1[7] : BorrowData {
-    reserve_location: bb1[7],
+borrowed_place: Some(
+    "x",
+)
+assigned place Some(
+    "c",
+)
+line 5
+loan issued at (
+    '?3,
+    bw1,
+    LocationIndex(31),
+)
+borrow_data for location bb1[2] : BorrowData {
+    reserve_location: bb1[2],
     activation_location: NotTwoPhase,
     kind: Shared,
     region: '?3,
-    borrowed_place: _3,
-    assigned_place: _8,
+    borrowed_place: _2,
+    assigned_place: _7,
 }
-hir_id HirId(DefId(0:3 ~ test_crate[7d47]::main).28)
-expr Expr {
-    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).28),
-    kind: Path(
-        Resolved(
-            None,
-            Path {
-                span: src/lib.rs:6:11: 6:12 (#0),
-                res: Local(
-                    HirId(DefId(0:3 ~ test_crate[7d47]::main).22),
-                ),
-                segments: [
-                    PathSegment {
-                        ident: v#0,
-                        hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).29),
-                        res: Local(
-                            HirId(DefId(0:3 ~ test_crate[7d47]::main).22),
-                        ),
-                        args: None,
-                        infer_args: true,
-                    },
-                ],
-            },
-        ),
-    ),
-    span: src/lib.rs:6:11: 6:12 (#0),
-}
-t `std::vec::Vec<i32>`
-fn_name "Vec::new"
-unrecognized expr Expr {
-    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).2),
-    kind: Lit(
-        Spanned {
-            node: Int(
-                Pu128(
-                    7,
-                ),
-                Unsuffixed,
-            ),
-            span: src/lib.rs:3:11: 3:12 (#0),
-        },
-    ),
-    span: src/lib.rs:3:11: 3:12 (#0),
-}
-unrecognized expr Expr {
-    hir_id: HirId(DefId(0:3 ~ test_crate[7d47]::main).30),
-    kind: Lit(
-        Spanned {
-            node: Int(
-                Pu128(
-                    0,
-                ),
-                Unsuffixed,
-            ),
-            span: src/lib.rs:6:17: 6:18 (#0),
-        },
-    ),
-    span: src/lib.rs:6:17: 6:18 (#0),
-}
+borrowed_place: Some(
+    "z",
+)
+assigned place None
+line 7
+loan bw0 killed at LocationIndex(3)
+line 3
+line 3
+line 3
+line 3
+loan bw1 killed at LocationIndex(9)
+line 4
+line 4
+line 4
+line 4
+loan bw0 killed at LocationIndex(45)
+line 8
+line 8
+line 8
+loan bw1 killed at LocationIndex(71)
+line 12
+loan bw0 killed at LocationIndex(73)
+line 12
 BORROW MAP {
-    "y": RefData {
+    "c": RefData {
         lender: Value(
             Owner(
                 Owner {
-                    name: "x",
-                    hash: 1,
+                    name: "z",
+                    hash: 2,
                     is_mut: false,
                 },
             ),
         ),
-        lifetime: 4,
-        ref_mutability: false,
-        aliasing: [],
-    },
-    "c": RefData {
-        lender: Anonymous,
-        lifetime: 6,
+        lifetime: 11,
         ref_mutability: false,
         aliasing: [],
     },
 }
 lender to refs {
-    "x": {
-        "y",
+    "z": {
+        "c",
     },
 }
 ultimate refs {
     "c",
-    "y",
 }
 preprocessed events : [
     (
@@ -274,7 +360,7 @@ preprocessed events : [
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
+                        is_mut: true,
                     },
                 ),
             ),
@@ -283,20 +369,12 @@ preprocessed events : [
     ),
     (
         4,
-        StaticBorrow {
-            from: Value(
+        Bind {
+            from: Anonymous,
+            to: Value(
                 Owner(
                     Owner {
-                        name: "x",
-                        hash: 1,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            to: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "y",
+                        name: "z",
                         hash: 2,
                         is_mut: false,
                     },
@@ -306,48 +384,23 @@ preprocessed events : [
         },
     ),
     (
-        4,
-        StaticDie {
+        5,
+        StaticBorrow {
             from: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "y",
-                        hash: 2,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            to: Value(
                 Owner(
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            id: 6,
-        },
-    ),
-    (
-        5,
-        Move {
-            from: Value(
-                Function(
-                    Function {
-                        name: "Vec::new",
-                        hash: 3,
+                        is_mut: true,
                     },
                 ),
             ),
             to: Value(
-                Struct(
-                    Struct {
-                        name: "v",
-                        hash: 4,
-                        owner: 4,
-                        is_mut: false,
-                        is_member: false,
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
                     },
                 ),
             ),
@@ -356,84 +409,190 @@ preprocessed events : [
     ),
     (
         6,
-        PassByStaticReference {
-            from: Value(
-                Struct(
-                    Struct {
-                        name: "v",
+        Branch {
+            live_vars: {
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+                Owner(
+                    Owner {
+                        name: "z",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            },
+            branches: [
+                ExtBranchData {
+                    e_data: [
+                        (
+                            7,
+                            StaticDie {
+                                from: Value(
+                                    StaticRef(
+                                        StaticRef {
+                                            name: "c",
+                                            hash: 3,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                to: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "x",
+                                            hash: 1,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 3,
+                            },
+                        ),
+                        (
+                            7,
+                            StaticBorrow {
+                                from: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "z",
+                                            hash: 2,
+                                            is_mut: false,
+                                        },
+                                    ),
+                                ),
+                                to: Value(
+                                    StaticRef(
+                                        StaticRef {
+                                            name: "c",
+                                            hash: 3,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 4,
+                            },
+                        ),
+                        (
+                            8,
+                            Bind {
+                                from: Anonymous,
+                                to: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "x",
+                                            hash: 1,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 5,
+                            },
+                        ),
+                    ],
+                    line_map: {
+                        7: [
+                            StaticDie {
+                                from: Value(
+                                    StaticRef(
+                                        StaticRef {
+                                            name: "c",
+                                            hash: 3,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                to: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "x",
+                                            hash: 1,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 3,
+                            },
+                            StaticBorrow {
+                                from: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "z",
+                                            hash: 2,
+                                            is_mut: false,
+                                        },
+                                    ),
+                                ),
+                                to: Value(
+                                    StaticRef(
+                                        StaticRef {
+                                            name: "c",
+                                            hash: 3,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 4,
+                            },
+                        ],
+                    },
+                    decl_vars: {},
+                },
+                ExtBranchData {
+                    e_data: [],
+                    line_map: {},
+                    decl_vars: {},
+                },
+            ],
+            branch_type: If(
+                [
+                    "If",
+                    "Else",
+                ],
+                [
+                    (
+                        7,
+                        9,
+                    ),
+                    (
+                        9,
+                        9,
+                    ),
+                ],
+            ),
+            split_point: 6,
+            merge_point: 9,
+            id: 6,
+        },
+    ),
+    (
+        11,
+        Copy {
+            from: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "s",
                         hash: 4,
-                        owner: 4,
-                        is_mut: false,
-                        is_member: false,
-                    },
-                ),
-            ),
-            to: Value(
-                Function(
-                    Function {
-                        name: "get",
-                        hash: 8,
-                    },
-                ),
-            ),
-            id: 3,
-        },
-    ),
-    (
-        6,
-        Copy {
-            from: Anonymous,
-            to: Value(
-                Function(
-                    Function {
-                        name: "get",
-                        hash: 8,
-                    },
-                ),
-            ),
-            id: 4,
-        },
-    ),
-    (
-        6,
-        Copy {
-            from: Value(
-                Function(
-                    Function {
-                        name: "unwrap",
-                        hash: 7,
-                    },
-                ),
-            ),
-            to: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "c",
-                        hash: 9,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            id: 5,
-        },
-    ),
-    (
-        6,
-        StaticDie {
-            from: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "c",
-                        hash: 9,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            to: Deref(
-                StaticRef(
-                    StaticRef {
-                        name: "c",
-                        hash: 9,
                         is_mut: false,
                     },
                 ),
@@ -442,24 +601,35 @@ preprocessed events : [
         },
     ),
     (
-        7,
-        GoOutOfScope {
-            ro: StaticRef(
-                StaticRef {
-                    name: "c",
-                    hash: 9,
-                    is_mut: false,
-                },
+        11,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "z",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
             ),
             id: 8,
         },
     ),
     (
-        7,
+        12,
         GoOutOfScope {
-            ro: StaticRef(
-                StaticRef {
-                    name: "y",
+            ro: Owner(
+                Owner {
+                    name: "z",
                     hash: 2,
                     is_mut: false,
                 },
@@ -468,27 +638,25 @@ preprocessed events : [
         },
     ),
     (
-        7,
+        12,
         GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v.len",
-                    hash: 6,
-                    owner: 4,
-                    is_mut: false,
-                    is_member: true,
+            ro: StaticRef(
+                StaticRef {
+                    name: "c",
+                    hash: 3,
+                    is_mut: true,
                 },
             ),
             id: 10,
         },
     ),
     (
-        7,
+        12,
         GoOutOfScope {
             ro: Owner(
                 Owner {
-                    name: "x",
-                    hash: 1,
+                    name: "s",
+                    hash: 4,
                     is_mut: false,
                 },
             ),
@@ -496,65 +664,71 @@ preprocessed events : [
         },
     ),
     (
-        7,
+        12,
         GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v",
-                    hash: 4,
-                    owner: 4,
-                    is_mut: false,
-                    is_member: false,
+            ro: Owner(
+                Owner {
+                    name: "x",
+                    hash: 1,
+                    is_mut: true,
                 },
             ),
             id: 12,
         },
     ),
-    (
-        7,
-        GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v.buf",
-                    hash: 5,
-                    owner: 4,
-                    is_mut: false,
-                    is_member: true,
-                },
-            ),
-            id: 13,
-        },
-    ),
 ]
 ev_line_map: {
-    4: [
-        StaticDie {
-            from: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "y",
-                        hash: 2,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            to: Value(
-                Owner(
-                    Owner {
-                        name: "x",
-                        hash: 1,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            id: 6,
-        },
+    5: [
         StaticBorrow {
             from: Value(
                 Owner(
                     Owner {
                         name: "x",
                         hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 2,
+        },
+    ],
+    7: [
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 3,
+        },
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "z",
+                        hash: 2,
                         is_mut: false,
                     },
                 ),
@@ -562,31 +736,52 @@ ev_line_map: {
             to: Value(
                 StaticRef(
                     StaticRef {
-                        name: "y",
-                        hash: 2,
-                        is_mut: false,
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
                     },
                 ),
             ),
-            id: 1,
+            id: 4,
         },
     ],
-    6: [
+    11: [
         StaticDie {
             from: Value(
                 StaticRef(
                     StaticRef {
                         name: "c",
-                        hash: 9,
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "z",
+                        hash: 2,
                         is_mut: false,
                     },
                 ),
             ),
-            to: Deref(
+            id: 8,
+        },
+        Copy {
+            from: Deref(
                 StaticRef(
                     StaticRef {
                         name: "c",
-                        hash: 9,
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "s",
+                        hash: 4,
                         is_mut: false,
                     },
                 ),
@@ -596,8 +791,9 @@ ev_line_map: {
     ],
 }
 insert line map {
-    7: 0,
-    4: 1,
+    12: 1,
+    5: 0,
+    7: 1,
 }
 processed events [
     (
@@ -609,7 +805,7 @@ processed events [
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
+                        is_mut: true,
                     },
                 ),
             ),
@@ -618,20 +814,12 @@ processed events [
     ),
     (
         4,
-        StaticBorrow {
-            from: Value(
+        Bind {
+            from: Anonymous,
+            to: Value(
                 Owner(
                     Owner {
-                        name: "x",
-                        hash: 1,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            to: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "y",
+                        name: "z",
                         hash: 2,
                         is_mut: false,
                     },
@@ -641,72 +829,23 @@ processed events [
         },
     ),
     (
-        4,
-        StaticDie {
-            from: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "y",
-                        hash: 2,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            to: Value(
-                Owner(
-                    Owner {
-                        name: "x",
-                        hash: 1,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            id: 6,
-        },
-    ),
-    (
-        4,
+        5,
         StaticBorrow {
             from: Value(
                 Owner(
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
+                        is_mut: true,
                     },
                 ),
             ),
             to: Value(
                 StaticRef(
                     StaticRef {
-                        name: "y",
-                        hash: 2,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            id: 1,
-        },
-    ),
-    (
-        6,
-        Move {
-            from: Value(
-                Function(
-                    Function {
-                        name: "Vec::new",
+                        name: "c",
                         hash: 3,
-                    },
-                ),
-            ),
-            to: Value(
-                Struct(
-                    Struct {
-                        name: "v",
-                        hash: 4,
-                        owner: 4,
-                        is_mut: false,
-                        is_member: false,
+                        is_mut: true,
                     },
                 ),
             ),
@@ -714,85 +853,191 @@ processed events [
         },
     ),
     (
-        7,
-        PassByStaticReference {
-            from: Value(
-                Struct(
-                    Struct {
-                        name: "v",
+        6,
+        Branch {
+            live_vars: {
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+                Owner(
+                    Owner {
+                        name: "z",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            },
+            branches: [
+                ExtBranchData {
+                    e_data: [
+                        (
+                            7,
+                            StaticDie {
+                                from: Value(
+                                    StaticRef(
+                                        StaticRef {
+                                            name: "c",
+                                            hash: 3,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                to: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "x",
+                                            hash: 1,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 3,
+                            },
+                        ),
+                        (
+                            7,
+                            StaticBorrow {
+                                from: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "z",
+                                            hash: 2,
+                                            is_mut: false,
+                                        },
+                                    ),
+                                ),
+                                to: Value(
+                                    StaticRef(
+                                        StaticRef {
+                                            name: "c",
+                                            hash: 3,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 4,
+                            },
+                        ),
+                        (
+                            9,
+                            Bind {
+                                from: Anonymous,
+                                to: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "x",
+                                            hash: 1,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 5,
+                            },
+                        ),
+                    ],
+                    line_map: {
+                        7: [
+                            StaticDie {
+                                from: Value(
+                                    StaticRef(
+                                        StaticRef {
+                                            name: "c",
+                                            hash: 3,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                to: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "x",
+                                            hash: 1,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 3,
+                            },
+                            StaticBorrow {
+                                from: Value(
+                                    Owner(
+                                        Owner {
+                                            name: "z",
+                                            hash: 2,
+                                            is_mut: false,
+                                        },
+                                    ),
+                                ),
+                                to: Value(
+                                    StaticRef(
+                                        StaticRef {
+                                            name: "c",
+                                            hash: 3,
+                                            is_mut: true,
+                                        },
+                                    ),
+                                ),
+                                id: 4,
+                            },
+                        ],
+                    },
+                    decl_vars: {},
+                },
+                ExtBranchData {
+                    e_data: [],
+                    line_map: {},
+                    decl_vars: {},
+                },
+            ],
+            branch_type: If(
+                [
+                    "If",
+                    "Else",
+                ],
+                [
+                    (
+                        7,
+                        10,
+                    ),
+                    (
+                        10,
+                        10,
+                    ),
+                ],
+            ),
+            split_point: 6,
+            merge_point: 10,
+            id: 6,
+        },
+    ),
+    (
+        12,
+        Copy {
+            from: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "s",
                         hash: 4,
-                        owner: 4,
-                        is_mut: false,
-                        is_member: false,
-                    },
-                ),
-            ),
-            to: Value(
-                Function(
-                    Function {
-                        name: "get",
-                        hash: 8,
-                    },
-                ),
-            ),
-            id: 3,
-        },
-    ),
-    (
-        7,
-        Copy {
-            from: Anonymous,
-            to: Value(
-                Function(
-                    Function {
-                        name: "get",
-                        hash: 8,
-                    },
-                ),
-            ),
-            id: 4,
-        },
-    ),
-    (
-        7,
-        Copy {
-            from: Value(
-                Function(
-                    Function {
-                        name: "unwrap",
-                        hash: 7,
-                    },
-                ),
-            ),
-            to: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "c",
-                        hash: 9,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            id: 5,
-        },
-    ),
-    (
-        7,
-        StaticDie {
-            from: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "c",
-                        hash: 9,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            to: Deref(
-                StaticRef(
-                    StaticRef {
-                        name: "c",
-                        hash: 9,
                         is_mut: false,
                     },
                 ),
@@ -801,24 +1046,59 @@ processed events [
         },
     ),
     (
-        8,
-        GoOutOfScope {
-            ro: StaticRef(
-                StaticRef {
-                    name: "c",
-                    hash: 9,
-                    is_mut: false,
-                },
+        12,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "z",
+                        hash: 2,
+                        is_mut: false,
+                    },
+                ),
             ),
             id: 8,
         },
     ),
     (
-        8,
+        12,
+        Copy {
+            from: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "s",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            id: 7,
+        },
+    ),
+    (
+        14,
         GoOutOfScope {
-            ro: StaticRef(
-                StaticRef {
-                    name: "y",
+            ro: Owner(
+                Owner {
+                    name: "z",
                     hash: 2,
                     is_mut: false,
                 },
@@ -827,27 +1107,25 @@ processed events [
         },
     ),
     (
-        8,
+        14,
         GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v.len",
-                    hash: 6,
-                    owner: 4,
-                    is_mut: false,
-                    is_member: true,
+            ro: StaticRef(
+                StaticRef {
+                    name: "c",
+                    hash: 3,
+                    is_mut: true,
                 },
             ),
             id: 10,
         },
     ),
     (
-        8,
+        14,
         GoOutOfScope {
             ro: Owner(
                 Owner {
-                    name: "x",
-                    hash: 1,
+                    name: "s",
+                    hash: 4,
                     is_mut: false,
                 },
             ),
@@ -855,97 +1133,80 @@ processed events [
         },
     ),
     (
-        8,
+        14,
         GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v",
-                    hash: 4,
-                    owner: 4,
-                    is_mut: false,
-                    is_member: false,
+            ro: Owner(
+                Owner {
+                    name: "x",
+                    hash: 1,
+                    is_mut: true,
                 },
             ),
             id: 12,
         },
     ),
-    (
-        8,
-        GoOutOfScope {
-            ro: Struct(
-                Struct {
-                    name: "v.buf",
-                    hash: 5,
-                    owner: 4,
-                    is_mut: false,
-                    is_member: true,
-                },
-            ),
-            id: 13,
-        },
-    ),
 ]
 processed line map {
-    4: [
-        StaticDie {
-            from: Value(
-                StaticRef(
-                    StaticRef {
-                        name: "y",
-                        hash: 2,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            to: Value(
-                Owner(
-                    Owner {
-                        name: "x",
-                        hash: 1,
-                        is_mut: false,
-                    },
-                ),
-            ),
-            id: 6,
-        },
+    5: [
         StaticBorrow {
             from: Value(
                 Owner(
                     Owner {
                         name: "x",
                         hash: 1,
-                        is_mut: false,
+                        is_mut: true,
                     },
                 ),
             ),
             to: Value(
                 StaticRef(
                     StaticRef {
-                        name: "y",
-                        hash: 2,
-                        is_mut: false,
+                        name: "c",
+                        hash: 3,
+                        is_mut: true,
                     },
                 ),
             ),
-            id: 1,
+            id: 2,
         },
     ],
-    7: [
+    12: [
         StaticDie {
             from: Value(
                 StaticRef(
                     StaticRef {
                         name: "c",
-                        hash: 9,
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "z",
+                        hash: 2,
                         is_mut: false,
                     },
                 ),
             ),
-            to: Deref(
+            id: 8,
+        },
+        Copy {
+            from: Deref(
                 StaticRef(
                     StaticRef {
                         name: "c",
-                        hash: 9,
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "s",
+                        hash: 4,
                         is_mut: false,
                     },
                 ),
@@ -955,22 +1216,20 @@ processed line map {
     ],
 }
 w_map {
-    7: 0,
-    5: 0,
-    8: 0,
-    9: 0,
-    6: 0,
-    1: 0,
-    2: 0,
-    3: 0,
+    1: 2,
     4: 0,
+    3: 2,
+    2: 2,
 }
+parent_data x_val: 95
+parent_data x_val: 215
+parent_data x_val: 355
 hash 1, timeline Timeline {
     resource_access_point: Owner(
         Owner {
             name: "x",
             hash: 1,
-            is_mut: false,
+            is_mut: true,
         },
     ),
     history: [
@@ -983,7 +1242,7 @@ hash 1, timeline Timeline {
                         Owner {
                             name: "x",
                             hash: 1,
-                            is_mut: false,
+                            is_mut: true,
                         },
                     ),
                 ),
@@ -991,271 +1250,23 @@ hash 1, timeline Timeline {
             },
         ),
         (
-            4,
+            5,
             StaticLend {
                 to: Value(
                     StaticRef(
                         StaticRef {
-                            name: "y",
-                            hash: 2,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                is: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
-                            hash: 1,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                id: 1,
-            },
-        ),
-        (
-            4,
-            StaticReacquire {
-                from: Value(
-                    StaticRef(
-                        StaticRef {
-                            name: "y",
-                            hash: 2,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                is: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
-                            hash: 1,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                id: 6,
-            },
-        ),
-        (
-            4,
-            StaticLend {
-                to: Value(
-                    StaticRef(
-                        StaticRef {
-                            name: "y",
-                            hash: 2,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                is: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
-                            hash: 1,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                id: 1,
-            },
-        ),
-        (
-            8,
-            OwnerGoOutOfScope,
-        ),
-    ],
-    states: [
-        (
-            1,
-            3,
-            OutOfScope,
-        ),
-        (
-            3,
-            4,
-            FullPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            4,
-            4,
-            PartialPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            4,
-            4,
-            FullPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            4,
-            8,
-            PartialPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            8,
-            8,
-            OutOfScope,
-        ),
-    ],
-}
-hash 2, timeline Timeline {
-    resource_access_point: StaticRef(
-        StaticRef {
-            name: "y",
-            hash: 2,
-            is_mut: false,
-        },
-    ),
-    history: [
-        (
-            4,
-            StaticBorrow {
-                from: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
-                            hash: 1,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                is: Value(
-                    StaticRef(
-                        StaticRef {
-                            name: "y",
-                            hash: 2,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                id: 1,
-            },
-        ),
-        (
-            4,
-            StaticDie {
-                to: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
-                            hash: 1,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                is: Value(
-                    StaticRef(
-                        StaticRef {
-                            name: "y",
-                            hash: 2,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                id: 6,
-            },
-        ),
-        (
-            4,
-            StaticBorrow {
-                from: Value(
-                    Owner(
-                        Owner {
-                            name: "x",
-                            hash: 1,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                is: Value(
-                    StaticRef(
-                        StaticRef {
-                            name: "y",
-                            hash: 2,
-                            is_mut: false,
-                        },
-                    ),
-                ),
-                id: 1,
-            },
-        ),
-        (
-            8,
-            RefGoOutOfScope,
-        ),
-    ],
-    states: [
-        (
-            1,
-            4,
-            OutOfScope,
-        ),
-        (
-            4,
-            4,
-            PartialPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            4,
-            4,
-            OutOfScope,
-        ),
-        (
-            4,
-            8,
-            PartialPrivilege {
-                s: Full,
-            },
-        ),
-        (
-            8,
-            8,
-            OutOfScope,
-        ),
-    ],
-}
-hash 4, timeline Timeline {
-    resource_access_point: Struct(
-        Struct {
-            name: "v",
-            hash: 4,
-            owner: 4,
-            is_mut: false,
-            is_member: false,
-        },
-    ),
-    history: [
-        (
-            6,
-            Acquire {
-                from: Value(
-                    Function(
-                        Function {
-                            name: "Vec::new",
+                            name: "c",
                             hash: 3,
+                            is_mut: true,
                         },
                     ),
                 ),
                 is: Value(
-                    Struct(
-                        Struct {
-                            name: "v",
-                            hash: 4,
-                            owner: 4,
-                            is_mut: false,
-                            is_member: false,
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: true,
                         },
                     ),
                 ),
@@ -1263,159 +1274,398 @@ hash 4, timeline Timeline {
             },
         ),
         (
-            7,
-            StaticLend {
-                to: Value(
-                    Function(
-                        Function {
-                            name: "get",
-                            hash: 8,
-                        },
-                    ),
-                ),
+            6,
+            Branch {
                 is: Value(
-                    Struct(
-                        Struct {
-                            name: "v",
-                            hash: 4,
-                            owner: 4,
-                            is_mut: false,
-                            is_member: false,
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: true,
                         },
                     ),
                 ),
-                id: 3,
+                branch_history: [
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "x",
+                            x_val: 70,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
+                            is_ref: false,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 1,
+                        },
+                        e_data: [
+                            (
+                                7,
+                                StaticReacquire {
+                                    from: Value(
+                                        StaticRef(
+                                            StaticRef {
+                                                name: "c",
+                                                hash: 3,
+                                                is_mut: true,
+                                            },
+                                        ),
+                                    ),
+                                    is: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "x",
+                                                hash: 1,
+                                                is_mut: true,
+                                            },
+                                        ),
+                                    ),
+                                    id: 3,
+                                },
+                            ),
+                            (
+                                9,
+                                Acquire {
+                                    from: Anonymous,
+                                    is: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "x",
+                                                hash: 1,
+                                                is_mut: true,
+                                            },
+                                        ),
+                                    ),
+                                    id: 5,
+                                },
+                            ),
+                        ],
+                        width: 0,
+                        states: [
+                            (
+                                7,
+                                7,
+                                PartialPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                            (
+                                7,
+                                10,
+                                FullPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                        ],
+                    },
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "x",
+                            x_val: 120,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;x&lt;/span&gt;, mutable",
+                            is_ref: false,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 1,
+                        },
+                        e_data: [],
+                        width: 0,
+                        states: [
+                            (
+                                7,
+                                10,
+                                PartialPrivilege {
+                                    s: Gray,
+                                },
+                            ),
+                        ],
+                    },
+                ],
+                ty: If(
+                    [
+                        "If",
+                        "Else",
+                    ],
+                    [
+                        (
+                            7,
+                            10,
+                        ),
+                        (
+                            10,
+                            10,
+                        ),
+                    ],
+                ),
+                split_point: 6,
+                merge_point: 10,
+                id: 6,
             },
         ),
         (
-            7,
-            StaticReacquire {
-                from: Value(
-                    Function(
-                        Function {
-                            name: "get",
-                            hash: 8,
-                        },
-                    ),
-                ),
-                is: Value(
-                    Struct(
-                        Struct {
-                            name: "v",
-                            hash: 4,
-                            owner: 4,
-                            is_mut: false,
-                            is_member: false,
-                        },
-                    ),
-                ),
-                id: 3,
-            },
-        ),
-        (
-            8,
+            14,
             OwnerGoOutOfScope,
         ),
     ],
     states: [
         (
             1,
-            6,
+            3,
             OutOfScope,
         ),
         (
-            6,
-            7,
+            3,
+            5,
             FullPrivilege {
                 s: Full,
             },
         ),
         (
-            7,
-            7,
+            5,
+            6,
             PartialPrivilege {
                 s: Full,
             },
         ),
         (
-            7,
-            8,
+            6,
+            10,
+            OutOfScope,
+        ),
+        (
+            11,
+            14,
+            PartialPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            14,
+            14,
+            OutOfScope,
+        ),
+    ],
+}
+hash 2, timeline Timeline {
+    resource_access_point: Owner(
+        Owner {
+            name: "z",
+            hash: 2,
+            is_mut: false,
+        },
+    ),
+    history: [
+        (
+            4,
+            Acquire {
+                from: Anonymous,
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "z",
+                            hash: 2,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 1,
+            },
+        ),
+        (
+            6,
+            Branch {
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "z",
+                            hash: 2,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                branch_history: [
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "z",
+                            x_val: 190,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;z&lt;/span&gt;, immutable",
+                            is_ref: false,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 2,
+                        },
+                        e_data: [
+                            (
+                                7,
+                                StaticLend {
+                                    to: Value(
+                                        StaticRef(
+                                            StaticRef {
+                                                name: "c",
+                                                hash: 3,
+                                                is_mut: true,
+                                            },
+                                        ),
+                                    ),
+                                    is: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "z",
+                                                hash: 2,
+                                                is_mut: false,
+                                            },
+                                        ),
+                                    ),
+                                    id: 4,
+                                },
+                            ),
+                        ],
+                        width: 0,
+                        states: [
+                            (
+                                7,
+                                7,
+                                FullPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                            (
+                                7,
+                                10,
+                                PartialPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                        ],
+                    },
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "z",
+                            x_val: 240,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;z&lt;/span&gt;, immutable",
+                            is_ref: false,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 2,
+                        },
+                        e_data: [],
+                        width: 0,
+                        states: [
+                            (
+                                7,
+                                10,
+                                FullPrivilege {
+                                    s: Gray,
+                                },
+                            ),
+                        ],
+                    },
+                ],
+                ty: If(
+                    [
+                        "If",
+                        "Else",
+                    ],
+                    [
+                        (
+                            7,
+                            10,
+                        ),
+                        (
+                            10,
+                            10,
+                        ),
+                    ],
+                ),
+                split_point: 6,
+                merge_point: 10,
+                id: 6,
+            },
+        ),
+        (
+            12,
+            StaticReacquire {
+                from: Value(
+                    StaticRef(
+                        StaticRef {
+                            name: "c",
+                            hash: 3,
+                            is_mut: true,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "z",
+                            hash: 2,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 8,
+            },
+        ),
+        (
+            14,
+            OwnerGoOutOfScope,
+        ),
+    ],
+    states: [
+        (
+            1,
+            4,
+            OutOfScope,
+        ),
+        (
+            4,
+            6,
             FullPrivilege {
                 s: Full,
             },
         ),
         (
-            8,
-            8,
+            6,
+            10,
+            OutOfScope,
+        ),
+        (
+            11,
+            12,
+            PartialPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            12,
+            14,
+            FullPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            14,
+            14,
             OutOfScope,
         ),
     ],
 }
-hash 5, timeline Timeline {
-    resource_access_point: Struct(
-        Struct {
-            name: "v.buf",
-            hash: 5,
-            owner: 4,
-            is_mut: false,
-            is_member: true,
-        },
-    ),
-    history: [
-        (
-            8,
-            OwnerGoOutOfScope,
-        ),
-    ],
-    states: [
-        (
-            1,
-            8,
-            OutOfScope,
-        ),
-    ],
-}
-hash 6, timeline Timeline {
-    resource_access_point: Struct(
-        Struct {
-            name: "v.len",
-            hash: 6,
-            owner: 4,
-            is_mut: false,
-            is_member: true,
-        },
-    ),
-    history: [
-        (
-            8,
-            OwnerGoOutOfScope,
-        ),
-    ],
-    states: [
-        (
-            1,
-            8,
-            OutOfScope,
-        ),
-    ],
-}
-hash 9, timeline Timeline {
+hash 3, timeline Timeline {
     resource_access_point: StaticRef(
         StaticRef {
             name: "c",
-            hash: 9,
-            is_mut: false,
+            hash: 3,
+            is_mut: true,
         },
     ),
     history: [
         (
-            7,
-            Copy {
+            5,
+            StaticBorrow {
                 from: Value(
-                    Function(
-                        Function {
-                            name: "unwrap",
-                            hash: 7,
+                    Owner(
+                        Owner {
+                            name: "x",
+                            hash: 1,
+                            is_mut: true,
                         },
                     ),
                 ),
@@ -1423,22 +1673,162 @@ hash 9, timeline Timeline {
                     StaticRef(
                         StaticRef {
                             name: "c",
-                            hash: 9,
-                            is_mut: false,
+                            hash: 3,
+                            is_mut: true,
                         },
                     ),
                 ),
-                id: 5,
+                id: 2,
             },
         ),
         (
-            7,
-            StaticReacquire {
-                from: Value(
+            6,
+            Branch {
+                is: Value(
                     StaticRef(
                         StaticRef {
                             name: "c",
-                            hash: 9,
+                            hash: 3,
+                            is_mut: true,
+                        },
+                    ),
+                ),
+                branch_history: [
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "c",
+                            x_val: 330,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;c&lt;/span&gt;, mutable",
+                            is_ref: true,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 3,
+                        },
+                        e_data: [
+                            (
+                                7,
+                                StaticDie {
+                                    to: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "x",
+                                                hash: 1,
+                                                is_mut: true,
+                                            },
+                                        ),
+                                    ),
+                                    is: Value(
+                                        StaticRef(
+                                            StaticRef {
+                                                name: "c",
+                                                hash: 3,
+                                                is_mut: true,
+                                            },
+                                        ),
+                                    ),
+                                    id: 3,
+                                },
+                            ),
+                            (
+                                7,
+                                StaticBorrow {
+                                    from: Value(
+                                        Owner(
+                                            Owner {
+                                                name: "z",
+                                                hash: 2,
+                                                is_mut: false,
+                                            },
+                                        ),
+                                    ),
+                                    is: Value(
+                                        StaticRef(
+                                            StaticRef {
+                                                name: "c",
+                                                hash: 3,
+                                                is_mut: true,
+                                            },
+                                        ),
+                                    ),
+                                    id: 4,
+                                },
+                            ),
+                        ],
+                        width: 0,
+                        states: [
+                            (
+                                7,
+                                7,
+                                PartialPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                            (
+                                7,
+                                7,
+                                OutOfScope,
+                            ),
+                            (
+                                7,
+                                10,
+                                PartialPrivilege {
+                                    s: Full,
+                                },
+                            ),
+                        ],
+                    },
+                    BranchData {
+                        t_data: TimelineColumnData {
+                            name: "c",
+                            x_val: 380,
+                            title: "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;c&lt;/span&gt;, mutable",
+                            is_ref: true,
+                            is_struct_group: false,
+                            is_member: false,
+                            owner: 3,
+                        },
+                        e_data: [],
+                        width: 0,
+                        states: [
+                            (
+                                7,
+                                10,
+                                PartialPrivilege {
+                                    s: Gray,
+                                },
+                            ),
+                        ],
+                    },
+                ],
+                ty: If(
+                    [
+                        "If",
+                        "Else",
+                    ],
+                    [
+                        (
+                            7,
+                            10,
+                        ),
+                        (
+                            10,
+                            10,
+                        ),
+                    ],
+                ),
+                split_point: 6,
+                merge_point: 10,
+                id: 6,
+            },
+        ),
+        (
+            12,
+            Duplicate {
+                to: Value(
+                    Owner(
+                        Owner {
+                            name: "s",
+                            hash: 4,
                             is_mut: false,
                         },
                     ),
@@ -1447,8 +1837,8 @@ hash 9, timeline Timeline {
                     StaticRef(
                         StaticRef {
                             name: "c",
-                            hash: 9,
-                            is_mut: false,
+                            hash: 3,
+                            is_mut: true,
                         },
                     ),
                 ),
@@ -1456,13 +1846,13 @@ hash 9, timeline Timeline {
             },
         ),
         (
-            7,
+            12,
             StaticDie {
-                to: Deref(
-                    StaticRef(
-                        StaticRef {
-                            name: "c",
-                            hash: 9,
+                to: Value(
+                    Owner(
+                        Owner {
+                            name: "z",
+                            hash: 2,
                             is_mut: false,
                         },
                     ),
@@ -1471,7 +1861,101 @@ hash 9, timeline Timeline {
                     StaticRef(
                         StaticRef {
                             name: "c",
-                            hash: 9,
+                            hash: 3,
+                            is_mut: true,
+                        },
+                    ),
+                ),
+                id: 8,
+            },
+        ),
+        (
+            12,
+            Duplicate {
+                to: Value(
+                    Owner(
+                        Owner {
+                            name: "s",
+                            hash: 4,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                is: Deref(
+                    StaticRef(
+                        StaticRef {
+                            name: "c",
+                            hash: 3,
+                            is_mut: true,
+                        },
+                    ),
+                ),
+                id: 7,
+            },
+        ),
+        (
+            14,
+            RefGoOutOfScope,
+        ),
+    ],
+    states: [
+        (
+            1,
+            5,
+            OutOfScope,
+        ),
+        (
+            5,
+            6,
+            PartialPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            6,
+            10,
+            OutOfScope,
+        ),
+        (
+            11,
+            12,
+            PartialPrivilege {
+                s: Full,
+            },
+        ),
+        (
+            12,
+            14,
+            OutOfScope,
+        ),
+    ],
+}
+hash 4, timeline Timeline {
+    resource_access_point: Owner(
+        Owner {
+            name: "s",
+            hash: 4,
+            is_mut: false,
+        },
+    ),
+    history: [
+        (
+            12,
+            Copy {
+                from: Deref(
+                    StaticRef(
+                        StaticRef {
+                            name: "c",
+                            hash: 3,
+                            is_mut: true,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "s",
+                            hash: 4,
                             is_mut: false,
                         },
                     ),
@@ -1480,42 +1964,54 @@ hash 9, timeline Timeline {
             },
         ),
         (
-            8,
-            RefGoOutOfScope,
+            12,
+            Copy {
+                from: Deref(
+                    StaticRef(
+                        StaticRef {
+                            name: "c",
+                            hash: 3,
+                            is_mut: true,
+                        },
+                    ),
+                ),
+                is: Value(
+                    Owner(
+                        Owner {
+                            name: "s",
+                            hash: 4,
+                            is_mut: false,
+                        },
+                    ),
+                ),
+                id: 7,
+            },
+        ),
+        (
+            14,
+            OwnerGoOutOfScope,
         ),
     ],
     states: [
         (
             1,
-            7,
+            12,
             OutOfScope,
         ),
         (
-            7,
-            7,
+            12,
+            14,
             FullPrivilege {
                 s: Full,
             },
         ),
         (
-            7,
-            7,
-            Invalid,
-        ),
-        (
-            7,
-            8,
-            Invalid,
-        ),
-        (
-            8,
-            8,
-            Invalid,
+            14,
+            14,
+            OutOfScope,
         ),
     ],
 }
-PREV STATE OutOfScope
-PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope
 PREV STATE OutOfScope

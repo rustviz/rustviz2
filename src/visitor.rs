@@ -11,7 +11,14 @@ use rustc_middle::{
 };
 use core::borrow;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
-use rustc_utils::mir::{borrowck_facts::get_body_with_borrowck_facts, body::BodyExt};
+use rustc_utils::mir::{borrowck_facts::get_body_with_borrowck_facts, body::BodyExt, place::PlaceExt};
+use rustc_utils::source_map::spanner::*;
+use rustc_utils::mir::location_or_arg::LocationOrArg;
+use rustc_borrowck::{
+  borrow_set::{BorrowData, BorrowSet},
+  consumers::{BodyWithBorrowckFacts, RichLocation, RustcFacts},
+};
+use polonius_engine::{Algorithm, AllFacts, Output};
 
 // these are the visitor trait itself
 // the visitor will walk through the hir
@@ -33,13 +40,84 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     println!("name map {:#?}", borrow_data.body.debug_info_name_map());
     println!("locals map {:#?}", borrow_set.local_map);
     println!("activation map {:#?}, ", borrow_set.activation_map);
-    for location in borrow_data.body.all_locations() {
-      match location_map.get(&location) {
-        Some(b_data) => { println!("borrow_data for location {:#?} : {:#?}", location, b_data);
-          println!("hir_id {:#?}", borrow_data.body.location_to_hir_id(location.clone()));
-          println!("expr {:#?}", self.tcx.hir().expect_expr(borrow_data.body.location_to_hir_id(location.clone())));
+    // println!("location table {:#?}", borrow_data.location_table);
+    let spanner = Spanner::new(self.tcx, body.id(), &borrow_data.body);
+    match &borrow_data.output_facts {
+      Some(o_facts) => {
+      }
+      _ => {
+        println!("no output facts");
+      }
+    }
+    match &borrow_data.input_facts {
+      Some(i_facts) => {
+        let p_output = Output::compute(&**i_facts, Algorithm::Naive, true);
+        println!("loans live at {:#?}", p_output.loan_live_at);
+        // println!("origin contains loan at {:#?}", p_output.origin_contains_loan_at);
+        // println!("loans issued at {:#?}", i_facts.loan_issued_at);
+        // println!("loans killed at {:#?}", i_facts.loan_killed_at);
+        for (region, b_idx, location_idx) in i_facts.loan_issued_at.iter() {
+          println!("loan issued at {:#?}", (region, b_idx, location_idx));
+          let location = match borrow_data.location_table.as_ref().unwrap().to_location(*location_idx) {
+            RichLocation::Start(s) | RichLocation::Mid(s) => s
+          };
+          match location_map.get(&location) {
+            Some(b_data) => {
+              println!("borrow_data for location {:#?} : {:#?}", location, b_data);
+              println!("borrowed_place: {:#?}", b_data.borrowed_place.to_string(self.tcx, &borrow_data.body));
+              println!("assigned place {:#?}", b_data.assigned_place.to_string(self.tcx, &borrow_data.body));
+              let expr = self.tcx.hir().expect_expr(borrow_data.body.location_to_hir_id(location.clone()));
+              println!("line {}", self.span_to_line(&expr.span));
+            }
+            None => { println!("no borrow data found for location"); }
+          }
         }
-        None => {  }
+
+        for (b_idx, location_idx) in i_facts.loan_killed_at.iter() {
+          println!("loan {:#?} killed at {:#?}", b_idx, location_idx);
+
+          let location = match borrow_data.location_table.as_ref().unwrap().to_location(*location_idx) {
+            RichLocation::Start(s) | RichLocation::Mid(s) => s
+          };
+          let spans = spanner.location_to_spans(LocationOrArg::Location(location), &borrow_data.body, EnclosingHirSpans::None);
+          for span in spans.iter() {
+            println!("line {}", self.span_to_line(&span));
+          }
+          // match location_map.get(&location) {
+          //   Some(b_data) => {
+          //     println!("borrow_data for location {:#?} : {:#?}", location, b_data);
+          //     println!("borrowed_place: {:#?}", b_data.borrowed_place.to_string(self.tcx, &borrow_data.body));
+          //     println!("assigned place {:#?}", b_data.assigned_place.to_string(self.tcx, &borrow_data.body));
+              
+          //   }
+          //   None => { 
+          //     println!("no borrow data found for location");
+          //     let spans = spanner.location_to_spans(LocationOrArg::Location(location), &borrow_data.body, EnclosingHirSpans::Full);
+          //     for span in spans.iter() {
+          //       println!("line {}", self.span_to_line(&span));
+          //     }
+          //   }
+          // }
+        }
+
+        // for location in borrow_data.body.all_locations() {
+        //   match location_map.get(&location) {
+        //     Some(b_data) => { 
+        //       println!("borrow_data for location {:#?} : {:#?}", location, b_data);
+        //       println!("borrowed_place: {:#?}", b_data.borrowed_place.to_string(self.tcx, &borrow_data.body));
+        //       println!("assigned place {:#?}", b_data.assigned_place.to_string(self.tcx, &borrow_data.body));
+        //       let borrow_idx = b_data.region;
+        //       let 
+        //       let spans = spanner.location_to_spans(LocationOrArg::Location(location), &borrow_data.body, EnclosingHirSpans::Full);
+        //       println!("spans {:#?}", spans);
+        //       println!("expr {:#?}", self.tcx.hir().expect_expr(borrow_data.body.location_to_hir_id(location.clone())));
+        //     }
+        //     None => {  }
+        //   }
+        // }
+      }
+      _ => {
+        
       }
     }
     // println!("location map {:#?}", borrow_data.borrow_set.location_map);

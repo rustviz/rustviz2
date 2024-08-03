@@ -1,7 +1,12 @@
 
 fn main () {
-  let x = 7;
-  let y = &x;
-  let v: Vec<i32> = Vec::new();
-  let c = v.get(0).unwrap();
+  let mut x = 9;
+  let z = 10;
+  let mut c = &x;
+  if true {
+    c = &z;
+    x += 9;
+  }
+
+  let s = *c;
 }
