@@ -6,19 +6,23 @@ use crate::expr_visitor::*;
 use crate::expr_visitor_utils::{bool_of_mut, match_op};
 use rustviz_lib::data::*;
 use rustc_middle::{
-  mir::Body,
+  mir::Location,
   ty::{TyCtxt,Ty, adjustment::*},
 };
 use core::borrow;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use rustc_utils::mir::{borrowck_facts::get_body_with_borrowck_facts, body::BodyExt, place::PlaceExt};
 use rustc_utils::source_map::spanner::*;
+use rustc_utils::SpanExt;
 use rustc_utils::mir::location_or_arg::LocationOrArg;
 use rustc_borrowck::{
   borrow_set::{BorrowData, BorrowSet},
-  consumers::{BodyWithBorrowckFacts, RichLocation, RustcFacts},
+  consumers::{BodyWithBorrowckFacts, RichLocation, RustcFacts}
 };
-use polonius_engine::{Algorithm, AllFacts, Output};
+use polonius_engine::{Algorithm, AllFacts, Output, FactTypes};
+type Loan = <RustcFacts as FactTypes>::Loan;
+type Point = <RustcFacts as FactTypes>::Point;
+
 
 // these are the visitor trait itself
 // the visitor will walk through the hir
@@ -49,10 +53,41 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         println!("no output facts");
       }
     }
+
+    fn point_to_location(p: Point, body_with_facts: &BodyWithBorrowckFacts) -> Location {
+      match body_with_facts.location_table.as_ref().unwrap().to_location(p) {
+        RichLocation::Start(s) | RichLocation::Mid(s) => s
+      }
+    }
+
+    fn location_to_line(l: Location, body_with_facts: &BodyWithBorrowckFacts, tcx: &TyCtxt) -> usize {
+      let mut span = body_with_facts.body.source_info(l).span;
+      span = span.as_local(body_with_facts.body.span).unwrap_or(span);
+      tcx.sess.source_map().lookup_char_pos(span.lo()).line
+    }
+
+
     match &borrow_data.input_facts {
       Some(i_facts) => {
         let p_output = Output::compute(&**i_facts, Algorithm::Naive, true);
-        println!("loans live at {:#?}", p_output.loan_live_at);
+        //println!("loans live at {:#?}", p_output.loan_live_at);
+        let mut loan_regions: HashMap<Loan, (usize, usize)> = HashMap::new();
+        p_output.loan_live_at.iter().for_each(|(point, loans)| {
+          loans.iter().for_each(|loan| {
+            loan_regions.entry(*loan).and_modify(|(l1, l2)|{
+              let l = point_to_location(*point, borrow_data);
+              let line = location_to_line(l, borrow_data, &self.tcx);
+              if line < *l1 { *l1 = line }
+              else if line > *l2 { *l2 = line}
+            })
+            .or_insert_with(|| {
+              let l = point_to_location(*point, borrow_data);
+              let line = location_to_line(l, borrow_data, &self.tcx);
+              (line, line)
+            });
+          });
+        });
+        println!("loan regions {:#?}", loan_regions);
         // println!("origin contains loan at {:#?}", p_output.origin_contains_loan_at);
         // println!("loans issued at {:#?}", i_facts.loan_issued_at);
         // println!("loans killed at {:#?}", i_facts.loan_killed_at);
@@ -79,10 +114,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           let location = match borrow_data.location_table.as_ref().unwrap().to_location(*location_idx) {
             RichLocation::Start(s) | RichLocation::Mid(s) => s
           };
-          let spans = spanner.location_to_spans(LocationOrArg::Location(location), &borrow_data.body, EnclosingHirSpans::None);
-          for span in spans.iter() {
-            println!("line {}", self.span_to_line(&span));
-          }
+          let line = location_to_line(location, &borrow_data, &self.tcx);
+          println!("line {}", line);
           // match location_map.get(&location) {
           //   Some(b_data) => {
           //     println!("borrow_data for location {:#?} : {:#?}", location, b_data);

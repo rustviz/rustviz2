@@ -1,12 +1,7 @@
 
 fn main () {
-  let mut x = 9;
-  let z = 10;
-  let mut c = &x;
-  if true {
-    c = &z;
-    x += 9;
+  let mut v: Vec<i32> = Vec::new();
+  for i in v.iter_mut() {
+    *i += 1;
   }
-
-  let s = *c;
 }
