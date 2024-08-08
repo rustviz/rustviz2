@@ -12,6 +12,7 @@
   let_chains,
   unboxed_closures,
   exact_size_is_empty,
+  btree_cursors,
   // hash_drain_filter,
   // drain_filter,
   type_changing_struct_update,
@@ -94,6 +95,7 @@ pub mod utils;
 pub mod expr_visitor;
 pub mod expr_visitor_utils;
 pub mod annotated_source_gen;
+pub mod mir_data;
 
 
 pub struct RVPlugin;

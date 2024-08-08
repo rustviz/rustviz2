@@ -1,7 +1,14 @@
-
 fn main () {
-  let mut v: Vec<i32> = Vec::new();
-  for i in v.iter_mut() {
-    *i += 1;
+  let mut y = 7;
+  let mut c = 5;
+  let mut x = &c;
+  if true {
+      
+      x = &y;
+      c += 7;
   }
+  // c += 7;
+
+
+  println!(" x {}", x);
 }

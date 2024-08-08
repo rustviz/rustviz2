@@ -71,11 +71,13 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
                       }
                     }
                   _ => {
-                    let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
-                    self.annotate_src(fn_name.clone(), fn_expr.span, true, *self.raps.get(&fn_name).unwrap().rap.hash());
-                    for arg in a.iter() {
-                      self.annotate_expr(arg);
-                    }
+                    // println!("here2");
+                    // println!("args {:#?}", a);
+                    // let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+                    // self.annotate_src(fn_name.clone(), fn_expr.span, true, *self.raps.get(&fn_name).unwrap().rap.hash());
+                    // for arg in a.iter() {
+                    //   self.annotate_expr(arg);
+                    // }
                   }
                 }
               }

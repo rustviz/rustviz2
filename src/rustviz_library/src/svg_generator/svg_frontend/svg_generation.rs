@@ -8,6 +8,7 @@ use core::num;
 use std::cmp::{self, max};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::usize::MAX;
+use crate::svg_frontend::templates::*;
 
 #[derive(Serialize)]
 struct SvgData {
@@ -63,7 +64,6 @@ pub fn mutate_branch_lines(b_data: & mut ExtBranchData, l_map: & mut HashMap<usi
         let (l, e) = b_data.e_data.get_mut(i).unwrap();
         let line_num = *l;
         let new_line_num = *l + extra_lines;
-        let event = e.clone();
         if skippable_ev.contains(&e.get_id()) {
             i = i + 1;
             continue;
@@ -84,36 +84,34 @@ pub fn mutate_branch_lines(b_data: & mut ExtBranchData, l_map: & mut HashMap<usi
             }
             _ => {
                 // add extra lines if we need to
-                let res = old_line_map.get(&line_num).cloned();
-                let ex = match res {
+                if e.is_arrow_ev() {
+                    let res = old_line_map.get(&line_num).cloned();
+                    let ex = match res {
                     Some(ev) => { // if there are multiple arrow events on this line
-                        if *ev.get(0).unwrap() == event { // if event is the first arrow event (ie it is our first time here)
-                            for e in ev.clone() {
-                                skippable_ev.insert(e.get_id()); // they all become skippable
-                                let mut j = i;
-                                while j < size {
-                                    let (l, p_e) = b_data.e_data.get_mut(j).unwrap();
-                                    if p_e.get_id() == e.get_id(){
-                                        *l = new_line_num;
-                                        break;
-                                    }
-                                    j += 1;
+                        for e in ev.clone() {
+                            skippable_ev.insert(e.get_id()); // they all become skippable
+                            let mut j = i;
+                            while j < size { // need to mutate all their line numbers
+                                let (l, p_e) = b_data.e_data.get_mut(j).unwrap();
+                                if p_e.get_id() == e.get_id(){
+                                    *l = new_line_num;
+                                    break;
                                 }
+                                j += 1;
                             }
-                            let ev_len = ev.len() - 1;
-                            new_line_map.insert(new_line_num, ev); // insert new line number into new event line map
-                            l_map.insert(new_line_num, ev_len);
-                            ev_len
                         }
-                        else {
+                        let ev_len = ev.len() - 1;
+                        new_line_map.insert(new_line_num, ev); // insert new line number into new event line map
+                        l_map.insert(new_line_num, ev_len);
+                        ev_len
+                        },
+                        None => {
                             0
                         }
-                    },
-                    None => {
-                        0
-                    }
-                };
-                extra_lines += ex;
+                    };
+                    extra_lines += ex;
+                }
+                // no need for else since we already updated the line
             }
         }
         i += 1;
@@ -130,33 +128,6 @@ pub fn render_svg(
     source_rs_str: &str,
     visualization_data: &mut VisualizationData,
 ) -> (String, String){
-    //------------------------sort HashMap<usize, Vec<ExternalEvent>>----------------------
-    for (_, event_vec) in &mut visualization_data.event_line_map {
-        event_vec.sort_by(|a, b| {
-            ResourceAccessPoint_extract(a)
-                .1
-                .hash()
-                .cmp(&ResourceAccessPoint_extract(b).1.hash())
-                .then(
-                    ResourceAccessPoint_extract(a)
-                        .0
-                        .hash()
-                        .cmp(&ResourceAccessPoint_extract(b).0.hash()),
-                )
-        });
-    }
-    // sort all the line maps in the branch events
-    for (_, e) in visualization_data.preprocess_external_events.iter_mut() {
-        match e {
-            ExternalEvent::Branch { branches, .. } => {
-                for b in branches.iter_mut() {
-                    sort_branch_external_events(b);
-                }
-            }
-            _ => {}
-        }
-    }
-
     println!("preprocessed events : {:#?}", visualization_data.preprocess_external_events);
     println!("ev_line_map: {:#?}", visualization_data.event_line_map);
     //-----------------------update line number for external events------------------
@@ -174,6 +145,8 @@ pub fn render_svg(
             i += 1;
             continue;
         }
+        println!("skippable events {:#?}", skippable_ev);
+        println!("line {} event {:#?}", line_num, event);
         match event {
             // need to mutate line numbers of events inside the branch
             ExternalEvent::Branch { branches, split_point, merge_point, branch_type, .. } => {
@@ -199,10 +172,11 @@ pub fn render_svg(
 
         // append event
         // append any events that are on the same line in event line map to avoid double counting
-        let res = visualization_data.event_line_map.get(&line_num).cloned();
-        let ex = match res {
-            Some(ev) => { // if there are multiple arrow events on this line
-                if *ev.get(0).unwrap() == event { // if event is the first arrow event
+        if event.is_arrow_ev() {
+            let res = visualization_data.event_line_map.get(&line_num).cloned();
+            let ex = match res {
+                Some(ev) => { // if there are multiple arrow events on this line
+                    println!("multiple arrow events {:#?}", ev);
                     for e in ev.clone() { // append all the events in the line map on the same line
                         visualization_data.append_processed_external_event(e.clone(), final_line_num);
                         skippable_ev.insert(e.get_id()); // they all become skippable 
@@ -211,282 +185,66 @@ pub fn render_svg(
                     event_line_map_replace.insert(final_line_num, ev); // insert new line number into new event line map
                     line_insertion_map.insert(final_line_num, ev_len);
                     ev_len
-                }
-                else {
+                },
+                None => {
                     visualization_data.append_processed_external_event(event.clone(), final_line_num);
                     0
                 }
-            },
-            None => {
-                visualization_data.append_processed_external_event(event.clone(), final_line_num);
-                0
-            }
-        };
-
-        extra_lines += ex;
+            };
+    
+            extra_lines += ex;
+        }
+        else {
+            visualization_data.append_processed_external_event(event.clone(), final_line_num);
+        }
 
         i += 1;
     }
 
     println!("insert line map {:#?}", line_insertion_map);
-
-
-
-    // for (line_number, event) in visualization_data.preprocess_external_events.clone() {
-    //     let mut extra_line: usize = 0;
-    //     for (info_line_number, event_vec) in &visualization_data.event_line_map {
-    //         if info_line_number < &line_number {
-    //             extra_line += event_vec.len() - 1;
-    //         } else {
-    //             break;
-    //         }
-    //     }
-    //     let final_line_num = line_number.clone() + extra_line;
-    //     visualization_data.append_processed_external_event(event, final_line_num, & mut None);
-    // }
     visualization_data.external_events.sort_by(|(l, _), (l1, _)| l.cmp(l1));
     println!("processed events {:#?}", visualization_data.external_events);
-    //-----------------------update event_line_map line number------------------
-    // let mut event_line_map_replace: BTreeMap<usize, Vec<ExternalEvent>> = BTreeMap::new();
-    // let mut extra_line_sum = 0;
-    // for (line_number, event_vec) in &visualization_data.event_line_map {
-    //     event_line_map_replace.insert(line_number + extra_line_sum, event_vec.clone());
-    //     extra_line_sum += event_vec.len() - 1;
-    // }
     visualization_data.event_line_map = event_line_map_replace;
+
+
+    //------------------------sort HashMap<usize, Vec<ExternalEvent>>----------------------
+    // We need to sort the event line map (the data structure that holds the events that produce arrows between timelines) by hash 
+    // because when rendering the arrow we need some way to determine the direction of the arrow
+    //
+    // We have to sort after appending events because the order by which events are added to the processed external events matter
+    // For example: say at line x: [StaticDie(a, b), StaticDie(b, c)]
+    // but because of sorting the order gets switched such that at line x: [StaticDie(b, c), StaticDie(a, b)]
+    // then (due to how events are appended above) b will return it's resource to c before reacquiring it from b which messes up its state
+    for (_, event_vec) in &mut visualization_data.event_line_map {
+        event_vec.sort_by(|a, b| {
+            ResourceAccessPoint_extract(a)
+                .1
+                .hash()
+                .cmp(&ResourceAccessPoint_extract(b).1.hash())
+                .then(
+                    ResourceAccessPoint_extract(a)
+                        .0
+                        .hash()
+                        .cmp(&ResourceAccessPoint_extract(b).0.hash()),
+                )
+        });
+    }
+    // sort all the line maps in the branch events
+    for (_, e) in visualization_data.preprocess_external_events.iter_mut() {
+        match e {
+            ExternalEvent::Branch { branches, .. } => {
+                for b in branches.iter_mut() {
+                    sort_branch_external_events(b);
+                }
+            }
+            _ => {}
+        }
+    }
     println!("processed line map {:#?}", visualization_data.event_line_map);
 
-    let svg_code_template = String::from(
-    "<svg width=\"{{tl_width}}px\" height=\"{{height}}px\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">
-
-      <desc>{{ visualization_name }}</desc>
-
-      <defs>
-          <style type=\"text/css\">
-          <![CDATA[
-          {{ css }}
-          ]]>
-          </style>
-      </defs>
-
-      <g>
-          <text id=\"caption\" x=\"30\" y=\"30\">Hover over timeline events (dots), states (vertical lines),</text>
-          <text id=\"caption\" x=\"30\" y=\"50\">and actions (arrows) for extra information.</text>
-      </g>
-
-      {{ code }}
-
-      </svg>");
-  // utils::read_file_to_string(code_template_path.as_os_str())
-  //       .unwrap_or("Reading template.svg failed.".to_owned());
-    let svg_timeline_template = String::from("
-    <svg width=\"{{tl_width}}px\" height=\"{{height}}px\" 
-        xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" 
-        id=\"{{tl_id}}\">
-
-    <desc>{{ visualization_name }}</desc>
-
-    <defs>
-        <style type=\"text/css\">
-        <![CDATA[
-        {{ css }}
-        
-        text {
-            user-select: none;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-        }
-        ]]>
-        </style>
-        <!-- used when pass to function by ref -->
-        <g id=\"functionDot\">
-             <circle cx=\"0\" cy=\"0\" r=\"5\" fill=\"transparent\"/>
-             <text class=\"functionIcon\" dx=\"-3.5\" dy=\"0\" fill=\"#6e6b5e\">f</text>
-        </g>
-        <marker id=\"arrowHead\" viewBox=\"0 0 10 10\"
-            refX=\"0\" refY=\"4\"
-            markerUnits=\"strokeWidth\"
-            markerWidth=\"3px\" markerHeight=\"3px\"
-            orient=\"auto\" fill=\"gray\">
-            <path d=\"M 0 0 L 8.5 4 L 0 8 z\" fill=\"inherit\"/>
-        </marker>
-        <!-- glow highlight filter -->
-        <filter id=\"glow\" x=\"-5000%\" y=\"-5000%\" width=\"10000%\" height=\"10000%\" filterUnits=\"userSpaceOnUse\">
-            <feComposite in=\"flood\" result=\"mask\" in2=\"SourceGraphic\" operator=\"in\"></feComposite>
-            <feGaussianBlur stdDeviation=\"2\" result=\"coloredBlur\"/>
-            <feMerge>
-                <feMergeNode in=\"coloredBlur\"></feMergeNode>
-                <feMergeNode in=\"coloredBlur\"></feMergeNode>
-                <feMergeNode in=\"coloredBlur\"></feMergeNode>
-                <feMergeNode in=\"SourceGraphic\"></feMergeNode>
-            </feMerge>
-            <!-- increase brightness -->
-            <feComponentTransfer>
-                <feFuncR type=\"linear\" slope=\"2\"/>
-                <feFuncG type=\"linear\" slope=\"2\"/>
-                <feFuncB type=\"linear\" slope=\"2\"/>
-            </feComponentTransfer>
-        </filter>
-    </defs>
-
-    {{ diagram }}
-
-    </svg>");
-        // utils::read_file_to_string(svg_template_path.as_os_str())
-        //     .unwrap_or("Reading template.svg failed.".to_owned());
-    let css_string = String::from("/* general setup */
-    :root {
-        --bg-color:#f1f1f1;
-        --text-color: #6e6b5e;
-    }
-    
-    svg {
-        background-color: var(--bg-color);
-    }
-    
-    text {
-        vertical-align: baseline;
-        text-anchor: start;
-    }
-    
-    #heading {
-        font-size: 24px;
-        font-weight: bold;
-    }
-    
-    #caption {
-        font-size: 0.875em;
-        font-family: \"Open Sans\", sans-serif;
-        font-style: italic;
-    }
-    
-    /* code related styling */
-    text.code {
-        fill: #6e6b5e;
-        white-space: pre;
-        font-family: \"Source Code Pro\", Consolas, \"Ubuntu Mono\", Menlo, \"DejaVu Sans Mono\", monospace, monospace !important;
-        font-size: 0.875em;
-    }
-    
-    text.label {
-        font-family: \"Source Code Pro\", Consolas, \"Ubuntu Mono\", Menlo, \"DejaVu Sans Mono\", monospace, monospace !important;
-        font-size: 0.875em;
-    }
-    
-    /* timeline/event interaction styling */
-    .solid {
-        stroke-width: 5px;
-    }
-    
-    .hollow {
-        stroke-width: 1.5;
-    }
-    
-    .dotted {
-        stroke-width: 5px;
-        stroke-dasharray: \"2 1\";
-    }
-    
-    .extend {
-        stroke-width: 1px;
-        stroke-dasharray: \"2 1\";
-    }
-    
-    .functionIcon {
-        paint-order: stroke;
-        stroke-width: 3px;
-        fill: var(--bg-color);
-        font-size: 20px;
-        font-family: times;
-        font-weight: lighter;
-        dominant-baseline: central;
-        text-anchor: start;
-        font-style: italic;
-    }
-    
-    .functionLogo {
-        font-size: 20px;
-        font-style: italic;
-        paint-order: stroke;
-        stroke-width: 3px;
-        fill: var(--bg-color) !important;
-    }
-    
-    /* flex related styling */
-    .flex-container {
-        display: flex;
-        flex-direction: row;
-        justify-content: flex-start;
-        flex-wrap: nowrap;
-        flex-shrink: 0;
-    }
-    
-    object.tl_panel {
-        flex-grow: 1;
-    }
-    
-    object.code_panel {
-        flex-grow: 0;
-    }
-    
-    .tooltip-trigger {
-        cursor: default;
-    }
-    
-    .tooltip-trigger:hover{
-        filter: url(#glow);
-    }
-    
-    /* hash based styling */
-    [data-hash=\"0\"] {
-        fill: #6e6b5e;
-    }
-    
-    [data-hash=\"1\"] {
-        fill: #1893ff;
-        stroke: #1893ff;
-    }
-    
-    [data-hash=\"2\"] {
-        fill: #ff7f50;
-        stroke: #ff7f50;
-    }
-    
-    [data-hash=\"3\"] {
-        fill: #8635ff;
-        stroke: #8635ff;
-    }
-    
-    [data-hash=\"4\"] {
-        fill: #dc143c;
-        stroke: #dc143c;
-    }
-    
-    [data-hash=\"5\"] {
-        fill: #0a810a;
-        stroke: #0a810a;
-    }
-    
-    [data-hash=\"6\"] {
-        fill: #008080;
-        stroke: #008080;
-    }
-    
-    [data-hash=\"7\"] {
-        fill: #ff6cce;
-        stroke: #ff6cce;
-    }
-    
-    [data-hash=\"8\"] {
-        fill: #00d6fc;
-        stroke: #00d6fc;
-    }
-    
-    [data-hash=\"9\"] {
-        fill: #b99f35;
-        stroke: #b99f35;
-    }");
+    let svg_code_template = CODE_PANEL_TEMPLATE;
+    let svg_timeline_template = TIMELINE_PANEL_TEMPLATE;
+    let css_string = CSS_TEMPLATE;
     visualization_data.compute_states();
 
     // println!("timelines {:#?}", visualization_data.timelines);
@@ -520,7 +278,7 @@ pub fn render_svg(
     
     let mut svg_data = SvgData {
         visualization_name: "vis".to_owned(),
-        css: css_string,
+        css: css_string.to_owned(),
         code: code_panel_string,
         diagram: timeline_panel_string,
         tl_id: "tl_".to_owned() + "vis",
@@ -534,9 +292,5 @@ pub fn render_svg(
         .render("timeline_svg_template", &svg_data)
         .unwrap();
 
-    // write to file
-    // utils::create_and_write_to_file(&final_code_svg_content, code_image_file_path); // write svg code
-    // utils::create_and_write_to_file(&final_timeline_svg_content, timeline_image_file_path); // write svg timeline
-    // println!("{}", final_code_svg_content);
     (final_code_svg_content, final_timeline_svg_content)
 }

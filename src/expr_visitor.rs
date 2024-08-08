@@ -7,10 +7,11 @@ use rustc_utils::mir::mutability;
 use rustc_utils::MutabilityExt;
   use std::cell::Ref;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::ops::Bound;
   use rustc_span::Span;
   // use aquascope::analysis::boundaries::PermissionsBoundary;
   use rustc_hir::{intravisit::Visitor, hir_id::HirId};
-  use std::cmp::{Eq, PartialEq};
+  use std::cmp::{max, Eq, PartialEq};
   use std::hash::Hash;
   use crate::expr_visitor_utils::*;
   use rustviz_lib::data::*;
@@ -32,6 +33,7 @@ pub enum Evt {
 #[derive(Debug, Clone)]
 pub struct RefData {
   pub lender: ResourceTy,
+  pub assigned_at: usize,
   pub lifetime: usize,
   pub ref_mutability: bool,
   pub aliasing: VecDeque<String>
@@ -134,7 +136,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         self.add_static_ref(name.clone(), lhs_mut, scope, is_global);
       }
     }
-    self.borrow_map.insert(name.clone(), RefData { lender: lender.clone(), lifetime: line_num, ref_mutability: ref_mutability, aliasing: alia });
+    self.borrow_map.insert(name.clone(), RefData { lender: lender.clone(), assigned_at: line_num, lifetime: line_num, ref_mutability: ref_mutability, aliasing: alia });
   }
   
   pub fn add_static_ref(&mut self, name: String, mutability: bool, scope: usize, is_global: bool) {
@@ -210,13 +212,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn ext_ev_of_evt(&self, evt: Evt, lhs: ResourceTy, rhs: ResourceTy, id: usize) -> ExternalEvent{
+  pub fn ext_ev_of_evt(&self, evt: Evt, lhs: ResourceTy, rhs: ResourceTy, id: usize, is_partial: bool) -> ExternalEvent{
     match evt {
       Evt::Bind => ExternalEvent::Bind { from: rhs, to: lhs, id },
-      Evt::Copy => ExternalEvent::Copy { from: rhs, to: lhs, id },
-      Evt::Move => ExternalEvent::Move { from: rhs, to: lhs, id },
-      Evt::SBorrow => ExternalEvent::StaticBorrow { from: rhs, to: lhs, id },
-      Evt::MBorrow => ExternalEvent::MutableBorrow { from: rhs, to: lhs, id },
+      Evt::Copy => ExternalEvent::Copy { from: rhs, to: lhs, id, is_partial },
+      Evt::Move => ExternalEvent::Move { from: rhs, to: lhs, id, is_partial },
+      Evt::SBorrow => ExternalEvent::StaticBorrow { from: rhs, to: lhs, id, is_partial },
+      Evt::MBorrow => ExternalEvent::MutableBorrow { from: rhs, to: lhs, id, is_partial },
       Evt::PassBySRef => ExternalEvent::PassByStaticReference { from: rhs, to: lhs, id },
       Evt::PassByMRef => ExternalEvent::PassByMutableReference { from: rhs, to: lhs, id },
       Evt::SDie =>  ExternalEvent::StaticDie { from: rhs, to: lhs, id },
@@ -224,8 +226,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn add_ev(&mut self, line_num: usize, evt: Evt, lhs: ResourceTy, rhs: ResourceTy) {
-    self.add_external_event(line_num, self.ext_ev_of_evt(evt, lhs, rhs, *self.unique_id));
+  pub fn add_ev(&mut self, line_num: usize, evt: Evt, lhs: ResourceTy, rhs: ResourceTy, is_partial: bool) {
+    self.add_external_event(line_num, self.ext_ev_of_evt(evt, lhs, rhs, *self.unique_id, is_partial));
     *self.unique_id += 1;
   }
 
@@ -346,14 +348,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     let to_ro = ResourceTy::Value(self.raps.get(&fn_name).unwrap().rap.to_owned());
     if arg_ty.is_ref() {
       match arg_ty.ref_mutability().unwrap() {
-        Mutability::Not => self.add_ev(line_num, Evt::PassBySRef, to_ro, from_ro),
-        Mutability::Mut => self.add_ev(line_num, Evt::PassByMRef, to_ro, from_ro)
+        Mutability::Not => self.add_ev(line_num, Evt::PassBySRef, to_ro, from_ro, false),
+        Mutability::Mut => self.add_ev(line_num, Evt::PassByMRef, to_ro, from_ro, false)
       }
     }
     else {
       match is_copyable {
-        true => self.add_ev(line_num, Evt::Copy, to_ro, from_ro),
-        false => self.add_ev(line_num, Evt::Move, to_ro, from_ro)
+        true => self.add_ev(line_num, Evt::Copy, to_ro, from_ro, false),
+        false => self.add_ev(line_num, Evt::Move, to_ro, from_ro, false)
       }
     }
   }
@@ -625,70 +627,64 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn get_dec_of_pat2(
-  &mut self, 
-  pat: &Pat, 
-  ty_results: & 'tcx TypeckResults<'tcx>, 
-  parent: &ResourceTy,
-  parent_ty: Ty, 
-  scope: usize, 
-  res: & mut Vec<(ResourceAccessPoint, Evt)>) {
+  pub fn get_dec_of_pat2<'t>(
+    &mut self,
+    pat: &Pat,
+    ty_results: &'tcx TypeckResults<'tcx>,
+    parent: &ResourceTy,
+    parent_ty: &'t Ty<'tcx>,
+    scope: usize,
+    res: &'t mut Vec<(ResourceAccessPoint, Evt, Ty<'tcx>)>,
+) {
     match pat.kind {
-      PatKind::TupleStruct(_p, tuple_members, _) => {
-        for p in tuple_members.iter() {
-          self.get_dec_of_pat2(p, ty_results, parent, parent_ty, scope, res);
-        }
-      }
-      PatKind::Binding(mode, id, ident, _) => {
-        // hacky fix for GoOutOfScope events
-        let old_scope = self.current_scope; 
-        // add raps that appear in binding
-        let muta = bool_of_mut(mode.1);
-        let line_num = self.span_to_line(&ident.span);
-        let ty: Ty = ty_results.node_type(id);
-        let name = ident.to_string();
-        if ty.is_ref() {
-          let ref_mutability = bool_of_mut(ty.ref_mutability().unwrap());
-          self.add_ref(name.clone(), ref_mutability, muta, line_num, parent.clone(), VecDeque::new(), scope, false);
-        }
-        else if ty.is_adt() {
-          match ty.ty_adt_def().unwrap().adt_kind() {
-            AdtKind::Struct => {
-              let owner_hash = self.rap_hashes as u64;
-              self.add_struct(name.clone(), owner_hash, false, muta, scope, false);
-              for field in ty.ty_adt_def().unwrap().all_fields() {
-                let field_name = format!("{}.{}", name, field.name.as_str());
-                self.add_struct(field_name, owner_hash, true, muta, scope, false);
-              }
-            },
-            AdtKind::Union => {
-              panic!("union not implemented yet")
-            },
-            AdtKind::Enum => {
-              self.add_owner(name.clone(), muta, scope, false);
+        PatKind::TupleStruct(_p, tuple_members, _) => {
+            for p in tuple_members.iter() {
+                self.get_dec_of_pat2(p, ty_results, parent, parent_ty, scope, res);
             }
-          }
-          
         }
-        else {
-          self.add_owner(name.clone(), muta, scope, false);
-        }
+        PatKind::Binding(mode, id, ident, _) => {
+            // add raps that appear in binding
+            let muta = bool_of_mut(mode.1); // You need to define this function
+            let line_num = self.span_to_line(&ident.span); // Assuming self.span_to_line exists
+            let ty: Ty<'tcx> = ty_results.node_type(id);
+            let name = ident.to_string();
+            if ty.is_ref() {
+                let ref_mutability = bool_of_mut(ty.ref_mutability().unwrap()); // You need to define this function
+                self.add_ref(name.clone(), ref_mutability, muta, line_num, parent.clone(), VecDeque::new(), scope, false);
+            } else if ty.is_adt() {
+                match ty.ty_adt_def().unwrap().adt_kind() {
+                    AdtKind::Struct => {
+                        let owner_hash = self.rap_hashes as u64; // Assuming self.rap_hashes exists
+                        self.add_struct(name.clone(), owner_hash, false, muta, scope, false);
+                        for field in ty.ty_adt_def().unwrap().all_fields() {
+                            let field_name = format!("{}.{}", name, field.name.as_str());
+                            self.add_struct(field_name, owner_hash, true, muta, scope, false);
+                        }
+                    },
+                    AdtKind::Union => {
+                        panic!("union not implemented yet")
+                    },
+                    AdtKind::Enum => {
+                        self.add_owner(name.clone(), muta, scope, false);
+                    }
+                }
+            } else {
+                self.add_owner(name.clone(), muta, scope, false);
+            }
 
-        let evt = if parent_ty.is_ref() {
-          if bool_of_mut(parent_ty.ref_mutability().unwrap()) { Evt::MBorrow }
-          else { Evt::SBorrow }
-        }
-        else {
-          if ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(pat.hir_id.owner)) { Evt::Copy }
-          else { Evt::Move }
-        };
+            let evt = if parent_ty.is_ref() {
+                if bool_of_mut(parent_ty.ref_mutability().unwrap()) { Evt::MBorrow }
+                else { Evt::SBorrow }
+            } else {
+                if ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(pat.hir_id.owner)) { Evt::Copy }
+                else { Evt::Move }
+            };
 
-        res.push((self.raps.get(&name).unwrap().rap.to_owned(), evt));
-      }
-      _ => {}
-      
+            res.push((self.raps.get(&name).unwrap().rap.to_owned(), evt, parent_ty.clone()));
+        }
+        _ => {}
     }
-  }
+}
 
   // pub fn get_decl_of_pat(&mut self, pat: &Pat, ty_results: &TypeckResults, parent: &ResourceTy, scope: usize) -> HashSet<ResourceAccessPoint> {
   //   let mut res = HashSet::new();
@@ -989,7 +985,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         };
         let rhs_rap = self.raps.get(&rhs_name).unwrap().rap.to_owned();
         self.update_rap(&rhs_rap, line_num);
-        self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
+        self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap), false);
       },
       // fn_expr: resolves to function itself (Path)
       // second arg, is a list of args to the function
@@ -997,7 +993,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let line_num = self.span_to_line(&fn_expr.span);
         let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
         let rhs_rap = self.raps.get(&fn_name).unwrap().rap.to_owned();
-        self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
+        self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap), false);
       },
       
       ExprKind::Lit(_) | ExprKind::Binary(..) | // Any type of literal on RHS implies a bind
@@ -1005,7 +1001,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::Unary(UnOp::Not, _) // !<expr>
       => {
         let line_num = self.span_to_line(&rhs.span);
-        self.add_ev(line_num, Evt::Bind, lhs, ResourceTy::Anonymous);
+        self.add_ev(line_num, Evt::Bind, lhs, ResourceTy::Anonymous, false);
       }
       // ex : &<expr> or &mut <expr>
       ExprKind::AddrOf(_, _,expr) => {
@@ -1021,8 +1017,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           None => ResourceTy::Anonymous
         };
         match self.fetch_mutability(&rhs) { // fetch last ref mutability in the chain -> &&&mut x
-          Some(Mutability::Not) => self.add_ev(line_num, Evt::SBorrow, lhs, res),
-          Some(Mutability::Mut) => self.add_ev(line_num, Evt::MBorrow, lhs, res),
+          Some(Mutability::Not) => self.add_ev(line_num, Evt::SBorrow, lhs, res, false),
+          Some(Mutability::Mut) => self.add_ev(line_num, Evt::MBorrow, lhs, res, false),
           None => panic!("Shouldn't have been able to get here")
         }
       }
@@ -1055,7 +1051,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 ResourceTy::Anonymous
               }
             };
-            self.add_ev(line_num, evt, lhs, res);
+            self.add_ev(line_num, evt, lhs, res, false);
           },
           _ => {}
         }
@@ -1065,13 +1061,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
         //let type_check = self.tcx.typeck(name_and_generic_args.hir_id.owner);
         let rhs_rap = self.raps.get(&fn_name).unwrap().rap.to_owned();
-        self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
+        self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap), false);
       }
       // Struct intializer list:
       // ex struct = {a: <expr>, b: <expr>, c: <expr>}
       ExprKind::Struct(_qpath, expr_fields, _base) => { 
         let line_num = self.span_to_line(&rhs.span);
-        self.add_ev(line_num, Evt::Bind, lhs.clone(), ResourceTy::Anonymous);
+        self.add_ev(line_num, Evt::Bind, lhs.clone(), ResourceTy::Anonymous, false);
         for field in expr_fields.iter() {
             let new_lhs_name = format!("{}.{}", lhs.name(), field.ident.as_str());
             let field_rap = self.raps.get(&new_lhs_name).unwrap().rap.to_owned();
@@ -1099,7 +1095,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
             let total_name = format!("{}.{}", name, id.as_str());
             let rhs_rap = self.raps.get(&total_name).unwrap().rap.to_owned();
-            self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap));
+            self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap), false);
           }
           _ => panic!("unexpected field expr")
         }
@@ -1156,6 +1152,64 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       }
     }
   }
+
+  // Group loans for a certain lender into regions
+  // A region is defined as an area where multiple loans on the same local are active at the same time
+  pub fn get_regions(&self, h: &HashSet<String>) -> Vec<HashSet<String>> {
+    let mut res: BTreeMap<usize, (usize, HashSet<String>)>  = BTreeMap::new();
+
+    for borrower in h {
+      let b_data = self.borrow_map.get(borrower).unwrap();
+      let a_place = b_data.assigned_at;
+      let k_place = b_data.lifetime;
+
+      let mut c = res.upper_bound_mut(Bound::Included(&a_place));
+      let mut to_replace: Option<(usize, (usize, HashSet<String>))> = None;
+      match c.peek_prev() { // look to our left
+        Some((_, (k, map))) => {
+          if a_place < *k { // if current borrower was assigned in the same region
+            *k = max(*k, k_place); // adjust region to encapsulate all lifetimes (extending the lifetime to the right)
+            map.insert(borrower.clone());
+          }
+          else { // borrower belongs to a different region
+            res.insert(a_place, (k_place, HashSet::from([borrower.clone()])));
+          }
+        }
+        None => {
+          match c.peek_next() { // look to our right
+            Some((a, (k, map))) => {
+              if *a < k_place { // need to do this because we can't mutate keys (would break BTreeMap invariants) 
+              // although in our case it wouldn't matter because you still wouldn't be able to change the relative ordering of regions (try a proof by contradiction)
+                map.insert(borrower.clone());
+                to_replace = Some((*a, (max(*k, k_place), map.clone()))); // extending the lifetime to the left
+              }
+              else {
+                res.insert(a_place, (k_place, HashSet::from([borrower.clone()])));
+              }
+            }
+            None => {
+              res.insert(a_place, (k_place, HashSet::from([borrower.clone()])));
+            }
+          }
+        }
+      }
+
+      // if we need to replace a key
+      match to_replace {
+        Some((key, (k, map))) => {
+          res.remove(&key);
+          res.insert(a_place, (k, map));
+        }
+        None => {}
+      }
+    }
+
+    let mut z: Vec<HashSet<String>> = Vec::new();
+    for (_, (_, map)) in res.into_iter() {
+      z.push(map);
+    }
+    z
+  }
   
   pub fn print_lifetimes(&mut self){
     //println!("LIFETIME MAP: {:#?}", self.lifetime_map);
@@ -1169,14 +1223,20 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     for (_, refs) in lender_to_refs.iter() {
       let mut max_lifetime = 0;
       let mut ultimate_ref: &str = &String::from("");
-      for r in refs {
-        let lifetime = self.borrow_map.get(r).unwrap().lifetime;
-        if lifetime > max_lifetime {
-          max_lifetime = lifetime;
-          ultimate_ref = r;
+      // need to seperate borrows into regions for each lender
+      let regions = self.get_regions(refs);
+      println!("regions {:#?}", regions);
+      // append an ultimate reference for each region
+      for region in regions.iter() {
+        for r in region {
+          let lifetime = self.borrow_map.get(r).unwrap().lifetime;
+          if lifetime > max_lifetime {
+            max_lifetime = lifetime;
+            ultimate_ref = r;
+          }
         }
+        ultimate_refs.insert(ultimate_ref.to_owned());
       }
-      ultimate_refs.insert(ultimate_ref.to_owned());
     }
 
     // if a reference borrowed from an anonymous owner then it must be an ultimate ref
@@ -1197,7 +1257,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     vec.sort_by(|a, b| b.1.aliasing.len().cmp(&a.1.aliasing.len()));
 
     // Add events
-    for (k, RefData {lender: r_ty, lifetime, ref_mutability: ref_mut, aliasing: _}) in &vec {
+    for (k, RefData {lender: r_ty, assigned_at, lifetime, ref_mutability: ref_mut, aliasing: _}) in &vec {
       let from_ro = self.raps.get(k).unwrap().rap.to_owned();
       let to_ro = match r_ty {
         ResourceTy::Anonymous => ResourceTy::Deref(from_ro.clone()),
@@ -1214,10 +1274,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         // otherwise it does return a resource
         match ref_mut {
           true => {
-            self.add_ev(*lifetime, Evt::MDie, to_ro, ResourceTy::Value(from_ro));
+            self.add_ev(*lifetime, Evt::MDie, to_ro, ResourceTy::Value(from_ro), false);
           }
           false => {
-            self.add_ev(*lifetime, Evt::SDie, to_ro, ResourceTy::Value(from_ro));
+            self.add_ev(*lifetime, Evt::SDie, to_ro, ResourceTy::Value(from_ro), false);
           }
         }
       }

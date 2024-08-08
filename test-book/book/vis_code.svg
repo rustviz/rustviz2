@@ -1,11 +1,11 @@
-<svg width="400px" height="340px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg width="400px" height="430px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 
-      <desc>vis</desc>
+    <desc>vis</desc>
 
-      <defs>
-          <style type="text/css">
-          <![CDATA[
-          /* general setup */
+    <defs>
+        <style type="text/css">
+        <![CDATA[
+        /* general setup */
     :root {
         --bg-color:#f1f1f1;
         --text-color: #6e6b5e;
@@ -157,23 +157,38 @@
         fill: #b99f35;
         stroke: #b99f35;
     }
-          ]]>
-          </style>
-      </defs>
+    [data-hash="10"] {
+        fill: #15a710;
+        stroke: #15a710;
+    }
+    [data-hash="11"] {
+        fill: #000000;
+        stroke: #000000;
+    }
+    [data-hash="12"] {
+        fill: #463ae9;
+        stroke: #463ae9;
+    }
+        ]]>
+        </style>
+    </defs>
 
-      <g>
-          <text id="caption" x="30" y="30">Hover over timeline events (dots), states (vertical lines),</text>
-          <text id="caption" x="30" y="50">and actions (arrows) for extra information.</text>
-      </g>
+    <g>
+        <text id="caption" x="30" y="30">Hover over timeline events (dots), states (vertical lines),</text>
+        <text id="caption" x="30" y="50">and actions (arrows) for extra information.</text>
+    </g>
 
-          <g id="code">
-        <text class="code" x="20" y="90"> <tspan fill="#AAA">1  </tspan> </text>
-        <text class="code" x="20" y="120"> <tspan fill="#AAA">2  </tspan>fn main () { </text>
-        <text class="code" x="20" y="150"> <tspan fill="#AAA">3  </tspan>  let mut <tspan data-hash="2">v</tspan>: Vec&lt;i32&gt; = <tspan class="fn" data-hash="0" hash="1">Vec::new</tspan>(); </text>
-        <text class="code" x="20" y="180"> <tspan fill="#AAA">4  </tspan>  <tspan data-hash="2">v</tspan>.<tspan class="fn" data-hash="0" hash="5">push</tspan>(8); </text>
-        <text class="code" x="20" y="210"> <tspan fill="#AAA">5  </tspan>  let <tspan data-hash="8">z</tspan>: &amp;i32 = <tspan data-hash="2">v</tspan>.<tspan class="fn" data-hash="0" hash="7">get</tspan>(0).<tspan class="fn" data-hash="0" hash="6">unwrap</tspan>(); </text>
-        <text class="code" x="20" y="240"> <tspan fill="#AAA">6  </tspan>} </text>
+        <g id="code">
+        <text class="code" x="20" y="90"> <tspan fill="#AAA">1  </tspan>fn main() { </text>
+        <text class="code" x="20" y="120"> <tspan fill="#AAA">2  </tspan>  let <tspan data-hash="2">x</tspan> = <tspan class="fn" data-hash="0" hash="1">String::from</tspan>("hello"); </text>
+        <text class="code" x="20" y="150"> <tspan fill="#AAA">3  </tspan>  let <tspan data-hash="5">z</tspan> = { </text>
+        <text class="code" x="20" y="180"> <tspan fill="#AAA">4  </tspan>      let <tspan data-hash="3">y</tspan> = <tspan data-hash="2">x</tspan>; </text>
+        <text class="code" x="20" y="210"> <tspan fill="#AAA">5  </tspan>      println!("{}", <tspan data-hash="3">y</tspan>); </text>
+        <text class="code" x="20" y="240"> <tspan fill="#AAA">6  </tspan>      // ... </text>
+        <text class="code" x="20" y="270"> <tspan fill="#AAA">7  </tspan>  }; </text>
+        <text class="code" x="20" y="300"> <tspan fill="#AAA">8  </tspan>  println!("Hello, world!"); </text>
+        <text class="code" x="20" y="330"> <tspan fill="#AAA">9  </tspan>} </text>
     </g>
 
 
-      </svg>
+</svg>

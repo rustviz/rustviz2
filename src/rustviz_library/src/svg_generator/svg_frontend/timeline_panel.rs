@@ -304,7 +304,7 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                 }
                 // update the xvalue based on width
                 let mut parent_branch_data: Vec<TimelineColumnData> = Vec::new();
-                println!("parent_data x_val: {:#?}", parent_data.x_val);
+                // println!("parent_data x_val: {:#?}", parent_data.x_val);
                 match ty {
                     BranchType::Match(..) => {
                         let halfway = branch_history.len() / 2;
@@ -617,8 +617,9 @@ fn render_dots_string(
             ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) | ResourceAccessPoint::MutRef(_) | ResourceAccessPoint::StaticRef(_) =>
             {
                 let resource_hold = if timeline.resource_access_point.is_owner() {
-                    // we can assume each owner has at least two states (initialization -> gos)
-                    let penultimate_state = timeline.states.get(timeline.states.len() - 2).unwrap().2.clone();
+                    // we can assume each owner has at least two states (initialization -> gos) 
+                    // technically it can have less if you bind something to the unit value eg: let z = ();
+                    let penultimate_state = timeline.states.get(timeline.states.len() - 2).unwrap_or(&(0, 0, State::Invalid)).2.clone();
                     match penultimate_state {
                         State::FullPrivilege { .. } => true,
                         _ => false
@@ -916,29 +917,9 @@ fn render_arrow (
                 (from_variable, to_variable, e) => {
                     let line_map = fetch_line_map(&visualization_data, e.get_id());
                     let arrow_order = line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
-                    // let arrow_order = if gep.is_empty() {
-                    //     visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64
-                    // }
-                    // else {
-                    //     let b_line_map = traverse_events(& mut gep.clone(), &visualization_data.external_events);
-                    //     b_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64
-                    // };
-                    
 
-                    // get from_variable info 
-                    // println!("from variable {}", from_variable.real_name());
-                    // println!("gep {:#?}", gep);
                     let from_timeline = fetch_timeline(from_variable.hash(), visualization_data, resource_owners_layout, e.get_id());
                     let to_timeline = fetch_timeline(to_variable.hash(), visualization_data, resource_owners_layout, e.get_id());
-                    // // get to_variable info 
-                    // // TODO: will probably need to fix this, depending on how conditionals are displayed
-                    // let to_timeline = if live_vars.contains(to_variable.extract_rap().unwrap()) {
-                    //     println!("to variable {}", to_variable.real_name());
-                    //     fetch_timeline(to_variable.hash(), gep, visualization_data, resource_owners_layout)
-                    // }
-                    // else {
-                    //     &resource_owners_layout[to_variable.hash()]
-                    // };
 
                     let x1 = to_timeline.x_val;
                     let x2 = from_timeline.x_val;
@@ -1054,272 +1035,6 @@ fn render_arrows_string_external_events_version(
                     output, visualization_data, resource_owners_layout, registry)
             }
         }
-        
-        // let mut title = String::from("");
-        // let (from, to) = match external_event {
-        //     ExternalEvent::Bind{ from: from_ro, to: to_ro } => {
-        //         title = String::from("Bind");
-        //         (from_ro, to_ro)
-        //     },
-        //     ExternalEvent::Copy{ from: from_ro, to: to_ro } => {
-        //         title = String::from("Copy");
-        //         (from_ro, to_ro)
-        //     },
-        //     ExternalEvent::Move{ from: from_ro, to: to_ro } => {
-        //         title = String::from("Move");
-        //         (from_ro, to_ro)
-        //     },
-        //     ExternalEvent::StaticBorrow{ from: from_ro, to: to_ro } => {
-        //         title = String::from("Immutable borrow");
-        //         (from_ro, to_ro)
-        //     },
-        //     ExternalEvent::StaticDie{ from: from_ro, to: to_ro } => {
-        //         title = String::from("Return immutably borrowed resource");
-        //         (from_ro, to_ro)
-        //     },
-        //     ExternalEvent::MutableBorrow{ from: from_ro, to: to_ro } => {
-        //         title = String::from("Mutable borrow");
-        //         (from_ro, to_ro)
-        //     },
-        //     ExternalEvent::MutableDie{ from: from_ro, to: to_ro } => {
-        //         title = String::from("Return mutably borrowed resource");
-        //         (from_ro, to_ro)
-        //     },
-        //     ExternalEvent::PassByMutableReference{ from: from_ro, to: to_ro } => {
-        //         title = String::from("Pass by mutable reference");
-        //         (from_ro, to_ro)
-        //     },
-        //     ExternalEvent::PassByStaticReference{ from: from_ro, to: to_ro } => {
-        //         title = String::from("Pass by immutable reference");
-        //         (from_ro, to_ro)
-        //     },
-        //     _ => (&ResourceTy::Anonymous, &ResourceTy::Anonymous),
-        // };
-        // // complete title
-        // let styled_from_string = SPAN_BEGIN.to_string() + &from.name() + SPAN_END;
-        // title = format!("{} from {}", title, styled_from_string);
-        // let styled_to_string = SPAN_BEGIN.to_string() + &to.name() + SPAN_END;
-        // title = format!("{} to {}", title, styled_to_string);
-
-        // // order of points is to -> from
-        // let mut data = ArrowData {
-        //     coordinates: Vec::new(),
-        //     coordinates_hbs: String::new(),
-        //     title: title
-        // };
-
-        // let arrow_length = 20;
-        // // render title
-        // match (from, to, external_event) {
-        //     (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_)), _) 
-        //     | (ResourceTy::Anonymous, ResourceTy::Value(ResourceAccessPoint::Function(_)), _)=> {
-        //         // do nothing for case: from = function
-        //         // it is easier to exclude this case than list all possible cases for when ResourceAccessPoint is a variable
-        //     },
-        //     (_, _, ExternalEvent::Bind {..}) | (_, _, ExternalEvent::GoOutOfScope {..}) | (_, _, ExternalEvent::InitRefParam { .. }) | 
-        //     (_, ResourceTy::Caller, _) | (_, _, ExternalEvent::RefDie { .. }) | (_, _, ExternalEvent::Branch { .. })=> {}
-        //     (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _)  => {  // (Some(function), Some(variable), _)
-        //         // ro1 (to_variable) <- ro2 (from_function)
-        //         // arrow go from (x2, y2) -> (x1, y1)
-        //         let x1 = resource_owners_layout[to_variable.hash()].x_val + 3; // adjust arrow head pos
-        //         let x2 = x1 + arrow_length;
-        //         let y1 = get_y_axis_pos(*line_number);
-        //         let y2 = get_y_axis_pos(*line_number);
-        //         data.coordinates.push((x1 as f64, y1 as f64));
-        //         data.coordinates.push((x2 as f64, y2 as f64));
-
-        //         let function_data = FunctionLogoData {
-        //             x: x2 + 3,
-        //             y: y2 + 5,
-        //             hash: from_function.hash.to_owned() as u64,
-        //             title: SPAN_BEGIN.to_string() + &from_function.name + SPAN_END,
-        //         };
-
-        //         if resource_owners_layout[to_variable.hash()].is_struct_group {
-        //             if resource_owners_layout[to_variable.hash()].is_member {
-        //                 output.get_mut(&(resource_owners_layout[to_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-        //             } else {
-        //                 output.get_mut(&(resource_owners_layout[to_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-        //             }
-        //         }
-        //         else {
-        //             output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-        //         }
-        //     },
-        //     (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), 
-        //      ExternalEvent::PassByStaticReference{..}) => { // (Some(variable), Some(function), PassByStatRef)
-        //         // get variable's position
-        //         let styled_fn_name = SPAN_BEGIN.to_string() + &function.name + SPAN_END;
-        //         let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
-                
-        //         let function_dot_data = FunctionDotData {
-        //             x: resource_owners_layout[from_variable.hash()].x_val,
-        //             y: get_y_axis_pos(*line_number),
-        //             title: styled_fn_name + " reads from " + &styled_from_name,
-        //             hash: from_variable.hash().to_owned() as u64,
-        //         };
-
-        //         if resource_owners_layout[from_variable.hash()].is_struct_group {
-        //             if resource_owners_layout[from_variable.hash()].is_member {
-        //                 output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-        //             } else {
-        //                 output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-        //             }
-        //         }
-        //         else {
-        //             output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-        //         }
-        //     },
-        //     (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(function)), 
-        //      ExternalEvent::PassByMutableReference{..}) => {  // (Some(variable), Some(function), PassByMutRef)
-        //         // get variable's position
-        //         let styled_fn_name = SPAN_BEGIN.to_string() + &function.name + SPAN_END;
-        //         let styled_from_name = SPAN_BEGIN.to_string() + &from_variable.name() + SPAN_END;
-
-        //         let function_dot_data = FunctionDotData {
-        //             x: resource_owners_layout[from_variable.hash()].x_val,
-        //             y: get_y_axis_pos(*line_number),
-        //             title: styled_fn_name + " reads from/writes to " + &styled_from_name,
-        //             hash: from_variable.hash().to_owned() as u64,
-        //         };
-        //         if resource_owners_layout[from_variable.hash()].is_struct_group {
-        //             if resource_owners_layout[from_variable.hash()].is_member {
-        //                 output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-        //             } else {
-        //                 output.get_mut(&(resource_owners_layout[from_variable.hash()].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-        //             }
-        //         }
-        //         else {
-        //             output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_dot_template", &function_dot_data).unwrap());
-        //         }
-        //     },
-        //     (from_variable, ResourceTy::Value(ResourceAccessPoint::Function(to_function)), _e) => { // (Some(variable), Some(function), _)
-        //         let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
-        //         //  ro1 (to_function) <- ro2 (from_variable)
-        //         println!("e {:#?}", _e);
-        //         let hash = match from_variable {
-        //             ResourceTy::Anonymous => visualization_data.num_valid_raps as u64,
-        //             _ => from_variable.hash().to_owned()
-        //         };
-        //         println!("rap layout {:#?}", resource_owners_layout);
-        //         let x2 = resource_owners_layout[&hash].x_val - 5;
-        //         let x1 = x2 - arrow_length;
-        //         let y1 = get_y_axis_pos(*line_number);
-        //         let y2 = get_y_axis_pos(*line_number);
-        //         data.coordinates.push((x1 as f64, y1 as f64));
-        //         data.coordinates.push((x2 as f64, y2 as f64));
-
-        //         let function_data = FunctionLogoData {
-        //             // adjust Function logo pos
-        //             x: x1 - 10,  
-        //             y: y1 + 5,
-        //             hash: to_function.hash.to_owned() as u64,
-        //             title: styled_fn_name,
-        //         };
-
-        //         if resource_owners_layout[&hash].is_struct_group {
-        //             if resource_owners_layout[&hash].is_member {
-        //                 output.get_mut(&(resource_owners_layout[&hash].owner.to_owned() as i64)).unwrap().1.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-        //             } else {
-        //                 output.get_mut(&(resource_owners_layout[&hash].owner.to_owned() as i64)).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-        //             }
-        //         }
-        //         else {
-        //             output.get_mut(&-1).unwrap().0.dots.push_str(&registry.render("function_logo_template", &function_data).unwrap());
-        //         }
-        //     },
-        //     (from_variable, to_variable, _e) => {
-
-        //         let arrow_order = visualization_data.event_line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
-
-        //         let x1 = resource_owners_layout[to_variable.hash()].x_val;
-        //         let x2 = resource_owners_layout[from_variable.hash()].x_val;
-        //         let y1 = get_y_axis_pos(*line_number);
-        //         let y2 = get_y_axis_pos(*line_number);
-        //         // if the arrow is pointing from left to right
-        //         if arrow_order > 0 && x2 <= x1{
-        //             let x3 = resource_owners_layout[from_variable.hash()].x_val + 20;
-        //             let x4 = resource_owners_layout[to_variable.hash()].x_val - 20;
-        //             let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
-        //             let y4 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
-
-        //             data.coordinates.push((x1 as f64, y1 as f64));
-        //             data.coordinates.push((x4 as f64, y4 as f64));
-        //             data.coordinates.push((x3 as f64, y3 as f64));
-        //             data.coordinates.push((x2 as f64, y2 as f64));
-
-        //         // if the arrow is pointing from right to left
-        //         } else if arrow_order > 0 && x2 > x1 {
-        //             let x3 = resource_owners_layout[from_variable.hash()].x_val - 20;
-        //             let x4 = resource_owners_layout[to_variable.hash()].x_val + 20;
-        //             let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
-        //             let y4 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
-
-        //             data.coordinates.push((x1 as f64, y1 as f64));
-        //             data.coordinates.push((x4 as f64, y4 as f64));
-        //             data.coordinates.push((x3 as f64, y3 as f64));
-        //             data.coordinates.push((x2 as f64, y2 as f64));
-
-        //         } else {
-        //             unreachable!("deal with this later");
-        //             data.coordinates.push((x1 as f64, y1 as f64));
-        //             data.coordinates.push((x2 as f64, y2 as f64));
-        //         }
-        //     },
-        //     _ => (), // don't support other cases for now
-        // }
-        // // draw arrow only if data.x1 is not default value
-        // if !data.coordinates.is_empty() {
-        //     let last_index = data.coordinates.len() - 1;
-
-        //     if data.coordinates.len() == 2 {
-        //         // [0]     [last index]
-        //         // <-------------------
-        //         if data.coordinates[0].0 < data.coordinates[last_index].0 {
-
-        //             data.coordinates[0].0 += 10 as f64;
-        //         }
-        //         // [last index]     [0]
-        //         // ------------------->
-        //         else {
-        //             data.coordinates[0].0 -= 10 as f64;
-        //         }
-        //     } else {
-
-        //         if data.coordinates[0].0 < data.coordinates[last_index].0 {
-        //             let hypotenuse = (((data.coordinates[1].0 - data.coordinates[0].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
-        //             let cos_ratio = ((data.coordinates[1].0 - data.coordinates[0].0) as f64) / hypotenuse;
-        //             let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
-        //             data.coordinates[0].0 += cos_ratio*10 as f64;
-        //             data.coordinates[0].1 += sin_ratio*10 as f64;
-        //         }
-        //         else {
-        //             let hypotenuse = (((data.coordinates[0].0 - data.coordinates[1].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
-        //             let cos_ratio = ((data.coordinates[0].0 - data.coordinates[1].0) as f64) / hypotenuse;
-        //             let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
-        //             data.coordinates[0].0 -= cos_ratio*10 as f64;
-        //             data.coordinates[0].1 += sin_ratio*10 as f64;
-        //         }
-        //     }
-
-        //     while !data.coordinates.is_empty() {
-        //         let recent = data.coordinates.pop();
-        //         data.coordinates_hbs.push_str(&recent.unwrap().0.to_string());
-        //         data.coordinates_hbs.push_str(&String::from(" "));
-        //         data.coordinates_hbs.push_str(&recent.unwrap().1.to_string());
-        //         data.coordinates_hbs.push_str(&String::from(" "));
-        //     }
-        //     if resource_owners_layout.contains_key(from.hash()) && resource_owners_layout[from.hash()].is_struct_group {
-        //         if resource_owners_layout[from.hash()].is_member {
-        //             output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().1.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
-        //         } else {
-        //             output.get_mut(&(resource_owners_layout[from.hash()].owner.to_owned() as i64)).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
-        //         }
-        //     }
-        //     else {
-        //         output.get_mut(&-1).unwrap().0.arrows.push_str(&registry.render("arrow_template", &data).unwrap());
-        //     }
-        // }
     }
 }
 
@@ -1533,27 +1248,12 @@ fn render_timeline(
                     };
 
                     if branch.e_data.is_empty() || i != 0{
-                        // println!("here");
                         split_line_data.opacity = 0.5;
                     }
                     append_line(&p_state, &mut split_line_data, rap, timeline_data, output, registry);
 
-                    // // convert beginning state
-                    // let b_state = branch_state_converter(&p_state);
-                    // let (start, end) = ty.get_start_end(i);
-                    // // println!("start end for branch {}, : {} - {}", i, start, end);
-                    // let start_val = min(start + 1, *merge_point);
-                    // let begin = Some((*split_point + 1, start_val, b_state));
-                    // // println!("begin state for branch {}, : {:#?}", i, begin);
-
-                    // // convert ending state
-                    // let b_states = visualization_data.fetch_states(hash, &branch.e_data, begin.clone(), None);
-                    // // println!("states {:#?}", b_states);
+                    // get ending state
                     let e_state = branch.states.last().unwrap().2.clone();
-                    // let end_val = min(end + 1, *merge_point);
-                    // let end = Some((end_val, *merge_point, branch_state_converter(&e_state)));
-
-                    // // println!("end state for branch {}, : {:#?}", i, end);
 
                     render_timeline(hash, 
                         rap, 
@@ -1587,28 +1287,6 @@ fn render_timeline(
         }
     }
 
-    // let rap_states = visualization_data.fetch_states(hash, history, prev_state, end_state);
-    // let mut cleaned_rap_states: Vec<(usize, usize, State)> = Vec::new();
-    // let mut i: usize = 0;
-    // while i < rap_states.len() {
-    //     match &rap_states[i].2 { // merge partial privilege states together
-    //         State::PartialPrivilege { .. } => {
-    //             let mut j = i + 1;
-    //             let mut ending_range = rap_states[i].1;
-    //             while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
-    //                 ending_range = rap_states[j].1;
-    //                 j += 1;
-    //             }
-    //             cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
-    //             i = j;
-    //         }
-    //         _ => {
-    //             cleaned_rap_states.push(rap_states[i].clone());
-    //             i += 1;
-    //         }
-    //     }
-    // }
-    // println!("states when rendering timeline {:#?}", cleaned_rap_states);
     for (line_start, line_end, state) in states {
         // println!("{} -> start: {}, end: {}, state: {}", visualization_data.get_name_from_hash(hash).unwrap(), line_start, line_end, state); // DEBUG PURPOSES
         let mut data = VerticalLineData {
@@ -1646,68 +1324,6 @@ fn render_timelines(
             }
         }
     }
-
-        
-        // let rap = &timeline.resource_access_point;
-        // let rap_states = visualization_data.get_states(hash, &timeline.history);
-        // let mut cleaned_rap_states: Vec<(usize, usize, State)> = Vec::new();
-        // let mut i: usize = 0;
-        // while i < rap_states.len() {
-        //   match &rap_states[i].2 { // merge partial privilege states together
-        //     State::PartialPrivilege { .. } => {
-        //       let mut j = i + 1;
-        //       let mut ending_range = rap_states[i].1;
-        //       while j < rap_states.len() && matches!(rap_states[j].2, State::PartialPrivilege { .. }) {
-        //         ending_range = rap_states[j].1;
-        //         j += 1;
-        //       }
-        //       cleaned_rap_states.push((rap_states[i].0, ending_range, rap_states[i].2.clone()));
-        //       i = j;
-        //     }
-        //     _ => {
-        //       cleaned_rap_states.push(rap_states[i].clone());
-        //       i += 1;
-        //     }
-        //   }
-        // }
-        // for (line_start, line_end, state) in cleaned_rap_states.iter() {
-        //     // println!("{} -> start: {}, end: {}, state: {}", visualization_data.get_name_from_hash(hash).unwrap(), line_start, line_end, state); // DEBUG PURPOSES
-        //     let data = match rap {
-        //         ResourceAccessPoint::Function(_) => None,
-        //         _ => Some(VerticalLineData {
-        //             line_class: String::new(),
-        //             hash: *hash,
-        //             x1: resource_owners_layout[hash].x_val as f64,
-        //             y1: get_y_axis_pos(*line_start),
-        //             x2: resource_owners_layout[hash].x_val,
-        //             y2: get_y_axis_pos(*line_end),
-        //             title: state.print_message_with_name(rap.name())
-        //         })
-        //     };
-        //     match rap {
-        //         ResourceAccessPoint::Function(_) => {}, // Don't do anything
-        //         ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) => {
-        //             if resource_owners_layout[hash].is_struct_group { //TODO: not sure if this is correct
-        //                 if !output.contains_key(&(resource_owners_layout[hash].owner.to_owned() as i64)) {
-        //                     output.insert(resource_owners_layout[hash].owner.to_owned() as i64, (TimelinePanelData{ labels: String::new(), dots: String::new(), timelines: String::new(), 
-        //                         ref_line: String::new(), arrows: String::new() }, TimelinePanelData{ labels: String::new(), dots: String::new(), 
-        //                             timelines: String::new(), ref_line: String::new(), arrows: String::new() })); 
-        //                 }
-        //                 if resource_owners_layout[hash].is_member {
-        //                     output.get_mut(&(resource_owners_layout[hash].owner.to_owned() as i64)).unwrap().1.timelines.push_str(&create_owner_line_string(rap, state, &mut data.unwrap(), registry));
-        //                 } else {
-        //                     output.get_mut(&(resource_owners_layout[hash].owner.to_owned() as i64)).unwrap().0.timelines.push_str(&create_owner_line_string(rap, state, &mut data.unwrap(), registry));
-        //                 }
-        //             }
-        //             else {
-        //                 output.get_mut(&-1).unwrap().0.timelines.push_str(&create_owner_line_string(rap, state, &mut data.unwrap(), registry));
-        //             }
-        //         },
-        //         ResourceAccessPoint::StaticRef(_) | ResourceAccessPoint::MutRef(_) => {
-        //             output.get_mut(&-1).unwrap().0.timelines.push_str(&create_reference_line_string(rap, state, &mut data.unwrap(), registry));
-        //         },
-        //     }
-        // }
 }
 
 // vertical lines indicating whether a reference can mutate its resource(deref as many times)

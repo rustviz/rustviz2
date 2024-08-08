@@ -14,6 +14,7 @@ to fix/implement:
 - [ ] Implement hoverable anonymous owner interactions in code panel
 - [ ] Weird phantom annotated src bug that seems to appear when there are \t characters
 - [ ] Add highlighting for passbyref events
+- [ ] last (black) data-hash doesn't render properly
 - [ x ] Fix Resource dropping (breaks with conditionals it seems)
 - [ x ] Reference aliasing
 - [ x ] Fix annotated source gen to handle `</>` characters 

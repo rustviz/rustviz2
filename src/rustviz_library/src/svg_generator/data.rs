@@ -330,21 +330,25 @@ pub enum ExternalEvent {
     Copy {
         from: ResourceTy,
         to: ResourceTy,
+        is_partial: bool,
         id: usize
     },
     Move {
         from: ResourceTy,
         to: ResourceTy,
+        is_partial: bool,
         id: usize
     },
     StaticBorrow {
         from: ResourceTy,
         to: ResourceTy,
+        is_partial: bool,
         id: usize
     },
     MutableBorrow {
         from: ResourceTy,
         to: ResourceTy,
+        is_partial: bool,
         id: usize
     },
     StaticDie {
@@ -989,20 +993,24 @@ pub fn string_of_external_event(e: &ExternalEvent) -> String {
         ExternalEvent::Bind{ .. } => {
             String::from("Bind")
         },
-        ExternalEvent::Copy{ .. } => {
-            String::from("Copy")
+        ExternalEvent::Copy{ is_partial,.. } => {
+            if *is_partial { String::from("Partial copy") } 
+            else { String::from("Copy") }
         },
-        ExternalEvent::Move{ .. } => {
-          String::from("Move")
+        ExternalEvent::Move{ is_partial, .. } => {
+            if *is_partial { String::from("Partial move")}
+            else { String::from("Move") }
         },
-        ExternalEvent::StaticBorrow{ .. } => {
-            String::from("Immutable borrow")
+        ExternalEvent::StaticBorrow{ is_partial, .. } => {
+            if *is_partial { String::from("Partial immutable borrow") }
+            else { String::from("Immutable borrow") }
         },
         ExternalEvent::StaticDie{ .. } => {
             String::from("Return immutably borrowed resource")
         },
-        ExternalEvent::MutableBorrow{ .. } => {
-            String::from("Mutable borrow")
+        ExternalEvent::MutableBorrow{ is_partial, .. } => {
+            if *is_partial { String::from("Partial Mutable borrow") }
+            else { String::from("Mutable borrow")}
         },
         ExternalEvent::MutableDie{ .. } => {
            String::from("Return mutably borrowed resource")
@@ -1441,15 +1449,15 @@ impl Visualizable for VisualizationData {
           if to_o { vec![(line_num,  Event::Acquire{from : from.to_owned(), is: to.clone(), id: *id})] }
           else { vec![(line_num, Event::Duplicate{to : to.to_owned(), is: from.clone(), id: *id})] }
         },
-        ExternalEvent::Copy{from: from_ro, to: to_ro, id} => {
+        ExternalEvent::Copy{from: from_ro, to: to_ro, id, ..} => {
           if to_o { vec![(line_num,  Event::Copy{from : from_ro.to_owned(), is: to_ro.clone(), id: *id})] }
           else { vec![(line_num, Event::Duplicate{to : to_ro.to_owned(), is: from_ro.clone(), id: *id})] }
         },
-        ExternalEvent::Move{from: from_ro, to: to_ro, id} => {
+        ExternalEvent::Move{from: from_ro, to: to_ro, id, ..} => {
           if to_o { vec![(line_num,  Event::Acquire{from : from_ro.to_owned(), is: to_ro.clone(), id: *id})] }
           else { vec![(line_num, Event::Move{to : to_ro.to_owned(), is: from_ro.clone(), id: *id})] }
         },
-        ExternalEvent::StaticBorrow{from: from_ro, to: to_ro, id} => {
+        ExternalEvent::StaticBorrow{from: from_ro, to: to_ro, id, ..} => {
           if to_o { vec![(line_num,  Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro.clone(), id: *id})] }
           else { vec![(line_num, Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone(), id: *id})] }
         },
@@ -1457,7 +1465,7 @@ impl Visualizable for VisualizationData {
           if to_o { vec![(line_num,  Event::StaticReacquire{from : from_ro.to_owned(), is: to_ro.clone(), id: *id})] }
           else { vec![(line_num, Event::StaticDie{to : to_ro.to_owned(), is: from_ro.clone(), id: *id})] }
         },
-        ExternalEvent::MutableBorrow{from: from_ro, to: to_ro, id} => {
+        ExternalEvent::MutableBorrow{from: from_ro, to: to_ro, id, ..} => {
           if to_o { vec![(line_num,  Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro.clone(), id: *id})] }
           else { vec![(line_num, Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone(), id: *id})] }          
         },
@@ -1472,7 +1480,7 @@ impl Visualizable for VisualizationData {
                     vec![(line_num, Event::MutableDie {to: ResourceTy::Anonymous, is: from_ro.clone(), id: *id})]
                   }
                   else {
-                    if to_o { vec![(line_num,  Event::RefDie{from : from_ro.to_owned(), is: to_ro.clone(), num_curr_borrowers: *num_curr_borrowers, id: *id})] }
+                    if to_o { vec![] }
                     else { vec![(line_num, Event::StaticDie{to : to_ro.to_owned(), is: from_ro.clone(), id: *id})] }    
                   }
               }
@@ -1620,7 +1628,7 @@ impl Visualizable for VisualizationData {
 
         match event {
             // eg let ro_to = String::from("");
-            ExternalEvent::Move{from: from_ro, to: to_ro, id} => {
+            ExternalEvent::Move{from: from_ro, to: to_ro, id, ..} => {
                 maybe_append_event(self, &to_ro.clone(), Event::Acquire{from : from_ro.to_owned(), is: to_ro.clone(), id: id}, line_number);
                 maybe_append_event(self, &from_ro.clone(), Event::Move{to : to_ro.to_owned(), is: from_ro, id: id}, line_number);
             },
@@ -1630,7 +1638,7 @@ impl Visualizable for VisualizationData {
                 maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro, id: id}, line_number);
             },
             // eg: let x : i64 = y as i64;
-            ExternalEvent::Copy{from: from_ro, to: to_ro, id} => {
+            ExternalEvent::Copy{from: from_ro, to: to_ro, id, ..} => {
                 maybe_append_event(self, &to_ro.clone(), Event::Copy{from : from_ro.to_owned(), is: to_ro.clone(), id: id}, line_number);
                 maybe_append_event(self, &from_ro.clone(), Event::Duplicate{to : to_ro.to_owned(), is: from_ro, id: id}, line_number);
             },
@@ -1679,7 +1687,7 @@ impl Visualizable for VisualizationData {
                     self.append_decl_branch_events(&branch.e_data);
                 }
             }
-            ExternalEvent::StaticBorrow{from: from_ro, to: to_ro, id} => {
+            ExternalEvent::StaticBorrow{from: from_ro, to: to_ro, id, ..} => {
                 maybe_append_event(self, &from_ro, Event::StaticLend{to : to_ro.to_owned(), is: from_ro.clone(), id: id}, line_number);
                 maybe_append_event(self, &to_ro.clone(), Event::StaticBorrow{from : from_ro.to_owned(), is: to_ro, id: id}, line_number);
                 
@@ -1688,7 +1696,7 @@ impl Visualizable for VisualizationData {
                 maybe_append_event(self, &to_ro.clone(), Event::StaticReacquire{from : from_ro.to_owned(), is: to_ro.clone(), id: id}, line_number);
                 maybe_append_event(self, &from_ro.clone(), Event::StaticDie{to : to_ro.to_owned(), is: from_ro, id: id}, line_number);
             },
-            ExternalEvent::MutableBorrow{from: from_ro, to: to_ro, id} => {
+            ExternalEvent::MutableBorrow{from: from_ro, to: to_ro, id, ..} => {
                 maybe_append_event(self, &from_ro, Event::MutableLend{to : to_ro.to_owned(), is: from_ro.clone(), id: id}, line_number);
                 maybe_append_event(self, &to_ro.clone(), Event::MutableBorrow{from : from_ro.to_owned(), is: to_ro, id: id}, line_number);
                 
@@ -1697,6 +1705,7 @@ impl Visualizable for VisualizationData {
                 maybe_append_event(self, &to_ro.clone(), Event::MutableReacquire{from : from_ro.to_owned(), is: to_ro.clone(), id: id}, line_number);
                 maybe_append_event(self, &from_ro.clone(), Event::MutableDie{to : to_ro.to_owned(), is: from_ro, id: id}, line_number);
             },
+            // don't need to append an event to the to resource since a RefDie doesn't change the state of the to ro
             ExternalEvent::RefDie { from: from_ro, to: to_ro, id , num_curr_borrowers} => { // need Ref Event to avoid drawing redundant arrows when rendering timelines
                 match from_ro.clone() {
                     ResourceTy::Deref(ro_is) | ResourceTy::Value(ro_is) => {
@@ -1706,7 +1715,7 @@ impl Visualizable for VisualizationData {
                         }
                         else {
                             maybe_append_event(self, &from_ro.clone(), Event::StaticDie { to: ResourceTy::Anonymous, is: from_ro.clone(), id: id }, line_number);
-                            maybe_append_event(self, &to_ro.clone(), Event::RefDie { from: from_ro, is: to_ro, num_curr_borrowers, id: id}, line_number);
+                            //maybe_append_event(self, &to_ro.clone(), Event::RefDie { from: from_ro, is: to_ro, num_curr_borrowers, id: id}, line_number);
                         }
                     }
                     _ => panic!("not possible")

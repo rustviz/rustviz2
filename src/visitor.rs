@@ -42,18 +42,10 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     let location_map = &borrow_set.location_map;
     println!("body string {}", borrow_data.body.to_string(self.tcx).unwrap());
     println!("name map {:#?}", borrow_data.body.debug_info_name_map());
-    println!("locals map {:#?}", borrow_set.local_map);
-    println!("activation map {:#?}, ", borrow_set.activation_map);
+    println!("local map {:#?}", borrow_set.local_map);
+    println!("location map {:#?}", borrow_set.location_map);
     // println!("location table {:#?}", borrow_data.location_table);
-    let spanner = Spanner::new(self.tcx, body.id(), &borrow_data.body);
-    match &borrow_data.output_facts {
-      Some(o_facts) => {
-      }
-      _ => {
-        println!("no output facts");
-      }
-    }
-
+    // let spanner = Spanner::new(self.tcx, body.id(), &borrow_data.body);
     fn point_to_location(p: Point, body_with_facts: &BodyWithBorrowckFacts) -> Location {
       match body_with_facts.location_table.as_ref().unwrap().to_location(p) {
         RichLocation::Start(s) | RichLocation::Mid(s) => s
@@ -99,10 +91,25 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           match location_map.get(&location) {
             Some(b_data) => {
               println!("borrow_data for location {:#?} : {:#?}", location, b_data);
-              println!("borrowed_place: {:#?}", b_data.borrowed_place.to_string(self.tcx, &borrow_data.body));
-              println!("assigned place {:#?}", b_data.assigned_place.to_string(self.tcx, &borrow_data.body));
-              let expr = self.tcx.hir().expect_expr(borrow_data.body.location_to_hir_id(location.clone()));
-              println!("line {}", self.span_to_line(&expr.span));
+              let b_place = b_data.borrowed_place.local_or_deref_local();
+              let a_place = b_data.assigned_place.local_or_deref_local();
+              println!("borrowed_place: {:#?}, as local: {:#?}", b_data.borrowed_place.to_string(self.tcx, &borrow_data.body), b_place);
+              println!("is source visible? {}", b_data.borrowed_place.is_source_visible(self.tcx, &borrow_data.body));
+              println!("region inference context {:#?}", borrow_data.region_inference_context.var_infos.get(*region).unwrap());
+              if b_place.is_some() { 
+                let b_loc = borrow_data.body.local_decls.get(b_place.unwrap()).unwrap();
+                println!("local decl {:#?}", b_loc); 
+                println!("span {}", b_loc.source_info.span.to_string(self.tcx));
+              }
+              println!("assigned place {:#?}, as local {:#?}", b_data.assigned_place.to_string(self.tcx, &borrow_data.body), a_place);
+              println!("is source visible? {}", b_data.assigned_place.is_source_visible(self.tcx, &borrow_data.body));
+              if a_place.is_some() { 
+                let a_loc =  borrow_data.body.local_decls.get(a_place.unwrap()).unwrap();
+                println!("local decl {:#?}", a_loc);
+                println!("span {}", a_loc.source_info.span.to_string(self.tcx));
+              }
+              // let expr = self.tcx.hir().expect_expr(borrow_data.body.location_to_hir_id(location.clone()));
+              // println!("line {}\n\n", self.span_to_line(&expr.span));
             }
             None => { println!("no borrow data found for location"); }
           }
@@ -187,7 +194,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               };
               
               let line_num = self.expr_to_line(e);
-              self.add_ev(line_num, evt, to_ro, from_ro);
+              self.add_ev(line_num, evt, to_ro, from_ro, false);
             }
           }
           _ => {}
@@ -335,10 +342,10 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                 Adjust::Borrow(AutoBorrow::Ref(_, m)) => {
                   match m {
                     AutoBorrowMutability::Mut{allow_two_phase_borrow: AllowTwoPhase::Yes} => {
-                      self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap.clone()), ResourceTy::Value(rcvr_rap.clone()));
+                      self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap.clone()), ResourceTy::Value(rcvr_rap.clone()), false);
                     },
                     AutoBorrowMutability::Not => {
-                      self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap.clone()), ResourceTy::Value(rcvr_rap.clone()));
+                      self.add_ev(line_num, Evt::PassBySRef, ResourceTy::Value(fn_rap.clone()), ResourceTy::Value(rcvr_rap.clone()), false);
                     }
                     _ => {}
                   }
@@ -405,8 +412,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               }
               else {
                 match ref_data.ref_mutability {
-                  true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone()),
-                  false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone())
+                  true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone(), false),
+                  false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone(), false)
                 }
               }
 
@@ -438,8 +445,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               }
               else {
                 match modified_ref_data.ref_mutability {
-                  true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone()),
-                  false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone())
+                  true => self.add_ev(line_num, Evt::MDie, to_ro, lhs_rty.clone(), false),
+                  false => self.add_ev(line_num, Evt::SDie, to_ro, lhs_rty.clone(), false)
                 }
               }
 
@@ -597,15 +604,16 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         }
       }
 
-
+      // match <expr> {
+      // <pat> => <expr>
+      // }
       ExprKind::Match(guard_expr, arms, source) => {
+        // first visit the guard expression, annotate any events that happen there
         self.visit_expr(guard_expr);
-        // First, get everything that is being matched on 
-        // Additionally, need types of everything that is being matched on (ie, is it a reference or is it being borrowed)
-
         let typeck_res = self.tcx.typeck(expr.hir_id.owner);
 
         // To my knowledge a match has to either contain a singular expression or Tuple
+        // get all the 'parents' ie things being matched on and their types
         let (parents, parents_ty) = match guard_expr.kind {
           ExprKind::Tup(fields) => {
             let mut res = Vec::new();
@@ -651,17 +659,21 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               let mut pat_decls: HashSet<ResourceAccessPoint> = HashSet::new();
               // println!("arm pat {:#?}", arm.pat);
               match arm.pat.kind {
+                // (<pat>, <pat>, ..) => <expr>
                 PatKind::TupleStruct(_, pat_list, _) | PatKind::Tuple(pat_list, _)=> {
                   for (i, p) in pat_list.iter().enumerate() {
                     let mut associated_ro = Vec::new();
-                    self.get_dec_of_pat2(p, &typeck_res, &parents[i], parents_ty[i], end, & mut associated_ro);
-                    let temp: Vec<ResourceAccessPoint> = associated_ro.iter().map(|(r, _)| {r.clone()}).collect();
+                    self.get_dec_of_pat2(p, &typeck_res, &parents[i], &parents_ty[i], end, & mut associated_ro);
+                    println!("associated ro {:#?}", associated_ro);
+                    let temp: Vec<ResourceAccessPoint> = associated_ro.iter().map(|(r, _, _)| {r.clone()}).collect();
                     let temp2: HashSet<ResourceAccessPoint> = temp.into_iter().collect();
                     pat_decls.extend(temp2);
-                    for (to_ro, e) in associated_ro.iter() {
-                      branch_e_data.push((pat_line, self.ext_ev_of_evt(e.clone(), ResourceTy::Value(to_ro.clone()), parents[i].clone(), *self.unique_id)));
+                    for (to_ro, e, parent_ty) in associated_ro.iter() {
+                      // TODO: fix the is_partial logic
+                      // let is_partial;
+                      let is_partial = !(*parent_ty == typeck_res.node_type(p.hir_id));
+                      branch_e_data.push((pat_line, self.ext_ev_of_evt(e.clone(), ResourceTy::Value(to_ro.clone()), parents[i].clone(), *self.unique_id, is_partial)));
                       *self.unique_id += 1;
-
                       match e {
                         Evt::SBorrow => {
                           callback_events.push((parents[i].clone(), ResourceTy::Value(to_ro.clone()), Evt::SDie));
@@ -674,15 +686,16 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                     }
                   }
                 }
+                // <expr> => <expr> (just a singleton variable)
                 _ => {
                   for i in 0..parents.len() {
                     let mut associated_ro = Vec::new();
-                    self.get_dec_of_pat2(arm.pat, &typeck_res, &parents[i], parents_ty[i], end, & mut associated_ro);
-                    let temp: Vec<ResourceAccessPoint> = associated_ro.iter().map(|(r, _)| {r.clone()}).collect();
+                    self.get_dec_of_pat2(arm.pat, &typeck_res, &parents[i], &parents_ty[i], end, & mut associated_ro);
+                    let temp: Vec<ResourceAccessPoint> = associated_ro.iter().map(|(r, _, _)| {r.clone()}).collect();
                     let temp2: HashSet<ResourceAccessPoint> = temp.into_iter().collect();
                     pat_decls.extend(temp2);
-                    for (to_ro, e) in associated_ro.iter() {
-                      branch_e_data.push((pat_line, self.ext_ev_of_evt(e.clone(), ResourceTy::Value(to_ro.clone()),parents[i].clone(), *self.unique_id)));
+                    for (to_ro, e, _) in associated_ro.iter() {
+                      branch_e_data.push((pat_line, self.ext_ev_of_evt(e.clone(), ResourceTy::Value(to_ro.clone()),parents[i].clone(), *self.unique_id, false)));
                       *self.unique_id += 1;
                       match e {               // A borrow, mut/immut must be returned at the end of the block
                         Evt::SBorrow => {
@@ -739,7 +752,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               for (to, from, e) in callback_events {
                 let name = from.real_name();
                 self.borrow_map.remove(&name);
-                branch_e_data.push((end, self.ext_ev_of_evt(e, to, from, *self.unique_id)));
+                branch_e_data.push((end, self.ext_ev_of_evt(e, to, from, *self.unique_id, false)));
                 *self.unique_id += 1;
               }
 
