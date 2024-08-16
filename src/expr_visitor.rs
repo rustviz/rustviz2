@@ -1,42 +1,65 @@
+//! This file details all the datastructures that are filled while traversing the HIR.
+//! Essentially we care about detailing interactions and relationships between 
+//! Resource Access Points (RAPs - RV1 terminology)
+//! The frontend (svg-generator crate) requires a list of external events:
+//! which are generally events that cause some visually external effect on the visualization
+//! For example: Moves, Copies, Borrows are all represented with arrows between timelines.
+
+
+use log::{error, info, warn};
 use rustc_middle::{
-    mir::Body,
-    ty::*,
-  };
-  use rustc_hir::{Expr, ExprKind, QPath, PatKind, Mutability, UnOp, StmtKind, Stmt, def::*, Pat, Path};
-use rustc_utils::mir::mutability;
-use rustc_utils::MutabilityExt;
-  use std::cell::Ref;
+  mir::Body,
+  ty::*,
+};
+use rustc_hir::{Expr, ExprKind, QPath, PatKind, Mutability, UnOp, StmtKind, Stmt, def::*, Pat, Path};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::ops::Bound;
-  use rustc_span::Span;
-  // use aquascope::analysis::boundaries::PermissionsBoundary;
-  use rustc_hir::{intravisit::Visitor, hir_id::HirId};
-  use std::cmp::{max, Eq, PartialEq};
-  use std::hash::Hash;
-  use crate::expr_visitor_utils::*;
-  use rustviz_lib::data::*;
+use rustc_span::Span;
+use rustc_hir::hir_id::HirId;
+use std::cmp::max;
+use crate::expr_visitor_utils::*;
+use rustviz_lib::data::*;
+use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 
 
+// A struct to help with appending ExternalEvents
 #[derive(Debug, Clone)]
-pub enum Evt {
+pub enum Evt { 
+  // A RAP is bound to some resource (this is usually used when the resource is anonymous)
+  // ex: let a = 9;
+  // technically all variables are bound at initialization, but we don't use the Bind event
+  // for each scenario in which this happens.
   Bind,
-  Copy,
-  Move,
-  SBorrow,
-  MBorrow,
+
+  Copy, // let x: i32 = y; | let x: &i32 = y;
+  Move, // let x:String = y;
+  SBorrow, // let x: &i32 = &y;
+  MBorrow, // let x: & mut i32 = & mut y;
+
+  // When a RAP returns an immutably borrowed resource
   SDie,
+
+  // When a RAP returns a mutably boirrowed resource
   MDie,
+
+  // Passing a RAP by static (immutable) reference
   PassBySRef,
-  PassByMRef,
+
+  // Passing a RAP by mutable reference
+  PassByMRef, // String::push_str(s, "text") | s.push_str("text")
 }
 
+// RefData struct is used to represent a loan between a borrower and lender 
+// at any time in the program lifetime. Ideally we should use the MIR and just grab 
+// the list of borrows that occurs and append events accordingly, implementing our own
+// logic is more difficult and not sufficient for complex borrowing scenarios.
 #[derive(Debug, Clone)]
 pub struct RefData {
-  pub lender: ResourceTy,
-  pub assigned_at: usize,
-  pub lifetime: usize,
-  pub ref_mutability: bool,
-  pub aliasing: VecDeque<String>
+  pub lender: ResourceTy, // who this reference borrowed from
+  pub assigned_at: usize, // gen point
+  pub lifetime: usize, // kill point
+  pub ref_mutability: bool, // type
+  pub aliasing: VecDeque<String> // aliasing other references
 }
 
 #[derive(Debug, Clone)]
@@ -48,31 +71,54 @@ pub struct RapData {
 
 
 pub struct ExprVisitor<'a, 'tcx:'a> {
-  pub tcx: TyCtxt<'tcx>,
-  pub mir_body: &'a Body<'tcx>,
-  //pub boundary_map: HashMap<rustc_span::BytePos,PermissionsBoundary>,
-  pub borrow_map: HashMap<String, RefData>, //lendee -> (lender, lifetime, ref mutability) 
-  pub lenders: HashMap<String, HashSet<ResourceTy>>, //todo, change this logic to shared ptrs when I feel like it
+  pub tcx: TyCtxt<'tcx>, // type context
+  pub mir_body: &'a Body<'tcx>, 
+  pub hir_body: &'a rustc_hir::Body<'tcx>,
+  pub bwf: &'a BodyWithBorrowckFacts<'tcx>,
+
+  // Data structure used to represent active loans
+  // borrower name -> RefData
+  pub borrow_map: HashMap<String, RefData>,
+
+  // Where all the RAPs are stored
+  // Rap name -> RapData
   pub raps: &'a mut HashMap<String, RapData>,
+
+  // Used to determine the current scope when visiting expressions
   pub current_scope: usize,
+
+  // Vestigial code, look at aquascope permissions_boundary map to see more
   pub analysis_result : HashMap<usize, Vec<String>>,
+
+  // The event line map stores events that will
+  // result in the generation of an arrow by the frontend 
+  // Although it's somewhat redundant (events from the preprocessed events)
+  // appear in the event_line_map, it's 'necessary' to figure out the arrow orientation
   pub event_line_map: &'a mut BTreeMap<usize, Vec<ExternalEvent>>,
+
+  // Just a list of the events and on which line they occur
   pub preprocessed_events: &'a mut Vec<(usize, ExternalEvent)>,
+  
+  // These members are necessary for annotated_src computation
   pub rap_hashes: usize,
   pub source_map: & 'a BTreeMap<usize, String>,
   pub annotated_lines: & 'a mut BTreeMap<usize, Vec<String>>,
   pub id_map: & 'a mut HashMap<String, usize>,
   pub unique_id: & 'a mut usize,
+
+
   pub inside_branch: bool,
   pub fn_ret: bool
 }
 
 impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
-  pub fn expr_to_line(&self,expr:&Expr)->usize{
+
+  // Helpers
+  pub fn expr_to_line(&self,expr:&Expr) -> usize{
     self.tcx.sess.source_map().lookup_char_pos(expr.span.lo()).line
   }
 
-  pub fn span_to_line(&self,span:&Span)->usize{
+  pub fn span_to_line(&self,span:&Span) -> usize{
     self.tcx.sess.source_map().lookup_char_pos(span.lo()).line
   }
 
@@ -87,12 +133,15 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       None
     }
   }
+
+  // Ideally we should actually just visit the fn expr 
+  // which resolves to a path 
   pub fn hirid_to_var_name(&self,id:HirId)->Option<String>{
     let long_name = self.tcx.hir().node_to_string(id);
     extract_var_name(&long_name)
   }
 
-  pub fn is_return_type_ref(&self,fn_expr:&Expr)->bool{
+  pub fn is_return_type_ref(&self,fn_expr:&Expr) -> bool{
     if let Some(return_type)=self.return_type_of(fn_expr){
       return_type.is_ref()
     }
@@ -115,6 +164,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // updates the lifetime of a loan (as well as for each of the aliases associated with this loan)
   pub fn update_lifetime(&mut self, name: &String, line:usize){
     self.borrow_map.get_mut(name).unwrap().lifetime = line;
     let aliasing = self.borrow_map.get(name).unwrap().aliasing.clone();
@@ -123,10 +173,12 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // Adds an owner RAP
   pub fn add_owner(&mut self, name: String, mutability: bool, scope: usize, is_global: bool) {
     self.add_rap(ResourceAccessPoint::Owner(Owner{name: name, hash: self.rap_hashes as u64, is_mut: mutability}), scope, is_global);
   }
 
+  // Adds a reference RAP
   pub fn add_ref(&mut self, name: String, ref_mutability: bool, lhs_mut: bool, line_num: usize, lender: ResourceTy, alia: VecDeque<String>, scope: usize, is_global: bool) {
     match ref_mutability {
       true => {
@@ -147,10 +199,15 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     self.add_rap(ResourceAccessPoint::MutRef(MutRef { name: name, hash: self.rap_hashes as u64, is_mut: mutability }), scope, is_global);
   }
 
+  // Adds a function RAP
   pub fn add_fn(&mut self, name: String) {
     self.add_rap(ResourceAccessPoint::Function(Function { name: name, hash: self.rap_hashes as u64 }), self.current_scope, true);
   }
 
+  // Adds a struct RAP
+  // To be honest this struct logic is leftover from RV1 and should eventually be reworked
+  // It doesn't make much sense that a struct should be represented any different than an owner
+  // the reason for this is that in the frontend structs are visualized differently in the timeline header
   pub fn add_struct(&mut self, name: String, owner: u64, mem: bool, mutability: bool, scope: usize, is_global: bool) {
     self.add_rap(ResourceAccessPoint::Struct(Struct { 
       name: name, 
@@ -185,7 +242,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     let resourceaccesspoint = ResourceAccessPoint_extract(&event);
     match (resourceaccesspoint.0, resourceaccesspoint.1, &event) {
       (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_)), _) => {
-          // do nothing case
       },
       (ResourceTy::Value(ResourceAccessPoint::Function(_)),_,  _) => {  
           // (Some(function), Some(variable), _)
@@ -231,6 +287,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     *self.unique_id += 1;
   }
 
+  // Return the ResourceTy that corresponds to the LHS of a let stmt
   pub fn resource_of_lhs(&mut self, expr: &'tcx Expr) -> ResourceTy {
     match expr.kind {
       ExprKind::Path(QPath::Resolved(_, p)) => {
@@ -262,6 +319,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // get the non anonymous lenders and their respective 'active' borrowers
   pub fn get_non_anon_lenders(&self) -> HashMap<String, HashSet<String>> {
     let b_map = self.borrow_map.clone();
     let mut res: HashMap<String, HashSet<String>> = HashMap::new();
@@ -270,13 +328,16 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         ResourceTy::Anonymous => {},
         _ => {
           let lender = v.lender.real_name();
-          res.entry(lender.clone()).and_modify(|lendees| { lendees.insert(k.to_owned()); }).or_insert(HashSet::from([k.to_owned()]));
+          res.entry(lender.clone())
+            .and_modify(|lendees| { lendees.insert(k.to_owned()); })
+            .or_insert(HashSet::from([k.to_owned()]));
         }
       }
     }
     res
   }
 
+  // get borrowers associated with a single lender
   pub fn get_borrowers(&self, borrower: &String) -> HashSet<String> {
     let lender = self.borrow_map.get(borrower).unwrap().lender.clone();
     match lender {
@@ -293,6 +354,10 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // Gonna be honest these functions are poorly named and are all very similar but subtly different
+  // Should probably be changed into a single function with a better name
+
+  // Gets the RAP associated with an expr where we expect expr to resolve to a singular RAP
   pub fn get_rap(&self, expr: &'tcx Expr) -> ResourceTy {
     match expr.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
@@ -338,28 +403,39 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn match_arg(&mut self, arg: &'tcx Expr, fn_name: String) {
-    self.add_fn(fn_name.clone());
-    let line_num = self.expr_to_line(&arg);
-    let tycheck_results = self.tcx.typeck(arg.hir_id.owner);
-    let arg_ty = tycheck_results.node_type(arg.hir_id);
-    let is_copyable = arg_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(arg.hir_id.owner));
-    let from_ro = self.get_rap(arg);
-    let to_ro = ResourceTy::Value(self.raps.get(&fn_name).unwrap().rap.to_owned());
-    if arg_ty.is_ref() {
-      match arg_ty.ref_mutability().unwrap() {
-        Mutability::Not => self.add_ev(line_num, Evt::PassBySRef, to_ro, from_ro, false),
-        Mutability::Mut => self.add_ev(line_num, Evt::PassByMRef, to_ro, from_ro, false)
+  // Basically the same as get_rap but we don't care about function RAPs
+  pub fn fetch_rap(&self, expr: &'tcx Expr) -> Option<ResourceAccessPoint> {
+    match expr.kind {
+      ExprKind::Call(..) | ExprKind::Binary(..) | ExprKind::Lit(_) | ExprKind::MethodCall(..) => None,
+      ExprKind::Path(QPath::Resolved(_,p)) => {
+        let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+        Some(self.raps.get(&name).unwrap().rap.to_owned())
       }
-    }
-    else {
-      match is_copyable {
-        true => self.add_ev(line_num, Evt::Copy, to_ro, from_ro, false),
-        false => self.add_ev(line_num, Evt::Move, to_ro, from_ro, false)
+      ExprKind::AddrOf(_, _, expr) | ExprKind::Unary(_, expr) => self.fetch_rap(expr),
+      ExprKind::Block(b, _) => {
+        match b.expr {
+          Some(expr) => { self.fetch_rap(expr) }
+          None => { panic!("invalid expr for fetching rap") }
+        }
       }
+      ExprKind::Field(expr, ident) => {
+        match expr {
+          Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
+            let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+            let field_name: String = ident.as_str().to_owned();
+            let total_name = format!("{}.{}", name, field_name);
+            Some(self.raps.get(&total_name).unwrap().rap.to_owned())
+          }
+          _ => { panic!("unexpected field expr") }
+        } 
+      }
+      _ => None
     }
   }
 
+  // used to find the lender from the rhs of a let expr
+  // ex: let a = &y; (y is the lender)
+  // it gets a little interesting when rhs involves a * operator
   pub fn find_lender(&self, rhs: &'tcx Expr) -> ResourceTy {
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
@@ -417,6 +493,33 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // add events for arguments in a function call
+  pub fn match_arg(&mut self, arg: &'tcx Expr, fn_name: String) {
+    self.add_fn(fn_name.clone());
+    let line_num = self.expr_to_line(&arg);
+    let tycheck_results = self.tcx.typeck(arg.hir_id.owner);
+    let arg_ty = tycheck_results.node_type(arg.hir_id);
+    let is_copyable = arg_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(arg.hir_id.owner));
+    let from_ro = self.get_rap(arg);
+    let to_ro = ResourceTy::Value(self.raps.get(&fn_name).unwrap().rap.to_owned());
+    // type-check the arg and add event accordingly
+    if arg_ty.is_ref() {
+      match arg_ty.ref_mutability().unwrap() {
+        Mutability::Not => self.add_ev(line_num, Evt::PassBySRef, to_ro, from_ro, false),
+        Mutability::Mut => self.add_ev(line_num, Evt::PassByMRef, to_ro, from_ro, false)
+      }
+    }
+    else {
+      match is_copyable {
+        true => self.add_ev(line_num, Evt::Copy, to_ro, from_ro, false),
+        false => self.add_ev(line_num, Evt::Move, to_ro, from_ro, false)
+      }
+    }
+  }
+
+  // Basically all types are ADTs, but for some types we
+  // don't want to actually represent them as such 
+  // (since users aren't usually going to call String.buf)
   pub fn ty_is_special_owner (&self, t:Ty<'tcx>) -> bool {
     match &*t.sort_string(self.tcx) {
       "`std::string::String`" => { true }
@@ -427,37 +530,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn lender_update(&mut self, new_lender: ResourceTy, curr_borrower: ResourceTy) {
-    let old_lender = self.borrow_map.get(&curr_borrower.real_name()).unwrap().lender.clone();
-    self.lenders.get_mut(&old_lender.real_name()).unwrap().remove(&curr_borrower);
-    self.borrow_map.get_mut(&curr_borrower.real_name()).unwrap().lender = new_lender.clone();
-    match new_lender {
-      ResourceTy::Anonymous => {}
-      _ => {
-        self.lenders.entry(new_lender.name()).
-          and_modify(|v| {v.insert(curr_borrower.clone());}).
-            or_insert(HashSet::from([curr_borrower]));
-      }
-    }
-  }
-
-  pub fn new_aliasing_data(&self, r: Option<ResourceAccessPoint>) -> BTreeMap<usize, String> {
-    let mut aliasing: BTreeMap<usize, String> = BTreeMap::new();
-    match r {
-      Some(r) => {
-        if r.is_ref() {
-          aliasing.insert(1, r.name().to_owned());
-          println!("r {:#?}", r);
-          // for (k, v) in self.borrow_map.get(r.name()).unwrap().aliasing.iter() {
-          //   aliasing.insert(*k + 1, v.to_owned());
-          // }
-        }
-      }
-      None => println!("aliasing something unknown"),
-    }
-    aliasing
-  }
-
+  // Update the aliasing data for an alias
   pub fn update_aliasing_data(& mut self, alias: &String, new_data: &BTreeMap<usize, String>, offset: usize) {
     let ref_data = self.borrow_map.get_mut(alias).unwrap();
     for (k, v) in new_data {
@@ -484,6 +557,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // 
   pub fn get_ref_data(&self, expr: &'tcx Expr) -> (ResourceTy, VecDeque<String>){
     // ex:
     // let a = &b (where b has type &&i32)
@@ -514,6 +588,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // Add a RAP to our collection of raps for a let stmt
   pub fn define_lhs(&mut self, lhs_name: String, lhs_mutability: bool, rhs_expr: &'tcx Expr, lhs_ty: Ty <'tcx>) {
     if lhs_ty.is_ref() {
       let (lender, aliasing) = self.get_ref_data(&rhs_expr);
@@ -536,7 +611,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           }
         },
         AdtKind::Union => {
-          panic!("lhs union not implemented yet")
+          warn!("lhs union not implemented yet")
         },
         AdtKind::Enum => {
           self.add_owner(lhs_name, lhs_mutability, self.current_scope, !self.inside_branch);
@@ -544,42 +619,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       }
     }
     else if lhs_ty.is_fn() {
-      panic!("cannot have fn as lhs of expr");
+      error!("cannot have fn as lhs of expr");
     }
     else { 
       self.add_owner(lhs_name, lhs_mutability, self.current_scope, !self.inside_branch);
     }
   }
 
-  pub fn fetch_rap(&self, expr: &'tcx Expr) -> Option<ResourceAccessPoint> {
-    match expr.kind {
-      ExprKind::Call(..) | ExprKind::Binary(..) | ExprKind::Lit(_) | ExprKind::MethodCall(..) => None,
-      ExprKind::Path(QPath::Resolved(_,p)) => {
-        let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-        Some(self.raps.get(&name).unwrap().rap.to_owned())
-      }
-      ExprKind::AddrOf(_, _, expr) | ExprKind::Unary(_, expr) => self.fetch_rap(expr),
-      ExprKind::Block(b, _) => {
-        match b.expr {
-          Some(expr) => { self.fetch_rap(expr) }
-          None => { panic!("invalid expr for fetching rap") }
-        }
-      }
-      ExprKind::Field(expr, ident) => {
-        match expr {
-          Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
-            let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
-            let field_name: String = ident.as_str().to_owned();
-            let total_name = format!("{}.{}", name, field_name);
-            Some(self.raps.get(&total_name).unwrap().rap.to_owned())
-          }
-          _ => { panic!("unexpected field expr") }
-        } 
-      }
-      _ => None
-    }
-  }
-
+  // Get a string representation of a Path - usually used as a name for a RAP
   pub fn string_of_path(&self, p: &Path) -> String {
     match p.res {
       Res::Def(rustc_hir::def::DefKind::Ctor(_, _), _) => {
@@ -598,6 +645,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // Get the name of a pattern
+  // used for getting names of arms of Match expr
   pub fn get_name_of_pat(&self, pat: &Pat) -> String {
     match pat.kind {
       PatKind::Binding(_, _, ident, _) => ident.to_string(),
@@ -627,6 +676,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // Add a RAP for each variable bound in a pattern
   pub fn get_dec_of_pat2<'t>(
     &mut self,
     pat: &Pat,
@@ -648,6 +698,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
             let line_num = self.span_to_line(&ident.span); // Assuming self.span_to_line exists
             let ty: Ty<'tcx> = ty_results.node_type(id);
             let name = ident.to_string();
+            // copied code - should definetly make a function of this
             if ty.is_ref() {
                 let ref_mutability = bool_of_mut(ty.ref_mutability().unwrap()); // You need to define this function
                 self.add_ref(name.clone(), ref_mutability, muta, line_num, parent.clone(), VecDeque::new(), scope, false);
@@ -686,61 +737,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
 }
 
-  // pub fn get_decl_of_pat(&mut self, pat: &Pat, ty_results: &TypeckResults, parent: &ResourceTy, scope: usize) -> HashSet<ResourceAccessPoint> {
-  //   let mut res = HashSet::new();
-  //   match pat.kind {
-  //     PatKind::TupleStruct(_p, tuple_members, _) => {
-  //       for p in tuple_members.iter() {
-  //         let other: HashSet<ResourceAccessPoint> = self.get_decl_of_pat(p, ty_results, parent, scope);
-  //         res = res.union(&other).cloned().collect();
-  //       }
-
-  //     }
-  //     PatKind::Binding(mode, id, ident, _) => {
-  //       // hacky fix for GoOutOfScope events
-  //       let old_scope = self.current_scope;
-  //       self.current_scope = scope; 
-  //       // add raps that appear in binding
-  //       let muta = bool_of_mut(mode.1);
-  //       let line_num = self.span_to_line(&ident.span);
-  //       let ty = ty_results.node_type(id);
-  //       let name = ident.to_string();
-  //       if ty.is_ref() {
-  //         let ref_mutability = bool_of_mut(ty.ref_mutability().unwrap());
-  //         self.add_ref(name.clone(), ref_mutability, muta, line_num, parent.clone(), VecDeque::new());
-  //       }
-  //       else if ty.is_adt() {
-  //         match ty.ty_adt_def().unwrap().adt_kind() {
-  //           AdtKind::Struct => {
-  //             let owner_hash = self.rap_hashes as u64;
-  //             self.add_struct(name.clone(), owner_hash, false, muta, scope);
-  //             for field in ty.ty_adt_def().unwrap().all_fields() {
-  //               let field_name = format!("{}.{}", name, field.name.as_str());
-  //               self.add_struct(field_name, owner_hash, true, muta);
-  //             }
-  //           },
-  //           AdtKind::Union => {
-  //             panic!("union not implemented yet")
-  //           },
-  //           AdtKind::Enum => {
-  //             self.add_owner(name.clone(), muta);
-  //           }
-  //         }
-          
-  //       }
-  //       else {
-  //         self.add_owner(name.clone(), muta);
-  //       }
-  //       self.current_scope = old_scope;
-
-  //       res.insert(self.raps.get(&name).unwrap().rap.to_owned());
-  //     }
-  //     _ => {}
-  //   }
-  //   res
-
-  // }
-
   pub fn get_decl_of_block(&self, block: & 'tcx rustc_hir::Block) -> HashSet<ResourceAccessPoint>{
     let mut res:HashSet<ResourceAccessPoint> = HashSet::new();
     for stmt in block.stmts.iter() {
@@ -773,6 +769,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     res
   }
 
+  // Get all the live variables in the expression
+  // where live refers to the variables defined OUTSIDE of the expression
+  // and used inside it. This is distinct from those declared inside it
   pub fn get_live_of_expr(&self, expr: &'tcx Expr) -> HashSet<ResourceAccessPoint> {
     match expr.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
@@ -827,13 +826,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                             }
                           }
                           _ => {
-                            println!("getting here to the println 1");
+                            warn!("getting here to the println 1");
                           }
                         }
                       }
                     }
                   _ => {
-                    println!("getting here to the println 2");
+                    warn!("getting here to the println 2");
                   }
                 }
               }
@@ -901,7 +900,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  // TODO: will probably need to subtract the set of variables that are bound inside a block and those from the set of live variables
   pub fn get_live_of_stmt(&self, stmt: &'tcx Stmt) -> HashSet<ResourceAccessPoint> {
     match stmt.kind {
       StmtKind::Let(ref local) => {
@@ -918,7 +916,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       }
     }
   }
-  pub fn filter_ev(&self, (line_num, ev): &(usize, ExternalEvent), split: usize, merge: usize) -> bool {
+  pub fn filter_ev(&self, (line_num, _ev): &(usize, ExternalEvent), split: usize, merge: usize) -> bool {
     if *line_num <= merge && *line_num >= split {
       true
     }
@@ -927,25 +925,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  pub fn filter_ev_match(&self, (line_num, ev): &(usize, ExternalEvent), split: usize, merge: usize, liveness: &HashSet<ResourceAccessPoint>) -> bool {
-    if *line_num <= merge && *line_num >= split {
-      let (from, to) = ResourceAccessPoint_extract(ev);
-      let ev_is_live = match (from.extract_rap(), to.extract_rap()) {
-        (Some(x), Some(y)) => {
-          liveness.contains(x) || liveness.contains(y)
-        }
-        (Some(x), _) | (_, Some(x)) => {
-          liveness.contains(x)
-        }
-        _ => false
-      };
-      ev_is_live
-    }
-    else {
-      false
-    }
-  }
- 
+  // Fetch the mutability of the borrow
   pub fn fetch_mutability(&self, expr: &'tcx Expr) -> Option<Mutability> {
     match expr.kind {
       ExprKind::Block(b, _) => {
@@ -964,6 +944,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // This function does the work of adding an event for let stmts
   pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr, evt: Evt){
     match rhs.kind {
       ExprKind::Path(QPath::Resolved(_,p)) => {
@@ -1059,7 +1040,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       ExprKind::MethodCall(name_and_generic_args, rcvr, _,  _) => {
         let line_num = self.span_to_line(&rcvr.span);
         let fn_name = self.hirid_to_var_name(name_and_generic_args.hir_id).unwrap();
-        //let type_check = self.tcx.typeck(name_and_generic_args.hir_id.owner);
         let rhs_rap = self.raps.get(&fn_name).unwrap().rap.to_owned();
         self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap), false);
       }
@@ -1111,6 +1091,9 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           None => {}
         }
       },
+      // TODO: implement conditional let bindings:
+      // let x = if {} else {};
+      // let x = match z {};
       ExprKind::If(_, if_block, else_block) => {
         self.match_rhs(lhs.clone(), &if_block, evt.clone());
         match else_block {
@@ -1127,8 +1110,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
-  // pub fn handle_ret(&mut self, )
-  
+  // add GOS events for RAPs in the current scope  
   pub fn print_out_of_scope(&mut self){
     for (_, rap) in self.raps.clone().iter() {
       // need this to avoid duplicating out of scope events, this is due to the fact that RAPS is a map that lives over multiple fn ctxts
@@ -1211,13 +1193,30 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     z
   }
   
+  // This is where we annotate all RefDie events that were not handled by the assignment operator
   pub fn print_lifetimes(&mut self){
-    //println!("LIFETIME MAP: {:#?}", self.lifetime_map);
-    println!("BORROW MAP {:#?}", self.borrow_map);
+
+    // first refine the loans that we've computed using MIR information
+    // this is necessary for some cases where we can't know where a lifetime actually ends
+    // see tests/basic_if7.rs for an example
+    let mir_b_data = self.gather_borrow_data(&self.bwf);
+    for (_name, data) in self.borrow_map.iter_mut() {
+      for m_data in mir_b_data.iter() {
+        match ExprVisitor::borrow_match(data, m_data) {
+          Some(kill) => {
+            data.lifetime = kill;
+            break;
+          }
+          None => {}
+        }
+      }
+    }
+    
+    info!("BORROW MAP {:#?}", self.borrow_map);
     //let lifetime_map = self.lifetime_map.clone();
     let mut ultimate_refs: HashSet<String> = HashSet::new();
     let lender_to_refs = self.get_non_anon_lenders();
-    println!("lender to refs {:#?}", lender_to_refs);
+    info!("lender to refs {:#?}", lender_to_refs);
 
     // loop through each lender's 'active' references and get the ultimate reference (the one with the longest lifetime)
     for (_, refs) in lender_to_refs.iter() {
@@ -1225,7 +1224,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       let mut ultimate_ref: &str = &String::from("");
       // need to seperate borrows into regions for each lender
       let regions = self.get_regions(refs);
-      println!("regions {:#?}", regions);
       // append an ultimate reference for each region
       for region in regions.iter() {
         for r in region {
@@ -1248,8 +1246,6 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         _ => {}
       }
     }
-
-    println!("ultimate refs {:#?}", ultimate_refs);
     let b_map = self.borrow_map.clone();
 
     // sort by number of aliases so events are ordered in a proper cascading fashion

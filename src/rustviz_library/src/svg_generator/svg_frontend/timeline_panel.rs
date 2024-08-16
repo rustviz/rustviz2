@@ -631,36 +631,6 @@ fn render_dots_string(
     }
 }
 
-
-
-// leverage the fact that ExternalEvent Branch structure mirrors that of an Event Branch
-fn traverse_timeline<'a> (gep: & mut VecDeque<(usize, usize)>, history: & 'a Vec<(usize, Event)>) -> & 'a TimelineColumnData {
-    // get frequency (ith branch in history, and index of next branch)
-    let (freq, index) = gep.front().unwrap().clone();
-    gep.pop_front();
-    let mut found = 0;
-    for (_, e) in history.iter() {
-        match e {
-            Event::Branch { branch_history, .. } => {
-                found += 1;
-                if found == freq {
-                    if gep.is_empty() {
-                        return &branch_history.get(index).unwrap().t_data
-                    }
-                    else {
-                        return traverse_timeline(gep, &branch_history.get(index).unwrap().e_data)
-                    }
-                }
-                else {
-                    continue
-                }
-            }
-            _ => {}
-        }
-    }
-    unreachable!()
-}
-
 fn traverse_timeline2<'a> (t: &'a TimelineColumnData, history: & 'a Vec<(usize, Event)>, id: usize) -> Option<& 'a TimelineColumnData> {
     for (_, e) in history {
         match e {
@@ -738,33 +708,6 @@ fn fetch_line_map<'a>(
         Some(t) => t,
         None => panic!("Error getting a line map")
     }
-}
-
-
-fn traverse_events<'a> (gep: & mut VecDeque<(usize, usize)>, history: & 'a Vec<(usize, ExternalEvent)>) -> & 'a BTreeMap<usize, Vec<ExternalEvent>> {
-    let (freq, index) = gep.front().unwrap().clone();
-    gep.pop_front();
-    let mut found = 0;
-    for (_, e) in history.iter() {
-        match e {
-            ExternalEvent::Branch { branches, .. } => {
-                found += 1;
-                if found == freq {
-                    if gep.is_empty() {
-                        return &branches.get(index).unwrap().line_map
-                    }
-                    else {
-                        return traverse_events(gep, &branches.get(index).unwrap().e_data)
-                    }
-                }
-                else {
-                    continue
-                }
-            }
-            _ => {}
-        }
-    }
-    unreachable!()
 }
 
 // render arrow

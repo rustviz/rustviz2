@@ -1,11 +1,101 @@
 use anyhow::{Result, anyhow};
-use regex::Regex;
+use rustc_middle::ty::TyCtxt;
 use rustviz_lib::data::ExternalEvent;
 use std::collections::{HashMap, BTreeMap};
 use std::{path::PathBuf, fs};
 use std::env::current_dir;
 use rustviz_library::Rustviz;
 use std::fs::File;
+
+use crate::expr_visitor::RapData;
+
+// toplevel annotation helpers
+pub fn annotate_struct_field (
+  line_str: &str,
+  hash_map: & mut HashMap<String, usize>,
+  a_map: & mut BTreeMap<usize, Vec<String>>,
+  hashes: & mut usize,
+  field: & rustc_hir::FieldDef,
+  m: & TyCtxt
+) {
+  let name:String = field.ident.as_str().to_owned();
+  let hash = *hash_map.entry(name.clone()).or_insert_with(|| {
+    let current_hash = *hashes;
+    *hashes = (*hashes + 1) % 10;
+    current_hash
+  });
+
+  let line: usize = m.sess.source_map().lookup_char_pos(field.span.lo()).line;
+  let left: usize = m.sess.source_map().lookup_char_pos(field.span.lo()).col_display;
+  let right: usize = m.sess.source_map().lookup_char_pos(field.span.hi()).col_display;
+
+  let mut line_contents = line_str.to_string();
+  let replace_with = format!("[_tspan data-hash=\"{}\"_]{}[_/tspan_]", hash, name);
+  line_contents.replace_range(left..right, &replace_with);
+  let v = a_map.get_mut(&line).unwrap();
+  if !v.contains(&line_contents) {
+    v.push(line_contents);
+  }
+}
+
+
+pub fn annotate_toplevel_fn (
+  func_ident: rustc_span::symbol::Ident, 
+  line_str: &str, 
+  raps: & HashMap<String, RapData>,
+  a_map: & mut BTreeMap<usize, Vec<String>>,
+  hashes: & mut usize,
+  m: &TyCtxt)  {
+  let func_name = func_ident.as_str().to_owned();
+  
+  let line: usize = m.sess.source_map().lookup_char_pos(func_ident.span.lo()).line;
+  let left: usize = m.sess.source_map().lookup_char_pos(func_ident.span.lo()).col_display;
+  let right: usize = m.sess.source_map().lookup_char_pos(func_ident.span.hi()).col_display;
+  let hash = match raps.get(&func_name) {
+    Some(r) => { *r.rap.hash() }
+    None => {
+      let current_hash = *hashes;
+      *hashes = (*hashes + 1) % 10;
+      current_hash as u64
+    }
+  };
+
+
+  let mut line_contents = line_str.to_string();
+  let replace_with: String = format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, func_name);
+  line_contents.replace_range(left..right, &replace_with);
+  let v = a_map.get_mut(&line).unwrap();
+  if !v.contains(&line_contents) {
+    v.push(line_contents);
+  }
+}
+
+pub fn annotate_enum_variant(
+  ctor_name: &str, 
+  parent_name: &str,
+  variant: & rustc_hir::Variant,
+  rap_map: & HashMap<String, RapData>,
+  a_map: & mut BTreeMap<usize, Vec<String>>,
+  m: & TyCtxt
+) {
+  let rap_name = format!("{}::{}", parent_name, ctor_name);
+  if rap_map.contains_key(&rap_name) {
+    let span = variant.ident.span;
+    let hash = rap_map.get(&rap_name).unwrap().rap.hash();
+    let line: usize = m.sess.source_map().lookup_char_pos(span.lo()).line;
+    let left: usize = m.sess.source_map().lookup_char_pos(span.lo()).col_display;
+    let line_str = &a_map[&line][0];
+    let right = m.sess.source_map().lookup_char_pos(span.hi()).col_display;
+
+    let mut line_contents = line_str.to_string();
+    let replace_with = format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, ctor_name);
+    line_contents.replace_range(left..right, &replace_with);
+    let v = a_map.get_mut(&line).unwrap();
+    if !v.contains(&line_contents) {
+      v.push(line_contents);
+    }
+  }
+}
 
 
 pub struct RV1Helper {
@@ -135,6 +225,7 @@ fn union_strings (strings: &Vec<String>) -> String {
 }
 
 pub fn generate_annotated_src(annotated_line_map: & mut BTreeMap<usize, Vec<String>>) -> String {
+  println!("annotated line_map {:#?}", annotated_line_map);
   let mut annotated_str = String::new();
   for (_k, v) in annotated_line_map {
     annotated_str.push_str(&union_strings(v));

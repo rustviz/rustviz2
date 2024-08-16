@@ -24,6 +24,7 @@ regex = "1"
 fluid-let = "1.0"
 rustc_utils = {version = "0.10.0-nightly-2024-05-20", features = ["graphviz", "ts-rs", "serde", "test"]}
 rustc_plugin = {version = "0.10.0-nightly-2024-05-20"}
+simplelog = "0.11"
 
 # testing utils
 lazy_static = { version = "1.4", optional = true }

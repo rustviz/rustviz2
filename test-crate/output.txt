@@ -1,3 +1,9 @@
+14:02:33 [INFO] hello?
+locals map {
+    _1: "y",
+    _3: "x",
+    _2: "c",
+}
 body string fn main() -> () {
     let mut _0: ();
     let _4: ();
@@ -204,77 +210,6 @@ body string fn main() -> () {
     }
 }
 
-name map {
-    "c": _2,
-    "x": _3,
-    "y": _1,
-}
-local map {
-    _2: {
-        bw0,
-    },
-    _1: {
-        bw1,
-    },
-    _3: {
-        bw2,
-    },
-    _19: {
-        bw3,
-    },
-}
-location map {
-    bb0[7]: BorrowData {
-        reserve_location: bb0[7],
-        activation_location: NotTwoPhase,
-        kind: Shared,
-        region: '?9,
-        borrowed_place: _2,
-        assigned_place: _3,
-    },
-    bb1[2]: BorrowData {
-        reserve_location: bb1[2],
-        activation_location: NotTwoPhase,
-        kind: Shared,
-        region: '?10,
-        borrowed_place: _1,
-        assigned_place: _7,
-    },
-    bb4[20]: BorrowData {
-        reserve_location: bb4[20],
-        activation_location: NotTwoPhase,
-        kind: Shared,
-        region: '?18,
-        borrowed_place: _3,
-        assigned_place: _22,
-    },
-    bb5[3]: BorrowData {
-        reserve_location: bb5[3],
-        activation_location: NotTwoPhase,
-        kind: Shared,
-        region: '?23,
-        borrowed_place: _19,
-        assigned_place: _18,
-    },
-}
-loan regions {
-    bw0: (
-        4,
-        13,
-    ),
-    bw1: (
-        5,
-        13,
-    ),
-    bw3: (
-        13,
-        13,
-    ),
-    bw2: (
-        13,
-        13,
-    ),
-}
 loan issued at (
     '?9,
     bw0,
@@ -331,7 +266,6 @@ local decl LocalDecl {
         scope: scope[6],
     },
 }
-span mut c (3:7-3:12)
 assigned place Some(
     "x",
 ), as local Some(
@@ -367,7 +301,6 @@ local decl LocalDecl {
         scope: scope[9],
     },
 }
-span mut x (4:7-4:12)
 loan issued at (
     '?10,
     bw1,
@@ -424,7 +357,6 @@ local decl LocalDecl {
         scope: scope[3],
     },
 }
-span mut y (2:7-2:12)
 assigned place None, as local Some(
     _7,
 )
@@ -441,7 +373,6 @@ local decl LocalDecl {
         scope: scope[0],
     },
 }
-span &y (7:11-7:13)
 loan issued at (
     '?18,
     bw2,
@@ -498,7 +429,6 @@ local decl LocalDecl {
         scope: scope[9],
     },
 }
-span mut x (4:7-4:12)
 assigned place None, as local Some(
     _22,
 )
@@ -515,7 +445,6 @@ local decl LocalDecl {
         scope: scope[0],
     },
 }
-span x (13:21-13:22)
 loan issued at (
     '?23,
     bw3,
@@ -553,7 +482,6 @@ local decl LocalDecl {
         scope: scope[0],
     },
 }
-span $crate::format_args_nl!($($arg)*) (143:28-143:61)
 assigned place None, as local Some(
     _18,
 )
@@ -570,27 +498,550 @@ local decl LocalDecl {
         scope: scope[0],
     },
 }
-span $crate::format_args_nl!($($arg)*) (143:28-143:61)
-loan bw1 killed at LocationIndex(3)
-line 2
-loan bw0 killed at LocationIndex(9)
-line 3
-loan bw2 killed at LocationIndex(15)
-line 4
-loan bw2 killed at LocationIndex(35)
-line 7
-loan bw0 killed at LocationIndex(45)
-line 8
-loan bw3 killed at LocationIndex(103)
-line 13
-loan bw3 killed at LocationIndex(127)
-line 13
-loan bw2 killed at LocationIndex(141)
-line 14
-loan bw0 killed at LocationIndex(143)
-line 14
-loan bw1 killed at LocationIndex(145)
-line 14
+raps {
+    "c": RapData {
+        rap: Owner(
+            Owner {
+                name: "c",
+                hash: 2,
+                is_mut: true,
+            },
+        ),
+        scope: 14,
+        is_global: true,
+    },
+    "x": RapData {
+        rap: StaticRef(
+            StaticRef {
+                name: "x",
+                hash: 3,
+                is_mut: true,
+            },
+        ),
+        scope: 14,
+        is_global: true,
+    },
+    "println!": RapData {
+        rap: Function(
+            Function {
+                name: "println!",
+                hash: 4,
+            },
+        ),
+        scope: 144,
+        is_global: true,
+    },
+    "y": RapData {
+        rap: Owner(
+            Owner {
+                name: "y",
+                hash: 1,
+                is_mut: true,
+            },
+        ),
+        scope: 14,
+        is_global: true,
+    },
+}
+locals map {
+    _3: "x",
+    _1: "y",
+    _2: "c",
+}
+body string fn main() -> () {
+    let mut _0: ();
+    let _4: ();
+    let mut _5: bool;
+    let mut _6: &'?29 i32;
+    let _7: &'?30 i32;
+    let mut _8: (i32, bool);
+    let _9: ();
+    let _10: ();
+    let mut _11: std::fmt::Arguments<'?31>;
+    let mut _12: &'?32 [&'?33 str];
+    let mut _13: &'?34 [&'?35 str; 2];
+    let _14: &'?36 [&'?37 str; 2];
+    let _15: [&'?38 str; 2];
+    let mut _16: &'?39 [core::fmt::rt::Argument<'?40>];
+    let mut _17: &'?41 [core::fmt::rt::Argument<'?42>; 1];
+    let _18: &'?43 [core::fmt::rt::Argument<'?44>; 1];
+    let _19: [core::fmt::rt::Argument<'?45>; 1];
+    let mut _20: core::fmt::rt::Argument<'?46>;
+    let mut _21: &'?47 &'?48 i32;
+    let _22: &'?49 &'?50 i32;
+    scope 1 {
+        scope 2 {
+            debug y => _1;
+            scope 5 {
+                debug c => _2;
+                scope 8 {
+                    debug x => _3;
+                    scope 12 {
+                        scope 13 {
+                            scope 14 {
+                            }
+                        }
+                        scope 15 {
+                            scope 16 {
+                                scope 17 {
+                                    scope 18 {
+                                    }
+                                }
+                                scope 19 {
+                                }
+                            }
+                            scope 20 {
+                                scope 21 {
+                                }
+                                scope 22 {
+                                }
+                            }
+                        }
+                    }
+                    scope 23 {
+                        scope 24 {
+                            scope 25 {
+                            }
+                            scope 26 {
+                                scope 27 {
+                                }
+                                scope 28 {
+                                    let mut _23: &'?51 [&'?52 str; 2];
+                                    scope 29 {
+                                        scope 30 {
+                                        }
+                                        scope 31 {
+                                        }
+                                    }
+                                }
+                                scope 32 {
+                                    scope 33 {
+                                        scope 34 {
+                                            scope 35 {
+                                            }
+                                            scope 36 {
+                                                scope 37 {
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                scope 9 {
+                    let mut _3: &'?28 i32;
+                    scope 10 {
+                        scope 11 {
+                        }
+                    }
+                }
+            }
+            scope 6 {
+                let mut _2: i32;
+                scope 7 {
+                }
+            }
+        }
+        scope 3 {
+            let mut _1: i32;
+            scope 4 {
+            }
+        }
+    }
+
+    bb0: {
+        StorageLive(_1);
+        _1 = const 7_i32;
+        FakeRead(ForLet(None), _1);
+        StorageLive(_2);
+        _2 = const 5_i32;
+        FakeRead(ForLet(None), _2);
+        StorageLive(_3);
+        _3 = &'?9 _2;
+        FakeRead(ForLet(None), _3);
+        StorageLive(_4);
+        StorageLive(_5);
+        _5 = const true;
+        switchInt(move _5) -> [0: bb3, otherwise: bb1];
+    }
+
+    bb1: {
+        StorageLive(_6);
+        StorageLive(_7);
+        _7 = &'?10 _1;
+        _6 = &'?11 (*_7);
+        _3 = move _6;
+        StorageDead(_6);
+        StorageDead(_7);
+        _8 = CheckedAdd(_2, const 7_i32);
+        assert(!move (_8.1: bool), "attempt to compute `{} + {}`, which would overflow", _2, const 7_i32) -> [success: bb2, unwind: bb8];
+    }
+
+    bb2: {
+        _2 = move (_8.0: i32);
+        _4 = const ();
+        goto -> bb4;
+    }
+
+    bb3: {
+        _4 = const ();
+        goto -> bb4;
+    }
+
+    bb4: {
+        StorageDead(_5);
+        StorageDead(_4);
+        StorageLive(_9);
+        StorageLive(_10);
+        StorageLive(_11);
+        StorageLive(_12);
+        StorageLive(_13);
+        StorageLive(_14);
+        _23 = const main::promoted[0];
+        _14 = &'?14 (*_23);
+        _13 = &'?15 (*_14);
+        _12 = move _13 as &'?16 [&'?17 str] (PointerCoercion(Unsize));
+        StorageDead(_13);
+        StorageLive(_16);
+        StorageLive(_17);
+        StorageLive(_18);
+        StorageLive(_19);
+        StorageLive(_20);
+        StorageLive(_21);
+        StorageLive(_22);
+        _22 = &'?18 _3;
+        _21 = &'?19 (*_22);
+        _20 = core::fmt::rt::Argument::<'?20>::new_display::<&'?21 i32>(move _21) -> [return: bb5, unwind: bb8];
+    }
+
+    bb5: {
+        StorageDead(_21);
+        _19 = [move _20];
+        StorageDead(_20);
+        _18 = &'?23 _19;
+        _17 = &'?24 (*_18);
+        _16 = move _17 as &'?25 [core::fmt::rt::Argument<'?26>] (PointerCoercion(Unsize));
+        StorageDead(_17);
+        _11 = std::fmt::Arguments::<'?27>::new_v1(move _12, move _16) -> [return: bb6, unwind: bb8];
+    }
+
+    bb6: {
+        StorageDead(_16);
+        StorageDead(_12);
+        _10 = std::io::_print(move _11) -> [return: bb7, unwind: bb8];
+    }
+
+    bb7: {
+        StorageDead(_11);
+        StorageDead(_22);
+        StorageDead(_19);
+        StorageDead(_18);
+        StorageDead(_14);
+        StorageDead(_10);
+        _9 = const ();
+        StorageDead(_9);
+        _0 = const ();
+        StorageDead(_3);
+        StorageDead(_2);
+        StorageDead(_1);
+        return;
+    }
+
+    bb8 (cleanup): {
+        resume;
+    }
+}
+
+loan issued at (
+    '?9,
+    bw0,
+    LocationIndex(15),
+)
+borrow_data for location bb0[7] : BorrowData {
+    reserve_location: bb0[7],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?9,
+    borrowed_place: _2,
+    assigned_place: _3,
+}
+borrowed_place: Some(
+    "c",
+), as local: Some(
+    _2,
+)
+is source visible? true
+region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+local decl LocalDecl {
+    mutability: Mut,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Mut,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:3:15: 3:16 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:3:7: 3:12 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:3:7: 3:12 (#0),
+        scope: scope[6],
+    },
+}
+assigned place Some(
+    "x",
+), as local Some(
+    _3,
+)
+is source visible? true
+local decl LocalDecl {
+    mutability: Mut,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Mut,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:4:15: 4:17 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:4:7: 4:12 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: &'?28 i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:4:7: 4:12 (#0),
+        scope: scope[9],
+    },
+}
+loan issued at (
+    '?10,
+    bw1,
+    LocationIndex(31),
+)
+borrow_data for location bb1[2] : BorrowData {
+    reserve_location: bb1[2],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?10,
+    borrowed_place: _1,
+    assigned_place: _7,
+}
+borrowed_place: Some(
+    "y",
+), as local: Some(
+    _1,
+)
+is source visible? true
+region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+local decl LocalDecl {
+    mutability: Mut,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Mut,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:2:15: 2:16 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:2:7: 2:12 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:2:7: 2:12 (#0),
+        scope: scope[3],
+    },
+}
+assigned place None, as local Some(
+    _7,
+)
+is source visible? false
+local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: &'?30 i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:7:11: 7:13 (#0),
+        scope: scope[0],
+    },
+}
+loan issued at (
+    '?18,
+    bw2,
+    LocationIndex(95),
+)
+borrow_data for location bb4[20] : BorrowData {
+    reserve_location: bb4[20],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?18,
+    borrowed_place: _3,
+    assigned_place: _22,
+}
+borrowed_place: Some(
+    "x",
+), as local: Some(
+    _3,
+)
+is source visible? true
+region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+local decl LocalDecl {
+    mutability: Mut,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Mut,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:4:15: 4:17 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:4:7: 4:12 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: &'?28 i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:4:7: 4:12 (#0),
+        scope: scope[9],
+    },
+}
+assigned place None, as local Some(
+    _22,
+)
+is source visible? false
+local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: &'?49 &'?50 i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:13:21: 13:22 (#5),
+        scope: scope[0],
+    },
+}
+loan issued at (
+    '?23,
+    bw3,
+    LocationIndex(107),
+)
+borrow_data for location bb5[3] : BorrowData {
+    reserve_location: bb5[3],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?23,
+    borrowed_place: _19,
+    assigned_place: _18,
+}
+borrowed_place: None, as local: Some(
+    _19,
+)
+is source visible? false
+region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: [core::fmt::rt::Argument<'?45>; 1_usize],
+    user_ty: None,
+    source_info: SourceInfo {
+        span: /home/mahleran/.rustup/toolchains/nightly-2024-05-20-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/macros.rs:143:28: 143:61 (#5),
+        scope: scope[0],
+    },
+}
+assigned place None, as local Some(
+    _18,
+)
+is source visible? false
+local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: &'?43 [core::fmt::rt::Argument<'?44>; 1_usize],
+    user_ty: None,
+    source_info: SourceInfo {
+        span: /home/mahleran/.rustup/toolchains/nightly-2024-05-20-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/macros.rs:143:28: 143:61 (#5),
+        scope: scope[0],
+    },
+}
 BORROW MAP {
     "x": RefData {
         lender: Value(
@@ -602,7 +1053,7 @@ BORROW MAP {
                 },
             ),
         ),
-        assigned_at: 4,
+        assigned_at: 7,
         lifetime: 13,
         ref_mutability: false,
         aliasing: [],
@@ -620,6 +1071,58 @@ regions [
 ]
 ultimate refs {
     "x",
+}
+annotated line_map {
+    1: [
+        "fn main () {",
+    ],
+    2: [
+        "  let mut y = 7;",
+        "  let mut [_tspan data-hash=\"1\"_]y[_/tspan_] = 7;",
+    ],
+    3: [
+        "  let mut c = 5;",
+        "  let mut [_tspan data-hash=\"2\"_]c[_/tspan_] = 5;",
+    ],
+    4: [
+        "  let mut x = &c;",
+        "  let mut [_tspan data-hash=\"3\"_]x[_/tspan_] = &c;",
+        "  let mut x = &[_tspan data-hash=\"2\"_]c[_/tspan_];",
+    ],
+    5: [
+        "  if true {",
+    ],
+    6: [
+        "      ",
+    ],
+    7: [
+        "      x = &y;",
+        "      [_tspan data-hash=\"3\"_]x[_/tspan_] = &y;",
+        "      x = &[_tspan data-hash=\"1\"_]y[_/tspan_];",
+    ],
+    8: [
+        "      c += 7;",
+        "      [_tspan data-hash=\"2\"_]c[_/tspan_] += 7;",
+    ],
+    9: [
+        "  }",
+    ],
+    10: [
+        "  // c += 7;",
+    ],
+    11: [
+        "",
+    ],
+    12: [
+        "",
+    ],
+    13: [
+        "  println!(\" x {}\", x);",
+        "  println!(\" x {}\", [_tspan data-hash=\"3\"_]x[_/tspan_]);",
+    ],
+    14: [
+        "}",
+    ],
 }
 preprocessed events : [
     (
@@ -1348,8 +1851,8 @@ multiple arrow events [
     },
 ]
 skippable events {
-    2,
     8,
+    2,
 }
 line 14 event GoOutOfScope {
     ro: Owner(
@@ -1362,8 +1865,8 @@ line 14 event GoOutOfScope {
     id: 9,
 }
 skippable events {
-    2,
     8,
+    2,
 }
 line 14 event GoOutOfScope {
     ro: StaticRef(
@@ -1376,8 +1879,8 @@ line 14 event GoOutOfScope {
     id: 10,
 }
 skippable events {
-    2,
     8,
+    2,
 }
 line 14 event GoOutOfScope {
     ro: Owner(
@@ -1390,8 +1893,8 @@ line 14 event GoOutOfScope {
     id: 11,
 }
 insert line map {
-    7: 1,
     4: 0,
+    7: 1,
     14: 0,
 }
 processed events [
@@ -1760,10 +2263,10 @@ processed line map {
     ],
 }
 w_map {
-    4: 0,
     1: 2,
-    2: 2,
     3: 2,
+    2: 2,
+    4: 0,
 }
 hash 1, timeline Timeline {
     resource_access_point: Owner(

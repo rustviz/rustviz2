@@ -48,7 +48,12 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
         }
         _ => (self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned(), false)
       };
-      self.annotate_src(name.clone(), p.span, is_func, *self.raps.get(&name).unwrap().rap.hash());
+      match self.raps.get(&name) {
+        Some(r) => {
+          self.annotate_src(name.clone(), p.span, is_func, *r.rap.hash());
+        }
+        None => {}
+      }
     }
     ExprKind::Call(fn_expr, fn_args) => {
       match fn_expr.kind {
@@ -139,7 +144,11 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
         _ => {}
       }
     }
-    ExprKind::Struct(_, fields, _) => {
+    ExprKind::Struct(qpath, fields, _) => {
+      match qpath {
+        QPath::LangItem(..) => { return; }
+        _ => {}
+      }
       for field in fields.iter() {
         self.annotate_src(field.ident.to_string(), field.ident.span, false, *self.id_map.get(field.ident.as_str()).unwrap() as u64);
         self.annotate_expr(field.expr);
@@ -229,8 +238,13 @@ pub fn annotate_pat(&mut self, pat: &Pat) {
   match pat.kind {
     PatKind::Binding(_, _, ident, _) => {
       let name = ident.as_str().to_owned();
-      let hash = *self.raps.get(&name).unwrap().rap.hash();
-      self.annotate_src(name, ident.span, false, hash);
+      match self.raps.get(&name) {
+        Some(r) => {
+          let hash = *r.rap.hash();
+          self.annotate_src(name, ident.span, false, hash);
+        }
+        None => {}
+      }
     },
     PatKind::TupleStruct(_, pat_list, _) | PatKind::Tuple(pat_list, _)=> {
       for p in pat_list.iter() {

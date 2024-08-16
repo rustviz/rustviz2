@@ -1,111 +1,41 @@
-use crate::rustc_span::Pos;
-use std::collections::{HashMap, BTreeMap, HashSet};
-use rustc_span::source_map::SourceMap;
-// use aquascope::analysis::{AquascopeAnalysis,
-//   boundaries::PermissionsBoundary};
+use std::collections::{HashMap, BTreeMap};
+use simplelog::*;
+use std::fs::OpenOptions;
+use log::{debug, info, error};
 use rustc_hir::intravisit::Visitor;
 use rustc_hir::{ItemKind, FnRetTy};
 use rustc_middle::ty::TyCtxt;
-use rustc_utils::{
-  source_map::range::CharRange,
-  mir::borrowck_facts,
-};
-use rustviz_lib::data::ResourceAccessPoint;
+use rustc_utils::mir::borrowck_facts;
 use crate::expr_visitor::{ExprVisitor, RapData};
 use crate::RVPluginArgs;
-use crate::utils::RV1Helper;
-
-fn annotate_struct_field (
-  line_str: &str,
-  hash_map: & mut HashMap<String, usize>,
-  a_map: & mut BTreeMap<usize, Vec<String>>,
-  hashes: & mut usize,
-  field: & rustc_hir::FieldDef,
-  m: & TyCtxt
-) {
-  let name:String = field.ident.as_str().to_owned();
-  let hash = *hash_map.entry(name.clone()).or_insert_with(|| {
-    let current_hash = *hashes;
-    *hashes = (*hashes + 1) % 10;
-    current_hash
-  });
-
-  let line: usize = m.sess.source_map().lookup_char_pos(field.span.lo()).line;
-  let left: usize = m.sess.source_map().lookup_char_pos(field.span.lo()).col_display;
-  let right: usize = m.sess.source_map().lookup_char_pos(field.span.hi()).col_display;
-
-  let mut line_contents = line_str.to_string();
-  let replace_with = format!("[_tspan data-hash=\"{}\"_]{}[_/tspan_]", hash, name);
-  line_contents.replace_range(left..right, &replace_with);
-  let v = a_map.get_mut(&line).unwrap();
-  if !v.contains(&line_contents) {
-    v.push(line_contents);
-  }
-}
-
-// use regex to help annotate top level fn signature
-fn annotate_toplevel_fn (
-  func_ident: rustc_span::symbol::Ident, 
-  line_str: &str, 
-  raps: & HashMap<String, RapData>,
-  a_map: & mut BTreeMap<usize, Vec<String>>,
-  hashes: & mut usize,
-  m: &TyCtxt)  {
-  let func_name = func_ident.as_str().to_owned();
-  
-  let line: usize = m.sess.source_map().lookup_char_pos(func_ident.span.lo()).line;
-  let left: usize = m.sess.source_map().lookup_char_pos(func_ident.span.lo()).col_display;
-  let right: usize = m.sess.source_map().lookup_char_pos(func_ident.span.hi()).col_display;
-  let hash = match raps.get(&func_name) {
-    Some(r) => { *r.rap.hash() }
-    None => {
-      let current_hash = *hashes;
-      *hashes = (*hashes + 1) % 10;
-      current_hash as u64
-    }
-  };
-
-
-  let mut line_contents = line_str.to_string();
-  let replace_with: String = format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, func_name);
-  line_contents.replace_range(left..right, &replace_with);
-  let v = a_map.get_mut(&line).unwrap();
-  if !v.contains(&line_contents) {
-    v.push(line_contents);
-  }
-}
-
-fn annotate_enum_variant(
-  ctor_name: &str, 
-  parent_name: &str,
-  variant: & rustc_hir::Variant,
-  rap_map: & HashMap<String, RapData>,
-  a_map: & mut BTreeMap<usize, Vec<String>>,
-  m: & TyCtxt
-) {
-  let rap_name = format!("{}::{}", parent_name, ctor_name);
-  if rap_map.contains_key(&rap_name) {
-    let span = variant.ident.span;
-    let hash = rap_map.get(&rap_name).unwrap().rap.hash();
-    let line: usize = m.sess.source_map().lookup_char_pos(span.lo()).line;
-    let left: usize = m.sess.source_map().lookup_char_pos(span.lo()).col_display;
-    let line_str = &a_map[&line][0];
-    let right = m.sess.source_map().lookup_char_pos(span.hi()).col_display;
-
-    let mut line_contents = line_str.to_string();
-    let replace_with = format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, ctor_name);
-    line_contents.replace_range(left..right, &replace_with);
-    let v = a_map.get_mut(&line).unwrap();
-    if !v.contains(&line_contents) {
-      v.push(line_contents);
-    }
-  }
-}
-
+use crate::utils::{RV1Helper, annotate_enum_variant, annotate_toplevel_fn, annotate_struct_field};
 // "The main function"
 pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
 
-  // TESTING HELPER STUFF
+  // configure the logger
+  let log_file = match OpenOptions::new()
+    .create(true)
+    .write(true)
+    .append(true)
+    .open("output.log")
+  {
+    Ok(file) => file,
+    Err(e) => {
+        eprintln!("Error opening log file: {:?}", e);
+        return;
+    }
+  };
+  CombinedLogger::init(
+    vec![
+        WriteLogger::new(
+            LevelFilter::Debug,
+            Config::default(),
+            log_file,
+        )
+    ]
+  ).expect("Failed to initialize logger");
+
+  // Data structures to be passed to visitor
   let mut testing_helper: RV1Helper = RV1Helper::new();
   let mut line_map: BTreeMap<usize, String> = BTreeMap::new();
   let mut line_map2: BTreeMap<usize, Vec<rustviz_lib::data::ExternalEvent>> = BTreeMap::new();
@@ -114,7 +44,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
       line_map = l;
     }
     Err(e) => {
-      eprintln!("{}", e);
+      error!("{}", e);
     }
   }
   let a_map: BTreeMap<usize, String> = line_map.clone();
@@ -130,18 +60,15 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
   let mut rap_hash_num: usize = 1;
   let mut ids: usize = 0;
 
-  // Generate a few things needed for later analysis. They
-  // are basically things generated when compiling code.
-
-  //let analysis_result: Vec<(u64, String)> = Vec::new();
   let hir = tcx.hir().clone();
   
+  // loop through top-level hir items
   for id in hir.items() {
     match &hir.item(id).kind {
-      ItemKind::Struct(vardata, generics) => {
+      ItemKind::Struct(vardata, _generics) => {
         match vardata {
-          // A struct variant E.g., Bar { .. } as in enum Foo { Bar { .. } }.
-          rustc_hir::VariantData::Struct{fields: fields, ..} => {
+          rustc_hir::VariantData::Struct{fields, ..} => {
+            // annotate all the struct fields
             if fields.len() > 0 {
               for field in fields.iter(){
                 let line = tcx.sess.source_map().lookup_char_pos(field.span.lo()).line;
@@ -159,23 +86,19 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
         let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, def_id);
         let body = &bwf.body;
         let output = match fn_sig.decl.output {
-          FnRetTy::Return(ty) => {
+          FnRetTy::Return(_ty) => {
             true
           }
           _ => false
         };
-        // Our analysis begins here. Things are printed out.
-        // run the AquascopeAnalysis and get the result
-        //let result=AquascopeAnalysis::run(tcx,*body_id);
-        let source_map = tcx.sess.source_map();
 
         let mut visitor = ExprVisitor { 
           tcx, 
-          mir_body:body, 
-          //boundary_map,
+          mir_body: body,
+          hir_body: hir_body,
+          bwf: bwf, 
           current_scope: 0,
-          borrow_map: HashMap::new(), // TODO turn this to mut ref
-          lenders: HashMap::new(),
+          borrow_map: HashMap::new(),
           raps: &mut rap_map,
           analysis_result: HashMap::new(),
           event_line_map: & mut line_map2,
@@ -197,6 +120,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
     }
   }
 
+  // annotate items after visiting all function bodies since we can assign hashes to top-level structures in fn bodies
   for id in hir.items() {
     match &hir.item(id).kind {
       ItemKind::Fn(fn_sig, _generic, _body_id) => {
@@ -219,10 +143,8 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
   }
 
   pre_events.sort_by_key(|k| k.0);
-  // println!("EVENTS: {:#?}", pre_events);
-  // println!("LINE MAP {:#?}", line_map2);
 
-  // TESTING HELPER STUFF
+  // Pass information to svg-generator
   match testing_helper.generate_vis(line_map2, pre_events, & mut a_line_map, rap_map.len() + 1) {
     Ok(_) => {}
     Err(e) => {

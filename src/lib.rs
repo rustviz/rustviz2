@@ -1,7 +1,4 @@
 // This file is based on the rust plugin example.
-// After installed with cargo install, call "cargo print-all-items" in the 
-// test file directory. It will compile the test file and run the print_all_items() function.
-// Look at print_all_items() function.
 #![feature(
   rustc_private,
   box_patterns,
@@ -13,8 +10,6 @@
   unboxed_closures,
   exact_size_is_empty,
   btree_cursors,
-  // hash_drain_filter,
-  // drain_filter,
   type_changing_struct_update,
 )]
 #![deny(
@@ -53,37 +48,20 @@
   clippy::similar_names
 )]
 
-//extern crate rustc_ast;
-//extern crate datafrog;
-//extern crate either;
-//extern crate polonius_engine;
-//extern crate rustc_abi;
-//extern crate rustc_apfloat;
-//extern crate rustc_borrowck;
-//sextern crate rustc_const_eval;
-//extern crate rustc_data_structures;
+// Need to include rustc crates like this
+// Haven't figured out how to ignore the red lines in rust-analyzer
+
 extern crate rustc_driver;
-// extern crate rustc_error_messages;
-// extern crate rustc_errors;
 // extern crate rustc_graphviz;
 extern crate rustc_hir;
-// extern crate rustc_hir_pretty;
-// extern crate rustc_index;
-// extern crate rustc_infer;
 extern crate rustc_interface;
-// extern crate rustc_macros;
 extern crate rustc_middle;
-// extern crate rustc_mir_dataflow;
-// extern crate rustc_mir_transform;
-// extern crate rustc_serialize;
-// extern crate rustc_session;
 extern crate rustc_span;
 extern crate rustc_borrowck;
 extern crate polonius_engine;
-// extern crate rustc_target;
-// extern crate rustc_trait_selection;
-// extern crate rustc_type_ir;
-// extern crate smallvec;
+extern crate rustc_mir_dataflow;
+
+
 use std::{borrow::Cow, env};
 use clap::Parser;
 use rustc_plugin::{CrateFilter, RustcPlugin, RustcPluginArgs, Utf8Path};
@@ -106,6 +84,8 @@ pub struct RVPluginArgs {
   allcaps: bool,//can set default value
 }
 
+
+// https://github.com/cognitive-engineering-lab/rustc_plugin
 impl RustcPlugin for RVPlugin {
   type Args = RVPluginArgs;
 
