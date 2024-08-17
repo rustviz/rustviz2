@@ -154,11 +154,11 @@ pub fn render_timeline_panel(visualization_data : & mut VisualizationData) -> (S
     
     // render resource owner labels
     render_timelines(&mut output, visualization_data, &resource_owners_layout, &registry); // vertical bars
-    render_labels_string(&mut output, &resource_owners_layout, &registry); 
-    render_dots_string(&mut output, visualization_data, &resource_owners_layout, &registry);
-    render_ref_line(&mut output, visualization_data, &resource_owners_layout, &registry);
-    render_arrows_string_external_events_version(&mut output, visualization_data, &resource_owners_layout, &registry);
-    render_struct_box(&mut output, &structs_info, &registry);
+    render_labels_string(&mut output, &resource_owners_layout, &registry); // headers
+    render_dots_string(&mut output, visualization_data, &resource_owners_layout, &registry); // dot events
+    render_ref_line(&mut output, visualization_data, &resource_owners_layout, &registry); // reference lines
+    render_arrows_string_external_events_version(&mut output, visualization_data, &resource_owners_layout, &registry); // arrows
+    render_struct_box(&mut output, &structs_info, &registry); // struct box
 
     let mut output_string : String = String::new();
     for (hash, (timelinepanel, member_timelinepanel)) in output{

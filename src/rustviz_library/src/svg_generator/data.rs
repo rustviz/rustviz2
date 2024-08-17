@@ -23,9 +23,6 @@ pub trait Visualizable {
     // returns None if the hash does not exist
     fn get_name_from_hash(&self, hash: &u64) -> Option<String>;
     
-    // returns None if the hash does not exist
-    fn get_state(&self, hash: &u64, line_number: &usize) -> Option<State>;
-    
     // for querying states of a resource owner using its hash
     //                                         start line, end line, state
     fn get_states(&self, hash: &u64,  history: & Vec<(usize, Event)>, prev_state: State, previous_line_number: usize) -> Vec::<(usize,      usize,    State)>;
@@ -259,9 +256,10 @@ impl ResourceAccessPoint {
     }
 }
 
+// (List of Branch names, List of valid range)
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum BranchType {
-  If(Vec<String>, Vec<(usize, usize)>),
+  If(Vec<String>, Vec<(usize, usize)>), 
   Loop(Vec<String>, Vec<(usize, usize)>),
   Match(Vec<String>, Vec<(usize, usize)>)
 }
@@ -293,6 +291,8 @@ impl BranchType {
     }
     }
 }
+
+
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtBranchData {
@@ -392,7 +392,9 @@ pub enum ExternalEvent {
         param: ResourceAccessPoint,
         id: usize
     },
-
+    
+    // Branches are the most interesting event
+    // they allow for events to be tree-like
     Branch {
       live_vars: HashSet<ResourceAccessPoint>, // variables who were defined outside of the branch but are live inside it
       branches: Vec<ExtBranchData>, 
@@ -405,35 +407,7 @@ pub enum ExternalEvent {
 
 impl Hash for ExternalEvent {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.get_id().hash(state);
-        // match self {
-        //     ExternalEvent::Bind { from, to, .. }
-        //     | ExternalEvent::Copy { from, to }
-        //     | ExternalEvent::Move { from, to }
-        //     | ExternalEvent::StaticBorrow { from, to }
-        //     | ExternalEvent::MutableBorrow { from, to }
-        //     | ExternalEvent::StaticDie { from, to }
-        //     | ExternalEvent::MutableDie { from, to }
-        //     | ExternalEvent::PassByStaticReference { from, to }
-        //     | ExternalEvent::PassByMutableReference { from, to }
-        //     | ExternalEvent::RefDie { from, to, .. } => {
-        //         // Use the derived or implemented `Hash` trait for ResourceTy
-        //         std::hash::Hash::hash(from, state);
-        //         std::hash::Hash::hash(to, state);
-        //     },
-        //     ExternalEvent::Branch { live_vars, branches, branch_type, split_point, merge_point } => {
-        //         state.write_u8(1); // A unique byte representing this variant.
-        //         // branches.hash(state);
-        //         branch_type.hash(state);
-        //         split_point.hash(state);
-        //         merge_point.hash(state);
-        //     }
-        //     // ... handle other variants ...
-        //     ExternalEvent::GoOutOfScope { ro: r} 
-        //     | ExternalEvent::InitRefParam { param: r }=> {
-        //         std::hash::Hash::hash(r, state);
-        //     }
-        // }
+      self.get_id().hash(state);
     }
 }
 
@@ -467,6 +441,9 @@ impl ExternalEvent {
     }
 }
 
+// Each branch has a history of events (e_data)
+// and timeline data (where the x-axis is)
+// as well as the state changes
 #[derive(Debug, Clone)]
 pub struct BranchData {
   pub t_data: TimelineColumnData,
@@ -474,8 +451,8 @@ pub struct BranchData {
   pub width: usize,
   pub states: Vec<(usize, usize, State)>
 }
-// ASSUMPTION: a reference must return resource before borrow;
-//
+
+
 // An Event describes the acquisition or release of a
 // resource ownership by a Owner on any given line.
 // There are six types of them.
@@ -534,6 +511,7 @@ pub enum Event {
         id: usize
     },
 
+    // Mirrors the ExternalEvent Branch
     Branch {
       is: ResourceTy,
       branch_history: Vec<BranchData>,
@@ -1330,8 +1308,6 @@ impl Visualizable for VisualizationData {
             None => (State::OutOfScope, 1)
         };
 
-        println!("PREV STATE {:#?}", prev_state);
-
         let temp = self.get_states(hash, history, prev_state, prev_line_number);
         for item in temp {
             res.push(item);
@@ -1366,7 +1342,7 @@ impl Visualizable for VisualizationData {
         mut prev_state: State,
         mut previous_line_number: usize) -> Vec::<(usize, usize, State)> {
         let mut states = Vec::<(usize, usize, State)>::new();
-        for (i, (line_number, event)) in history.iter().enumerate() {
+        for (line_number, event) in history.iter() {
             states.push(
                 (previous_line_number, *line_number, prev_state.clone())
             );
@@ -1380,8 +1356,6 @@ impl Visualizable for VisualizationData {
                         let last_state = 
                         self.get_states(hash, &branch.e_data, prev_state.clone(), previous_line_number)
                             .last().unwrap_or(&(0, 0, prev_state.clone())).2.clone();
-                        // let b_states =  self.get_states(hash, &branch.e_data, Some(prev_state.clone()), Some((*split_point, *merge_point)));
-                        // println!("b_states {:#?}", b_states);
                         branch_states.push(last_state);
                     }
 
@@ -1399,17 +1373,6 @@ impl Visualizable for VisualizationData {
         states.push((previous_line_number, previous_line_number, prev_state));
         states
             
-    }
-
-    fn get_state(&self, hash: &u64, _line_number: &usize) -> Option<State> {
-        // TODO: the line_number variable should be used to determine state here
-        match self.timelines.get(hash) {
-            Some(_timeline) => {
-                // example return value
-                Some(State::OutOfScope)
-            },
-            _ => None
-        }
     }
 
     // WARNING do not call this when making visualization!! 

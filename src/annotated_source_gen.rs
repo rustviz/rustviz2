@@ -1,4 +1,11 @@
-use crate::expr_visitor::ExprVisitor;
+//! In this file we create the 'annotated source' see examples from RustViz1 in the examples library
+//! This file is necessary for generating the the code panel part of the visualization.
+//! Each RAP is assigned a hash (a unique id) and each hash corresponds to a different color (defined in the CSS template)
+//! It also allows the Javascript to tell which elements in the svg should be highlighted when hovered over.
+//! The logic is quite simple, visit each part of a function body and replace each RAP as it appears in the source string
+//! with a new string. (It's a little more complicated but this is the gist)
+
+use crate::{expr_visitor::ExprVisitor, expr_visitor_utils::{hirid_to_var_name, span_to_line}};
 
 use rustc_middle::{
     mir::Body,
@@ -15,17 +22,25 @@ use rustc_span::Span;
 impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
 
 pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool, hash: u64) {
-  let line: usize = self.span_to_line(&s);
+  let line: usize = span_to_line(&s, &self.tcx);
   let left:usize = self.tcx.sess.source_map().lookup_char_pos(s.lo()).col_display;
   let right: usize = self.tcx.sess.source_map().lookup_char_pos(s.hi()).col_display;
 
+  // the reason we replace the '<' and '>' characters with [_ and _] is that 
+  // < and > characters are illegal on their own in html (need to use &gt; / &lt: / &amp; etc)
+  // We eventually replace all the [_ and _] after we replace the </>
   let mut line_contents:String = self.source_map.get(&line).unwrap().clone();
   let replace_with: String = if is_func {
       format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, name)
     } else {
       format!("[_tspan data-hash=\"{}\"_]{}[_/tspan_]", hash, name)
-    };
+  };
+
   line_contents.replace_range(left..right, &replace_with);
+  // The reason we have a vector of strings associated with each line instead of just a single
+  // string that is constantly being mutated is because it would mess up the positions we get from 
+  // the span of the variable we want to replace. So we keep a collection of strings and then merge 
+  // them all together later.
   let v = self.annotated_lines.get_mut(&line).unwrap();
   if !v.contains(&line_contents) {
     v.push(line_contents);
@@ -87,7 +102,7 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
                 }
               }
               _ => {
-                let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+                let fn_name = hirid_to_var_name(fn_expr.hir_id, &self.tcx).unwrap();
                 self.annotate_src(fn_name.clone(), fn_expr.span, true, *self.raps.get(&fn_name).unwrap().rap.hash());
                 for a in fn_args.iter() {
                   self.annotate_expr(a);
@@ -96,7 +111,7 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
             }
           }
           _ => {
-            let fn_name = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+            let fn_name = hirid_to_var_name(fn_expr.hir_id, &self.tcx).unwrap();
             self.annotate_src(fn_name.clone(), fn_expr.span, true, *self.raps.get(&fn_name).unwrap().rap.hash());
             for a in fn_args.iter() {
               self.annotate_expr(a);
@@ -125,7 +140,7 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
         }
         _ => {}
       }
-      let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
+      let rcvr_name = hirid_to_var_name(rcvr.hir_id, &self.tcx).unwrap();
       self.annotate_src(rcvr_name.clone(), rcvr.span, false, *self.raps.get(&rcvr_name).unwrap().rap.hash());
 
     }

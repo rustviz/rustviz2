@@ -9,7 +9,7 @@ use log::{info, warn};
 use rustc_hir::{StmtKind, Stmt, Expr, ExprKind, UnOp, Param, QPath, PatKind, Mutability, LetStmt, def::*};
 use rustc_hir::intravisit::{self, Visitor};
 use crate::expr_visitor::*;
-use crate::expr_visitor_utils::bool_of_mut;
+use crate::expr_visitor_utils::*;
 use rustviz_lib::data::*;
 use rustc_middle::ty::adjustment::*;
 use std::collections::{HashSet, VecDeque};
@@ -46,12 +46,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               };
 
               let to_ro = ResourceTy::Caller;
-              let from_ro = match self.fetch_rap(e) {
+              let from_ro = match fetch_rap(e, &self.tcx, &self.raps) {
                 Some(r) => ResourceTy::Value(r), // todo, technically need to check for deref here
                 None => ResourceTy::Anonymous
               };
               
-              let line_num = self.expr_to_line(e);
+              let line_num = expr_to_line(e, &self.tcx);
               self.add_ev(line_num, evt, to_ro, from_ro, false);
             }
           }
@@ -65,11 +65,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
     self.annotate_expr(body.value); // then annotate the body
   } 
 
-  // visit parameter of current fn
+  // visit parameter of current fn (add them as RAPs)
   fn visit_param(&mut self, param: &'tcx Param<'tcx>){
     // add RAP corresponding to parameter type
-    let line_num=self.span_to_line(&param.span);
+    let line_num=span_to_line(&param.span, &self.tcx);
     let ty = self.tcx.typeck(param.hir_id.owner).pat_ty(param.pat);
+    let is_special = ty_is_special_owner(&self.tcx, &ty);
     match param.pat.kind {
       PatKind::Binding(binding_annotation, _ann_hirid, ident, _op_pat) =>{
         let name: String = ident.to_string();
@@ -79,7 +80,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           bool_of_mut(binding_annotation.1), line_num, 
           ResourceTy::Anonymous, VecDeque::new(), self.current_scope, !self.inside_branch);
         }
-        else if ty.is_adt() && !self.ty_is_special_owner(ty){ // kind of weird given we don't have a InitStructParam
+        else if ty.is_adt() && !is_special{ // kind of weird given we don't have a InitStructParam
           let owner_hash = self.rap_hashes as u64;
           self.add_struct(name.clone(), owner_hash, false, bool_of_mut(binding_annotation.1), self.current_scope, !self.inside_branch);
           for field in ty.ty_adt_def().unwrap().all_fields() {
@@ -94,7 +95,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         *self.unique_id += 1;
         self.annotate_src(name.clone(), ident.span, false, *self.raps.get(&name).unwrap().rap.hash());
       }
-      _=>{}
+      _ => {}
     }
   }
 
@@ -132,7 +133,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                       }
                     }
                   _ => {
-                    let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+                    let fn_name: String = hirid_to_var_name(fn_expr.hir_id, &self.tcx).unwrap();
                     self.add_fn(fn_name.clone());
                     for arg in a.iter(){
                       self.visit_expr(&arg);
@@ -142,7 +143,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
                 }
               }
               _ => {
-                let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+                let fn_name: String = hirid_to_var_name(fn_expr.hir_id, &self.tcx).unwrap();
                 self.add_fn(fn_name.clone());
                 for arg in args.iter(){
                   self.visit_expr(&arg);
@@ -153,7 +154,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             }
           }
           _ => {
-            let fn_name: String = self.hirid_to_var_name(fn_expr.hir_id).unwrap();
+            let fn_name: String = hirid_to_var_name(fn_expr.hir_id, &self.tcx).unwrap();
             self.add_fn(fn_name.clone());
             for arg in args.iter(){
               self.visit_expr(&arg);
@@ -165,7 +166,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       
       // <expr>.<function>([args])
       ExprKind::MethodCall(name_and_generic_args, rcvr, args, _) => {
-        let line_num = self.expr_to_line(&rcvr);
+        let line_num = expr_to_line(&rcvr, &self.tcx);
         let fn_name = name_and_generic_args.ident.as_str().to_owned();
         self.add_fn(fn_name.clone());
         // need to recurse down to the variable calling the methods 
@@ -178,7 +179,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           }
           _ => {}
         }
-        let rcvr_name = self.hirid_to_var_name(rcvr.hir_id).unwrap();
+        let rcvr_name = hirid_to_var_name(rcvr.hir_id, &self.tcx).unwrap();
         let rcvr_rap = self.raps.get(&rcvr_name).unwrap().rap.to_owned();
         self.update_rap(&rcvr_rap, line_num);
         let fn_rap = self.raps.get(&fn_name).unwrap().rap.to_owned();
@@ -230,7 +231,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         self.visit_expr(rhs_expr);
 
         // typecheck to figure out what type of event is going to occur
-        let line_num = self.expr_to_line(&lhs_expr);
+        let line_num = expr_to_line(&lhs_expr, &self.tcx);
         let lhs_rty = self.resource_of_lhs(lhs_expr);
         let lhs_rap = self.raps.get(&lhs_rty.real_name()).unwrap().rap.clone();
         let lhs_ty = self.tcx.typeck(lhs_expr.hir_id.owner).node_type(lhs_expr.hir_id);
@@ -260,7 +261,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               };
 
               // add event
-              let borrowers = self.get_borrowers(&lhs_rty.real_name());
+              let borrowers = get_borrowers(&lhs_rty.real_name(), &self.borrow_map);
               if borrowers.len() > 1 { // there is another active reference at this point, the resource cannot be returned
                 self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro, num_curr_borrowers: borrowers.len() - 1, id: *self.unique_id });
                 *self.unique_id += 1;
@@ -302,13 +303,13 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             // *a = &c (where c is &i32)
             ResourceTy::Deref(_) => {
               let ref_data = self.borrow_map.get(lhs_rap.name()).unwrap().clone();
-              let deref_index = self.num_derefs(&lhs_expr) - 1;
+              let deref_index = num_derefs(&lhs_expr) - 1;
               let modified_ref_name = ref_data.aliasing.get(deref_index).unwrap();
               let modified_ref_data = self.borrow_map.get(modified_ref_name).unwrap().clone();
               let to_ro =  self.borrow_map.get(modified_ref_name).unwrap().lender.to_owned();
               
               // add event
-              let borrowers = self.get_borrowers(&lhs_rty.real_name());
+              let borrowers = get_borrowers(&lhs_rty.real_name(), &self.borrow_map);
               if borrowers.len() > 1 { // there is another active reference at this point, the resource cannot be returned
                 self.add_external_event(line_num, ExternalEvent::RefDie { from: lhs_rty.clone(), to: to_ro, num_curr_borrowers: borrowers.len() - 1, id: *self.unique_id });
                 *self.unique_id += 1;
@@ -385,7 +386,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         }
         let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
         let r = &self.raps.get(&name).unwrap().rap.clone();
-        let line_num = self.span_to_line(&p.span);
+        let line_num = span_to_line(&p.span, &self.tcx);
         self.update_rap(r, line_num);
       }
       
@@ -402,7 +403,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let (else_live, else_decl) = match else_expr {
           Some(e) => {
             self.visit_expr(e);
-            (self.get_live_of_expr(e), self.get_decl_of_expr(e))
+            (get_live_of_expr(e, &self.tcx, &self.raps), get_decl_of_expr(e, &self.tcx, &self.raps))
           }
           None => { (HashSet::new(), HashSet::new()) }
         };
@@ -411,12 +412,12 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         // compute liveness
         // live variables are defined as variables that are defined outside the conditional but 
         // are used inside of it (the ones whose timelines will have a branch in the visualization)
-        let if_live = self.get_live_of_expr(if_expr);
-        let if_decl = self.get_decl_of_expr(if_expr);
+        let if_live = get_live_of_expr(if_expr, &self.tcx, &self.raps);
+        let if_decl = get_decl_of_expr(if_expr, &self.tcx, &self.raps);
         let liveness:HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
 
         // compute split and merge points
-        let line_num = self.expr_to_line(&guard_expr);
+        let line_num = expr_to_line(&guard_expr, &self.tcx);
         let split = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.lo()).line;
         let mut if_end = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.hi()).line;
         let merge = match else_expr {
@@ -425,8 +426,8 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         };
 
         // filter events that happened in the if/else block
-        let mut if_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, split, if_end)).cloned().collect();
-        let mut else_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| self.filter_ev(i, if_end, merge)).cloned().collect();
+        let mut if_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| filter_ev(i, split, if_end)).cloned().collect();
+        let mut else_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| filter_ev(i, if_end, merge)).cloned().collect();
         self.preprocessed_events.retain(|(l, _)| 
           if *l <= merge && *l >= split {
             false
@@ -464,7 +465,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             *self.unique_id += 1;
       }
 
-      ExprKind::Loop(block, _, loop_ty, span) => {
+      ExprKind::Loop(block, _, loop_ty, _span) => {
         match loop_ty {
           rustc_hir::LoopSource::While => {
             match block.expr {
@@ -499,13 +500,13 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
             let mut res = Vec::new();
             let mut res_ty = Vec::new();
             for field in fields.iter() {
-              res.push(self.get_rap(&field));
+              res.push(get_rap(&field, &self.tcx, &self.raps));
               res_ty.push(typeck_res.node_type(field.hir_id));
             }
             (res, res_ty)
           }
           _ => {
-            (vec![self.get_rap(&guard_expr)], vec![typeck_res.node_type(guard_expr.hir_id)])
+            (vec![get_rap(&guard_expr, &self.tcx, &self.raps)], vec![typeck_res.node_type(guard_expr.hir_id)])
           }
         };
         let typeck_res = self.tcx.typeck(guard_expr.hir_id.owner);
@@ -516,7 +517,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let mut b_ty_names: Vec<String> = Vec::new();
         let mut b_slices: Vec<(usize, usize)> = Vec::new();
         let mut branch_data: Vec<ExtBranchData> = Vec::new();
-        let mut liveness: HashSet<ResourceAccessPoint> = self.get_live_of_expr(guard_expr);
+        let mut liveness: HashSet<ResourceAccessPoint> = get_live_of_expr(guard_expr, &self.tcx, &self.raps);
 
         
         match source {
@@ -529,9 +530,9 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               // get line info
               let begin = self.tcx.sess.source_map().lookup_char_pos(arm.body.span.lo()).line;
               let end = self.tcx.sess.source_map().lookup_char_pos(arm.body.span.hi()).line;
-              let pat_line = self.span_to_line(&arm.pat.span);
+              let pat_line = span_to_line(&arm.pat.span, &self.tcx);
               b_slices.push((begin, end));
-              b_ty_names.push(self.get_name_of_pat(arm.pat));
+              b_ty_names.push(get_name_of_pat(arm.pat, &self.tcx));
 
               
               // add/fetch raps that are initialized in arm expr
@@ -597,14 +598,14 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               self.inside_branch = false;
 
               // update liveness info
-              liveness = liveness.union(&self.get_live_of_expr(arm.body)).cloned().collect();
+              liveness = liveness.union(&get_live_of_expr(arm.body, &self.tcx, &self.raps)).cloned().collect();
               liveness = liveness.difference(&pat_decls).cloned().collect();
-              let arm_decls: HashSet<ResourceAccessPoint> = pat_decls.union(&self.get_decl_of_expr(arm.body)).cloned().collect();
+              let arm_decls: HashSet<ResourceAccessPoint> = pat_decls.union(&get_decl_of_expr(arm.body, &self.tcx, &self.raps)).cloned().collect();
 
 
               // get events that occured in the arm
               branch_e_data.extend(
-                self.preprocessed_events.iter().filter(|i| self.filter_ev(i, begin, end)).cloned()
+                self.preprocessed_events.iter().filter(|i| filter_ev(i, begin, end)).cloned()
               );
 
               // remove elements from global container

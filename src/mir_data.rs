@@ -3,8 +3,11 @@
 //! If you'd like to work on converting more and more of the RustViz logic from the HIR to the MIR I would recommend reading:
 //! https://rustc-dev-guide.rust-lang.org/ especially the sections on the MIR, dataflow analysis, borrow checker, drop elaboration
 //! Also read through this: https://github.com/rust-lang/polonius/blob/master/book/src/SUMMARY.md
+//! Unfortunately though, I don't believe it would be possible to do everything in the MIR, for example: how would 
+//! you figure out when a copy occurs? You can't use the assignment operator - since a single HIR instr can be compiled down into
+//! multiple MIR instructions.
 
-use crate::expr_visitor::*;
+use crate::{expr_visitor::*, expr_visitor_utils::span_to_line};
 use log::info;
 use rustc_middle::{
   mir::{Location, Local},
@@ -44,7 +47,7 @@ impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
     }
 
     fn location_to_line(&self, l: Location, body_with_facts: &BodyWithBorrowckFacts) -> usize {
-        self.span_to_line(&self.location_to_span(l, body_with_facts))
+        span_to_line(&self.location_to_span(l, body_with_facts), &self.tcx)
     }
 
     fn src_name_of_local(&self, l: Option<Local>, l_map: &HashMap<Local, String>) -> Option<String> {
@@ -59,6 +62,20 @@ impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
         }
     }
 
+
+    // To get this to really work we would need to do a dataflow analysis to establish which temporaries 
+    // refer to the same piece of data. Since the way the MIR is SSA.
+    // For example:
+    //  Let mut a = &b;
+    //  a = &c;
+    // compiles to: (where  _1: "b", _2: "c", "_3: a")
+    // _3 = &'?2 _1; <-- let mut a = &b
+    // _5 = &'?3 _2;     <- |
+    // _4 = &'?4 (*_5);     |
+    // _3 = move _4;     <- | All these instructions are used for a = &c 
+    // notice how we generate new temporaries (_4 and _5)
+    // Consequently, when we get the borrow data we see a borrow between (_5 and _2)
+    // Which doesn't allow us to trace it back to the borrowed and assigned place in the source code (c, a)
     pub fn gather_borrow_data(&self, body_with_facts: &BodyWithBorrowckFacts<'tcx>) -> Vec<MIRBorrowData>{
         // compute output facts using polonius
         let p_output = Output::compute(&body_with_facts.input_facts.as_ref().unwrap(), Algorithm::Naive, true);

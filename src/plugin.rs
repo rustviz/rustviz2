@@ -16,7 +16,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
   let log_file = match OpenOptions::new()
     .create(true)
     .write(true)
-    .append(true)
+    .truncate(true)
     .open("output.log")
   {
     Ok(file) => file,
@@ -28,7 +28,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
   CombinedLogger::init(
     vec![
         WriteLogger::new(
-            LevelFilter::Debug,
+            LevelFilter::Info,
             Config::default(),
             log_file,
         )

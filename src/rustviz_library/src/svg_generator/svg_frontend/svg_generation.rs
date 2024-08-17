@@ -1,14 +1,13 @@
 extern crate handlebars;
 
-use crate::data::{BranchType, ExtBranchData, ExternalEvent, ResourceAccessPoint_extract, Visualizable, VisualizationData, LINE_SPACE};
+use crate::data::{ExtBranchData, ExternalEvent, ResourceAccessPoint_extract, Visualizable, VisualizationData, LINE_SPACE};
 use crate::svg_frontend::{code_panel, timeline_panel};
 use handlebars::Handlebars;
 use serde::Serialize;
-use core::num;
 use std::cmp::{self, max};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::usize::MAX;
 use crate::svg_frontend::templates::*;
+use log::info;
 
 #[derive(Serialize)]
 struct SvgData {
@@ -128,10 +127,18 @@ pub fn render_svg(
     source_rs_str: &str,
     visualization_data: &mut VisualizationData,
 ) -> (String, String){
-    println!("preprocessed events : {:#?}", visualization_data.preprocess_external_events);
-    println!("ev_line_map: {:#?}", visualization_data.event_line_map);
+    info!("preprocessed events : {:#?}", visualization_data.preprocess_external_events);
+    info!("ev_line_map: {:#?}", visualization_data.event_line_map);
+
+
     //-----------------------update line number for external events------------------
-    // single pass 
+    // This might be the worst part of the code-base
+    // extra lines need to be 'inserted' when two (or more) events that produce an arrow
+    // occur on the same line (since the second+ arrow is rendered like a trapezoid)
+    // However, it becomes more complicated with branches. The events inside branches need to actually be
+    // mutated while the global events are just re-added. Honestly there's probably a better way to do this
+    // but it turned out this way because it's built on RV1 code.
+    // It's disgusting because it needs to be a single pass.
     let mut i: usize = 0;
     let size: usize = visualization_data.preprocess_external_events.len();
     let mut event_line_map_replace: BTreeMap<usize, Vec<ExternalEvent>> = BTreeMap::new();
@@ -155,13 +162,13 @@ pub fn render_svg(
                 for (j, branch) in branches.iter_mut().enumerate() {
                     let (start, end) = branch_type.get_mut_start_end(j);
                     *start += extra_lines;
+                    // recurse into the branch
                     let b = mutate_branch_lines(branch, &mut line_insertion_map, extra_lines);
                     extra_lines += b;
                     *end += extra_lines;
                 }
 
                 *merge_point += extra_lines;
-                // extra_lines += extra_branch_lines;
             }
             _ => {}
         }
@@ -176,7 +183,6 @@ pub fn render_svg(
             let res = visualization_data.event_line_map.get(&line_num).cloned();
             let ex = match res {
                 Some(ev) => { // if there are multiple arrow events on this line
-                    println!("multiple arrow events {:#?}", ev);
                     for e in ev.clone() { // append all the events in the line map on the same line
                         visualization_data.append_processed_external_event(e.clone(), final_line_num);
                         skippable_ev.insert(e.get_id()); // they all become skippable 
@@ -201,9 +207,9 @@ pub fn render_svg(
         i += 1;
     }
 
-    println!("insert line map {:#?}", line_insertion_map);
+    info!("insert line map {:#?}", line_insertion_map);
     visualization_data.external_events.sort_by(|(l, _), (l1, _)| l.cmp(l1));
-    println!("processed events {:#?}", visualization_data.external_events);
+    info!("processed events {:#?}", visualization_data.external_events);
     visualization_data.event_line_map = event_line_map_replace;
 
 
@@ -240,7 +246,7 @@ pub fn render_svg(
             _ => {}
         }
     }
-    println!("processed line map {:#?}", visualization_data.event_line_map);
+    info!("processed line map {:#?}", visualization_data.event_line_map);
 
     let svg_code_template = CODE_PANEL_TEMPLATE;
     let svg_timeline_template = TIMELINE_PANEL_TEMPLATE;
