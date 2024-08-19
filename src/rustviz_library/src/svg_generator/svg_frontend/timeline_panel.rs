@@ -284,7 +284,7 @@ fn compute_width(events: & mut Vec<(usize, Event)>) -> usize {
                     branch.width = branch_w; // store branch width for later DOES NOT INCLUDE PADDING BETWEEN BRANCHES AT SAME LEVEL
                     b_width += branch_w;
                 }
-                let padding = (branch_history.len() - 1) * 2; // TODO: update for match expr
+                let padding = (branch_history.len() - 1) * 2;
                 b_width += padding;
                 max_width = max(b_width, max_width);
             }
@@ -304,7 +304,6 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                 }
                 // update the xvalue based on width
                 let mut parent_branch_data: Vec<TimelineColumnData> = Vec::new();
-                // println!("parent_data x_val: {:#?}", parent_data.x_val);
                 match ty {
                     BranchType::Match(..) => {
                         let halfway = branch_history.len() / 2;
@@ -314,7 +313,6 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                             let b_width = b_data.width;
                             let padding = if i == halfway - 1 {1} else {0};
                             let left_side_coefficient = -1 * (b_width + padding) as i64;
-                            // println!("left side {}, coefficient {}", ty.string_of_branch(i), left_side_coefficient);
                             let x = left_side_coefficient * BRANCH_WEIGHT;
                             running_x += x;
                             b_data.t_data.x_val = running_x;
@@ -331,7 +329,6 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                             let b_width = b_data.width;
                             let padding = if i == halfway {1} else {0};
                             let right_side_coefficient = (b_width + padding) as i64;
-                            // println!("right side {}, coefficient {}", ty.string_of_branch(i), right_side_coefficient);
                             let x = right_side_coefficient * BRANCH_WEIGHT;
                             running_x += x;
                             b_data.t_data.x_val = running_x;
@@ -355,7 +352,6 @@ fn update_timeline_data(events: & mut Vec<(usize, Event)>, parent_data: &Timelin
                 // recurse
                 for (i, branch) in branch_history.iter_mut().enumerate() {
                     update_timeline_data(&mut branch.e_data, &parent_branch_data[i])
-                    
                 }
 
             }
@@ -381,9 +377,6 @@ fn compute_column_layout<'a>(
         let width = compute_width(&mut timeline.history);
         w_map.insert(*h, width as i64);
     }
-
-    println!("w_map {:#?}", w_map);
-
     
     for (hash, timeline) in visualization_data.timelines.iter() {
 
@@ -660,21 +653,6 @@ fn fetch_timeline<'a>(hash: &u64, vd: &'a VisualizationData, ro_layout: & 'a BTr
     }
 }
 
-// fn fetch_timeline<'a>(
-//     hash: &u64, 
-//     gep: & mut VecDeque<(usize, usize)>, 
-//     vd: &'a VisualizationData, 
-//     ro_layout: & 'a BTreeMap<u64, TimelineColumnData>) -> & 'a TimelineColumnData 
-//     {
-//     if gep.is_empty() {
-//         &ro_layout[hash]
-//     }
-//     else {
-//         let var_history = &vd.timelines.get(hash).unwrap().history;
-//         traverse_timeline(& mut gep.clone(), var_history)
-//     }
-// }
-
 fn traverse_events2<'a> (
     history: & 'a Vec<(usize, ExternalEvent)>, 
     line_map: & 'a BTreeMap<usize, Vec<ExternalEvent>>,
@@ -859,7 +837,15 @@ fn render_arrow (
                 },
                 (from_variable, to_variable, e) => {
                     let line_map = fetch_line_map(&visualization_data, e.get_id());
-                    let arrow_order = line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
+                    let mut arrow_order = line_map.get(line_number).unwrap().iter().position(|x| x == external_event).unwrap() as i64;
+                    match e {
+                      ExternalEvent::StaticDie { from, to, .. } | ExternalEvent::MutableDie { from, to, .. } => {
+                        if from.is_same_underlying(to) {
+                          arrow_order = 0;
+                        }
+                      }
+                      _ => {}
+                    }
 
                     let from_timeline = fetch_timeline(from_variable.hash(), visualization_data, resource_owners_layout, e.get_id());
                     let to_timeline = fetch_timeline(to_variable.hash(), visualization_data, resource_owners_layout, e.get_id());
@@ -868,8 +854,7 @@ fn render_arrow (
                     let x2 = from_timeline.x_val;
                     let y1 = get_y_axis_pos(*line_number);
                     let y2 = get_y_axis_pos(*line_number);
-                    // if the arrow is pointing from left to right
-                    if arrow_order > 0 && x2 <= x1{
+                    if arrow_order > 0 && x2 <= x1{ // trapezoid
                         let x3 = from_timeline.x_val + 20;
                         let x4 = to_timeline.x_val - 20;
                         let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
@@ -880,8 +865,7 @@ fn render_arrow (
                         data.coordinates.push((x3 as f64, y3 as f64));
                         data.coordinates.push((x2 as f64, y2 as f64));
     
-                    // if the arrow is pointing from right to left
-                    } else if arrow_order > 0 && x2 > x1 {
+                    } else if arrow_order > 0 && x2 > x1 { // deeper trapezoid
                         let x3 = from_timeline.x_val - 20;
                         let x4 = to_timeline.x_val + 20;
                         let y3 = get_y_axis_pos(*line_number)+LINE_SPACE*arrow_order;
@@ -892,7 +876,7 @@ fn render_arrow (
                         data.coordinates.push((x3 as f64, y3 as f64));
                         data.coordinates.push((x2 as f64, y2 as f64));
     
-                    } else {
+                    } else { // straight line
                         data.coordinates.push((x1 as f64, y1 as f64));
                         data.coordinates.push((x2 as f64, y2 as f64));
                     }
@@ -1286,7 +1270,7 @@ fn render_ref_line(
             {
                 let ro = timeline.resource_access_point.to_owned();
                 // verticle state lines
-                let states = visualization_data.fetch_states(hash, &timeline.history, None, None);
+                let states = &timeline.states;
                 // struct can live over events
                 let mut alive = false;
                 let mut data = RefLineData {
@@ -1302,7 +1286,7 @@ fn render_ref_line(
                     title: String::new(),
                 };
                 for (line_start, _line_end, state) in states.iter() {
-                    match state { // consider removing .clone()
+                    match state { 
                         State::OutOfScope | State::ResourceMoved{ .. } => {
                             if alive {
                                 // finish line template

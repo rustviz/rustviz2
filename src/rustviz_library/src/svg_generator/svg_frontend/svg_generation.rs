@@ -152,8 +152,8 @@ pub fn render_svg(
             i += 1;
             continue;
         }
-        println!("skippable events {:#?}", skippable_ev);
-        println!("line {} event {:#?}", line_num, event);
+        // println!("skippable events {:#?}", skippable_ev);
+        // println!("line {} event {:#?}", line_num, event);
         match event {
             // need to mutate line numbers of events inside the branch
             ExternalEvent::Branch { branches, split_point, merge_point, branch_type, .. } => {
@@ -258,7 +258,6 @@ pub fn render_svg(
     let a_lines = annotated_src_str.lines();
     let s_lines = source_rs_str.lines();
 
-    //println!("bruh {:#?}", visualization_data.timelines.get(&1).unwrap().history);
     let mut handlebars = Handlebars::new();
     // We want to preserve the inputs `as is`, and want to make no changes based on html escape.
     handlebars.register_escape_fn(handlebars::no_escape);

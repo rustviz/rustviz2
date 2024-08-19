@@ -1,19 +1,1815 @@
-23:53:10 [INFO] locals map {}
-23:53:10 [INFO] body string fn main() -> () {
+18:06:52 [INFO] locals map {
+    _3: "y",
+    _4: "z",
+    _2: "c",
+    _1: "x",
+}
+18:06:52 [INFO] body string fn main() -> () {
     let mut _0: ();
+    let mut _5: &'?55 i32;
+    let _6: &'?56 i32;
+    let _7: ();
+    let _8: ();
+    let mut _9: std::fmt::Arguments<'?57>;
+    let mut _10: &'?58 [&'?59 str];
+    let mut _11: &'?60 [&'?61 str; 2];
+    let _12: &'?62 [&'?63 str; 2];
+    let _13: [&'?64 str; 2];
+    let mut _14: &'?65 [core::fmt::rt::Argument<'?66>];
+    let mut _15: &'?67 [core::fmt::rt::Argument<'?68>; 1];
+    let _16: &'?69 [core::fmt::rt::Argument<'?70>; 1];
+    let _17: [core::fmt::rt::Argument<'?71>; 1];
+    let mut _18: core::fmt::rt::Argument<'?72>;
+    let mut _19: &'?73 i32;
+    let _20: &'?74 i32;
+    let mut _21: &'?75 i32;
+    let _22: &'?76 i32;
+    let _23: ();
+    let _24: ();
+    let mut _25: std::fmt::Arguments<'?77>;
+    let mut _26: &'?78 [&'?79 str];
+    let mut _27: &'?80 [&'?81 str; 2];
+    let _28: &'?82 [&'?83 str; 2];
+    let _29: [&'?84 str; 2];
+    let mut _30: &'?85 [core::fmt::rt::Argument<'?86>];
+    let mut _31: &'?87 [core::fmt::rt::Argument<'?88>; 1];
+    let _32: &'?89 [core::fmt::rt::Argument<'?90>; 1];
+    let _33: [core::fmt::rt::Argument<'?91>; 1];
+    let mut _34: core::fmt::rt::Argument<'?92>;
+    let mut _35: &'?93 i32;
+    let _36: &'?94 i32;
     scope 1 {
+        scope 2 {
+            debug x => _1;
+            scope 5 {
+                debug c => _2;
+                scope 8 {
+                    debug y => _3;
+                    scope 12 {
+                        debug z => _4;
+                        scope 16 {
+                            scope 17 {
+                                scope 18 {
+                                }
+                            }
+                            scope 19 {
+                                scope 20 {
+                                }
+                            }
+                        }
+                        scope 21 {
+                            scope 22 {
+                                scope 23 {
+                                }
+                                scope 24 {
+                                    scope 25 {
+                                    }
+                                    scope 26 {
+                                        let mut _38: &'?97 [&'?98 str; 2];
+                                        scope 27 {
+                                            scope 28 {
+                                            }
+                                            scope 29 {
+                                            }
+                                        }
+                                    }
+                                    scope 30 {
+                                        scope 31 {
+                                            scope 32 {
+                                                scope 33 {
+                                                }
+                                                scope 34 {
+                                                    scope 35 {
+                                                        scope 36 {
+                                                            scope 37 {
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        scope 38 {
+                            scope 39 {
+                                scope 40 {
+                                }
+                            }
+                            scope 41 {
+                            }
+                        }
+                        scope 42 {
+                            scope 43 {
+                                scope 44 {
+                                }
+                                scope 45 {
+                                    scope 46 {
+                                    }
+                                    scope 47 {
+                                        let mut _37: &'?95 [&'?96 str; 2];
+                                        scope 48 {
+                                            scope 49 {
+                                            }
+                                            scope 50 {
+                                            }
+                                        }
+                                    }
+                                    scope 51 {
+                                        scope 52 {
+                                            scope 53 {
+                                                scope 54 {
+                                                }
+                                                scope 55 {
+                                                    scope 56 {
+                                                        scope 57 {
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    scope 13 {
+                        let _4: &'?53 mut &'?54 i32;
+                        scope 14 {
+                            scope 15 {
+                            }
+                        }
+                    }
+                }
+                scope 9 {
+                    let mut _3: &'?52 i32;
+                    scope 10 {
+                        scope 11 {
+                        }
+                    }
+                }
+            }
+            scope 6 {
+                let mut _2: i32;
+                scope 7 {
+                }
+            }
+        }
+        scope 3 {
+            let mut _1: i32;
+            scope 4 {
+            }
+        }
     }
 
     bb0: {
+        StorageLive(_1);
+        _1 = const 7_i32;
+        FakeRead(ForLet(None), _1);
+        StorageLive(_2);
+        _2 = const 8_i32;
+        FakeRead(ForLet(None), _2);
+        StorageLive(_3);
+        _3 = &'?16 _1;
+        FakeRead(ForLet(None), _3);
+        StorageLive(_4);
+        _4 = &'?17 mut _3;
+        FakeRead(ForLet(None), _4);
+        StorageLive(_5);
+        StorageLive(_6);
+        _6 = &'?18 _2;
+        _5 = &'?19 (*_6);
+        (*_4) = move _5;
+        StorageDead(_5);
+        StorageDead(_6);
+        StorageLive(_7);
+        StorageLive(_8);
+        StorageLive(_9);
+        StorageLive(_10);
+        StorageLive(_11);
+        StorageLive(_12);
+        _38 = const main::promoted[1];
+        _12 = &'?22 (*_38);
+        _11 = &'?23 (*_12);
+        _10 = move _11 as &'?24 [&'?25 str] (PointerCoercion(Unsize));
+        StorageDead(_11);
+        StorageLive(_14);
+        StorageLive(_15);
+        StorageLive(_16);
+        StorageLive(_17);
+        StorageLive(_18);
+        StorageLive(_19);
+        StorageLive(_20);
+        _20 = &'?26 (*(*_4));
+        _19 = &'?27 (*_20);
+        _18 = core::fmt::rt::Argument::<'?28>::new_display::<i32>(move _19) -> [return: bb1, unwind: bb7];
+    }
+
+    bb1: {
+        StorageDead(_19);
+        _17 = [move _18];
+        StorageDead(_18);
+        _16 = &'?30 _17;
+        _15 = &'?31 (*_16);
+        _14 = move _15 as &'?32 [core::fmt::rt::Argument<'?33>] (PointerCoercion(Unsize));
+        StorageDead(_15);
+        _9 = std::fmt::Arguments::<'?34>::new_v1(move _10, move _14) -> [return: bb2, unwind: bb7];
+    }
+
+    bb2: {
+        StorageDead(_14);
+        StorageDead(_10);
+        _8 = std::io::_print(move _9) -> [return: bb3, unwind: bb7];
+    }
+
+    bb3: {
+        StorageDead(_9);
+        StorageDead(_20);
+        StorageDead(_17);
+        StorageDead(_16);
+        StorageDead(_12);
+        StorageDead(_8);
+        _7 = const ();
+        StorageDead(_7);
+        StorageLive(_21);
+        StorageLive(_22);
+        _22 = &'?35 _1;
+        _21 = &'?36 (*_22);
+        _3 = move _21;
+        StorageDead(_21);
+        StorageDead(_22);
+        StorageLive(_23);
+        StorageLive(_24);
+        StorageLive(_25);
+        StorageLive(_26);
+        StorageLive(_27);
+        StorageLive(_28);
+        _37 = const main::promoted[0];
+        _28 = &'?39 (*_37);
+        _27 = &'?40 (*_28);
+        _26 = move _27 as &'?41 [&'?42 str] (PointerCoercion(Unsize));
+        StorageDead(_27);
+        StorageLive(_30);
+        StorageLive(_31);
+        StorageLive(_32);
+        StorageLive(_33);
+        StorageLive(_34);
+        StorageLive(_35);
+        StorageLive(_36);
+        _36 = &'?43 (*_3);
+        _35 = &'?44 (*_36);
+        _34 = core::fmt::rt::Argument::<'?45>::new_display::<i32>(move _35) -> [return: bb4, unwind: bb7];
+    }
+
+    bb4: {
+        StorageDead(_35);
+        _33 = [move _34];
+        StorageDead(_34);
+        _32 = &'?47 _33;
+        _31 = &'?48 (*_32);
+        _30 = move _31 as &'?49 [core::fmt::rt::Argument<'?50>] (PointerCoercion(Unsize));
+        StorageDead(_31);
+        _25 = std::fmt::Arguments::<'?51>::new_v1(move _26, move _30) -> [return: bb5, unwind: bb7];
+    }
+
+    bb5: {
+        StorageDead(_30);
+        StorageDead(_26);
+        _24 = std::io::_print(move _25) -> [return: bb6, unwind: bb7];
+    }
+
+    bb6: {
+        StorageDead(_25);
+        StorageDead(_36);
+        StorageDead(_33);
+        StorageDead(_32);
+        StorageDead(_28);
+        StorageDead(_24);
+        _23 = const ();
+        StorageDead(_23);
         _0 = const ();
+        StorageDead(_4);
+        StorageDead(_3);
+        StorageDead(_2);
+        StorageDead(_1);
         return;
+    }
+
+    bb7 (cleanup): {
+        resume;
     }
 }
 
-23:53:10 [INFO] BORROW MAP {}
-23:53:10 [INFO] lender to refs {}
-23:53:10 [INFO] preprocessed events : []
-23:53:10 [INFO] ev_line_map: {}
-23:53:10 [INFO] insert line map {}
-23:53:10 [INFO] processed events []
-23:53:10 [INFO] processed line map {}
+18:06:52 [INFO] loan issued at (
+    '?16,
+    bw0,
+    LocationIndex(15),
+)
+18:06:52 [INFO] borrow_data for location bb0[7] : BorrowData {
+    reserve_location: bb0[7],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?16,
+    borrowed_place: _1,
+    assigned_place: _3,
+}
+18:06:52 [INFO] borrowed_place: Some(
+    "x",
+), as local: Some(
+    _1,
+)
+18:06:52 [INFO] is source visible? true
+18:06:52 [INFO] region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Mut,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Mut,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:2:15: 2:16 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:2:7: 2:12 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:2:7: 2:12 (#0),
+        scope: scope[3],
+    },
+}
+18:06:52 [INFO] assigned place Some(
+    "y",
+), as local Some(
+    _3,
+)
+18:06:52 [INFO] is source visible? true
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Mut,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Mut,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:4:15: 4:17 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:4:7: 4:12 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: &'?52 i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:4:7: 4:12 (#0),
+        scope: scope[9],
+    },
+}
+18:06:52 [INFO] loan issued at (
+    '?17,
+    bw1,
+    LocationIndex(21),
+)
+18:06:52 [INFO] borrow_data for location bb0[10] : BorrowData {
+    reserve_location: bb0[10],
+    activation_location: NotTwoPhase,
+    kind: Mut {
+        kind: Default,
+    },
+    region: '?17,
+    borrowed_place: _3,
+    assigned_place: _4,
+}
+18:06:52 [INFO] borrowed_place: Some(
+    "y",
+), as local: Some(
+    _3,
+)
+18:06:52 [INFO] is source visible? true
+18:06:52 [INFO] region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Mut,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Mut,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:4:15: 4:17 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:4:7: 4:12 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: &'?52 i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:4:7: 4:12 (#0),
+        scope: scope[9],
+    },
+}
+18:06:52 [INFO] assigned place Some(
+    "z",
+), as local Some(
+    _4,
+)
+18:06:52 [INFO] is source visible? true
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Not,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:5:11: 5:18 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:5:7: 5:8 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: &'?53 mut &'?54 i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:5:7: 5:8 (#0),
+        scope: scope[13],
+    },
+}
+18:06:52 [INFO] loan issued at (
+    '?18,
+    bw2,
+    LocationIndex(29),
+)
+18:06:52 [INFO] borrow_data for location bb0[14] : BorrowData {
+    reserve_location: bb0[14],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?18,
+    borrowed_place: _2,
+    assigned_place: _6,
+}
+18:06:52 [INFO] borrowed_place: Some(
+    "c",
+), as local: Some(
+    _2,
+)
+18:06:52 [INFO] is source visible? true
+18:06:52 [INFO] region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Mut,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Mut,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:3:15: 3:16 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:3:7: 3:12 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:3:7: 3:12 (#0),
+        scope: scope[6],
+    },
+}
+18:06:52 [INFO] assigned place None, as local Some(
+    _6,
+)
+18:06:52 [INFO] is source visible? false
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: &'?56 i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:6:8: 6:10 (#0),
+        scope: scope[0],
+    },
+}
+18:06:52 [INFO] loan issued at (
+    '?30,
+    bw3,
+    LocationIndex(87),
+)
+18:06:52 [INFO] borrow_data for location bb1[3] : BorrowData {
+    reserve_location: bb1[3],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?30,
+    borrowed_place: _17,
+    assigned_place: _16,
+}
+18:06:52 [INFO] borrowed_place: None, as local: Some(
+    _17,
+)
+18:06:52 [INFO] is source visible? false
+18:06:52 [INFO] region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: [core::fmt::rt::Argument<'?71>; 1_usize],
+    user_ty: None,
+    source_info: SourceInfo {
+        span: /home/andrew/.rustup/toolchains/nightly-2024-05-20-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/macros.rs:143:28: 143:61 (#5),
+        scope: scope[0],
+    },
+}
+18:06:52 [INFO] assigned place None, as local Some(
+    _16,
+)
+18:06:52 [INFO] is source visible? false
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: &'?69 [core::fmt::rt::Argument<'?70>; 1_usize],
+    user_ty: None,
+    source_info: SourceInfo {
+        span: /home/andrew/.rustup/toolchains/nightly-2024-05-20-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/macros.rs:143:28: 143:61 (#5),
+        scope: scope[0],
+    },
+}
+18:06:52 [INFO] loan issued at (
+    '?35,
+    bw4,
+    LocationIndex(123),
+)
+18:06:52 [INFO] borrow_data for location bb3[10] : BorrowData {
+    reserve_location: bb3[10],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?35,
+    borrowed_place: _1,
+    assigned_place: _22,
+}
+18:06:52 [INFO] borrowed_place: Some(
+    "x",
+), as local: Some(
+    _1,
+)
+18:06:52 [INFO] is source visible? true
+18:06:52 [INFO] region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Mut,
+    local_info: Set(
+        User(
+            Var(
+                VarBindingForm {
+                    binding_mode: BindingMode(
+                        No,
+                        Mut,
+                    ),
+                    opt_ty_info: None,
+                    opt_match_place: Some(
+                        (
+                            None,
+                            src/lib.rs:2:15: 2:16 (#0),
+                        ),
+                    ),
+                    pat_span: src/lib.rs:2:7: 2:12 (#0),
+                },
+            ),
+        ),
+    ),
+    ty: i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:2:7: 2:12 (#0),
+        scope: scope[3],
+    },
+}
+18:06:52 [INFO] assigned place None, as local Some(
+    _22,
+)
+18:06:52 [INFO] is source visible? false
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: &'?76 i32,
+    user_ty: None,
+    source_info: SourceInfo {
+        span: src/lib.rs:8:7: 8:9 (#0),
+        scope: scope[0],
+    },
+}
+18:06:52 [INFO] loan issued at (
+    '?47,
+    bw5,
+    LocationIndex(181),
+)
+18:06:52 [INFO] borrow_data for location bb4[3] : BorrowData {
+    reserve_location: bb4[3],
+    activation_location: NotTwoPhase,
+    kind: Shared,
+    region: '?47,
+    borrowed_place: _33,
+    assigned_place: _32,
+}
+18:06:52 [INFO] borrowed_place: None, as local: Some(
+    _33,
+)
+18:06:52 [INFO] is source visible? false
+18:06:52 [INFO] region inference context RegionVariableInfo {
+    origin: Nll(
+        Existential {
+            from_forall: false,
+        },
+    ),
+    universe: U0,
+}
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: [core::fmt::rt::Argument<'?91>; 1_usize],
+    user_ty: None,
+    source_info: SourceInfo {
+        span: /home/andrew/.rustup/toolchains/nightly-2024-05-20-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/macros.rs:143:28: 143:61 (#7),
+        scope: scope[0],
+    },
+}
+18:06:52 [INFO] assigned place None, as local Some(
+    _32,
+)
+18:06:52 [INFO] is source visible? false
+18:06:52 [INFO] local decl LocalDecl {
+    mutability: Not,
+    local_info: Set(
+        Boring,
+    ),
+    ty: &'?89 [core::fmt::rt::Argument<'?90>; 1_usize],
+    user_ty: None,
+    source_info: SourceInfo {
+        span: /home/andrew/.rustup/toolchains/nightly-2024-05-20-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/macros.rs:143:28: 143:61 (#7),
+        scope: scope[0],
+    },
+}
+18:06:52 [INFO] BORROW MAP {
+    "z": RefData {
+        lender: Value(
+            StaticRef(
+                StaticRef {
+                    name: "y",
+                    hash: 3,
+                    is_mut: true,
+                },
+            ),
+        ),
+        assigned_at: 5,
+        lifetime: 7,
+        ref_mutability: true,
+        aliasing: [
+            "y",
+        ],
+    },
+    "y": RefData {
+        lender: Value(
+            Owner(
+                Owner {
+                    name: "x",
+                    hash: 1,
+                    is_mut: true,
+                },
+            ),
+        ),
+        assigned_at: 8,
+        lifetime: 9,
+        ref_mutability: false,
+        aliasing: [],
+    },
+}
+18:06:52 [INFO] lender to refs {
+    "x": {
+        "y",
+    },
+    "y": {
+        "z",
+    },
+}
+18:06:52 [INFO] preprocessed events : [
+    (
+        2,
+        Bind {
+            from: Anonymous,
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 0,
+        },
+    ),
+    (
+        3,
+        Bind {
+            from: Anonymous,
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 1,
+        },
+    ),
+    (
+        4,
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 2,
+        },
+    ),
+    (
+        5,
+        MutableBorrow {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 3,
+        },
+    ),
+    (
+        6,
+        StaticDie {
+            from: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 4,
+        },
+    ),
+    (
+        6,
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 5,
+        },
+    ),
+    (
+        7,
+        PassByStaticReference {
+            from: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Function(
+                    Function {
+                        name: "println!",
+                        hash: 5,
+                    },
+                ),
+            ),
+            id: 6,
+        },
+    ),
+    (
+        7,
+        MutableDie {
+            from: Value(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 10,
+        },
+    ),
+    (
+        8,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 7,
+        },
+    ),
+    (
+        8,
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 8,
+        },
+    ),
+    (
+        9,
+        PassByStaticReference {
+            from: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Function(
+                    Function {
+                        name: "println!",
+                        hash: 5,
+                    },
+                ),
+            ),
+            id: 9,
+        },
+    ),
+    (
+        9,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 11,
+        },
+    ),
+    (
+        10,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "c",
+                    hash: 2,
+                    is_mut: true,
+                },
+            ),
+            id: 12,
+        },
+    ),
+    (
+        10,
+        GoOutOfScope {
+            ro: MutRef(
+                MutRef {
+                    name: "z",
+                    hash: 4,
+                    is_mut: false,
+                },
+            ),
+            id: 13,
+        },
+    ),
+    (
+        10,
+        GoOutOfScope {
+            ro: StaticRef(
+                StaticRef {
+                    name: "y",
+                    hash: 3,
+                    is_mut: true,
+                },
+            ),
+            id: 14,
+        },
+    ),
+    (
+        10,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "x",
+                    hash: 1,
+                    is_mut: true,
+                },
+            ),
+            id: 15,
+        },
+    ),
+]
+18:06:52 [INFO] ev_line_map: {
+    4: [
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 2,
+        },
+    ],
+    5: [
+        MutableBorrow {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 3,
+        },
+    ],
+    6: [
+        StaticDie {
+            from: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 4,
+        },
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 5,
+        },
+    ],
+    7: [
+        MutableDie {
+            from: Value(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 10,
+        },
+    ],
+    8: [
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 7,
+        },
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 8,
+        },
+    ],
+    9: [
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 11,
+        },
+    ],
+}
+18:06:52 [INFO] insert line map {
+    9: 1,
+    8: 0,
+    5: 0,
+    4: 0,
+    6: 1,
+    11: 0,
+}
+18:06:52 [INFO] processed events [
+    (
+        2,
+        Bind {
+            from: Anonymous,
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 0,
+        },
+    ),
+    (
+        3,
+        Bind {
+            from: Anonymous,
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 1,
+        },
+    ),
+    (
+        4,
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 2,
+        },
+    ),
+    (
+        5,
+        MutableBorrow {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 3,
+        },
+    ),
+    (
+        6,
+        StaticDie {
+            from: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 4,
+        },
+    ),
+    (
+        6,
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 5,
+        },
+    ),
+    (
+        8,
+        PassByStaticReference {
+            from: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Function(
+                    Function {
+                        name: "println!",
+                        hash: 5,
+                    },
+                ),
+            ),
+            id: 6,
+        },
+    ),
+    (
+        8,
+        MutableDie {
+            from: Value(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 10,
+        },
+    ),
+    (
+        9,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 7,
+        },
+    ),
+    (
+        9,
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 8,
+        },
+    ),
+    (
+        11,
+        PassByStaticReference {
+            from: Deref(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Function(
+                    Function {
+                        name: "println!",
+                        hash: 5,
+                    },
+                ),
+            ),
+            id: 9,
+        },
+    ),
+    (
+        11,
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 11,
+        },
+    ),
+    (
+        12,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "c",
+                    hash: 2,
+                    is_mut: true,
+                },
+            ),
+            id: 12,
+        },
+    ),
+    (
+        12,
+        GoOutOfScope {
+            ro: MutRef(
+                MutRef {
+                    name: "z",
+                    hash: 4,
+                    is_mut: false,
+                },
+            ),
+            id: 13,
+        },
+    ),
+    (
+        12,
+        GoOutOfScope {
+            ro: StaticRef(
+                StaticRef {
+                    name: "y",
+                    hash: 3,
+                    is_mut: true,
+                },
+            ),
+            id: 14,
+        },
+    ),
+    (
+        12,
+        GoOutOfScope {
+            ro: Owner(
+                Owner {
+                    name: "x",
+                    hash: 1,
+                    is_mut: true,
+                },
+            ),
+            id: 15,
+        },
+    ),
+]
+18:06:52 [INFO] processed line map {
+    4: [
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 2,
+        },
+    ],
+    5: [
+        MutableBorrow {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 3,
+        },
+    ],
+    6: [
+        StaticDie {
+            from: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 4,
+        },
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Deref(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 5,
+        },
+    ],
+    8: [
+        MutableDie {
+            from: Value(
+                MutRef(
+                    MutRef {
+                        name: "z",
+                        hash: 4,
+                        is_mut: false,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 10,
+        },
+    ],
+    9: [
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "c",
+                        hash: 2,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 7,
+        },
+        StaticBorrow {
+            from: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            is_partial: false,
+            id: 8,
+        },
+    ],
+    11: [
+        StaticDie {
+            from: Value(
+                StaticRef(
+                    StaticRef {
+                        name: "y",
+                        hash: 3,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            to: Value(
+                Owner(
+                    Owner {
+                        name: "x",
+                        hash: 1,
+                        is_mut: true,
+                    },
+                ),
+            ),
+            id: 11,
+        },
+    ],
+}

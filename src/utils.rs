@@ -225,7 +225,6 @@ fn union_strings (strings: &Vec<String>) -> String {
 }
 
 pub fn generate_annotated_src(annotated_line_map: & mut BTreeMap<usize, Vec<String>>) -> String {
-  println!("annotated line_map {:#?}", annotated_line_map);
   let mut annotated_str = String::new();
   for (_k, v) in annotated_line_map {
     annotated_str.push_str(&union_strings(v));

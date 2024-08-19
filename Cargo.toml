@@ -2,6 +2,10 @@
 name = "rv-plugin"
 version = "0.1.0"
 edition = "2021"
+authors = ["Andrew Mahler", "Alaric Chen", "Akshey Deokule", "Yue Huang", "Yifan Liu"]
+repository = "https://github.com/rustviz/rustviz2"
+license = "MIT"
+description = "A tool that allows users to generate an interactive timeline depicting ownership and borrowing events for each variable in a Rust code example"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -26,6 +30,5 @@ rustc_utils = {version = "0.10.0-nightly-2024-05-20", features = ["graphviz", "t
 rustc_plugin = {version = "0.10.0-nightly-2024-05-20"}
 simplelog = "0.11"
 
-# testing utils
-lazy_static = { version = "1.4", optional = true }
+
 
