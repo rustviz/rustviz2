@@ -8,7 +8,7 @@ pub fn render_code_panel(
     annotated_lines: std::str::Lines,
     lines: std::str::Lines,
     max_x_space: &mut i64,
-    event_line_map: &BTreeMap<usize, Vec<ExternalEvent>>,
+    _event_line_map: &BTreeMap<usize, Vec<ExternalEvent>>,
     l_map: &HashMap<usize, usize>, 
 ) -> (String, i32) {
     /* Template creation */

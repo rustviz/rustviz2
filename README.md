@@ -16,7 +16,7 @@ To build from source:
   * Clone the repository
   * Install the plugin with: `cargo install --path . --locked` (this will need to be done each time you want to compile any modifications made)
   * Modify (or save) `/test-crate/lib.rs` with your example code (this is important since the compiler won't re-compile code unless a change has been made)
-  * Run the plugin by navigating to `/test-crate/` and run cargo rv-plugin > output.txt
+  * Run the plugin by navigating to `/test-crate/` and run `cargo rv-plugin -w > output.txt`
   * The resulting SVG files will be found at `test-crate/vis*`
   * To see the resulting svg files rendered in mdbook use the `test-ex.sh` script
   

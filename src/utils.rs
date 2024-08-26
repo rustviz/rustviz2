@@ -139,8 +139,12 @@ impl RV1Helper {
     return Ok(line_map);
   }
 
-  pub fn generate_vis(& mut self, mut line_map: BTreeMap<usize, Vec<ExternalEvent>>, p_events: Vec<(usize, ExternalEvent)>, a_map: & mut BTreeMap<usize, Vec<String>>,
-  num_raps: usize) -> Result<()> {
+  pub fn generate_vis(& mut self, 
+    mut line_map: BTreeMap<usize, Vec<ExternalEvent>>, 
+    p_events: Vec<(usize, ExternalEvent)>, 
+    a_map: & mut BTreeMap<usize, Vec<String>>,
+    num_raps: usize,
+    write_to_cwd: bool) -> Result<()> {
     let mut keys_to_remove: Vec<usize> = Vec::new();
     for (k, v) in line_map.iter() {
       if v.is_empty() {
@@ -159,20 +163,27 @@ impl RV1Helper {
     // send stuff to RV1
     let rv = Rustviz::new(&annotated_source_str, &self.source_str, p_events, line_map, num_raps)?;
 
-    self.source_path.pop(); // just write to inside cwd
-    let code_panel_path: PathBuf = self.source_path.join("vis_code.svg");
-    let timeline_panel_path: PathBuf = self.source_path.join("vis_timeline.svg");
-
-    if !code_panel_path.exists(){
-      File::create(code_panel_path.clone())?;
-    }
+    if write_to_cwd { // write the SVG files
+      self.source_path.pop(); // just write to inside cwd
+      let code_panel_path: PathBuf = self.source_path.join("vis_code.svg");
+      let timeline_panel_path: PathBuf = self.source_path.join("vis_timeline.svg");
   
-    if !timeline_panel_path.exists(){
-      File::create(timeline_panel_path.clone())?;
+      if !code_panel_path.exists(){
+        File::create(code_panel_path.clone())?;
+      }
+    
+      if !timeline_panel_path.exists(){
+        File::create(timeline_panel_path.clone())?;
+      }
+  
+      fs::write(code_panel_path, rv.code_panel())?;
+      fs::write(timeline_panel_path, rv.timeline_panel())?;
     }
-
-    fs::write(code_panel_path, rv.code_panel())?;
-    fs::write(timeline_panel_path, rv.timeline_panel())?;
+    else {
+      // write SVG files to stdio
+      let res = format!("{}:::{}", rv.code_panel(), rv.timeline_panel());
+      println!("{res}");
+    }
     Ok(())
   }
   

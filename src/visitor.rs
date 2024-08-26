@@ -673,7 +673,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
   // locals are let statements: let <pat>:<ty> = <expr>
   fn visit_local(&mut self, local: &'tcx LetStmt<'tcx>) {
     match local.pat.kind {
-      PatKind::Binding(binding_annotation, ann_hirid, ident, op_pat) => {
+      PatKind::Binding(binding_annotation, ann_hirid, ident, _op_pat) => {
         let lhs_var:String = ident.to_string();
         let tycheck_results = self.tcx.typeck(ann_hirid.owner);
         let lhs_ty = tycheck_results.node_type(ann_hirid);

@@ -1,11 +1,10 @@
 extern crate handlebars;
-
-use crate::data::{branch_state_converter, convert_back, string_of_branch, string_of_external_event, BranchData, BranchType, Event, ExternalEvent, LineState, ResourceAccessPoint, ResourceAccessPoint_extract, ResourceTy, State, StructsInfo, Timeline, Visualizable, VisualizationData, LINE_SPACE};
-use crate::svg_frontend::line_styles::{RefDataLine, RefValueLine, OwnerLine};
+use crate::data::{convert_back, string_of_branch, string_of_external_event, BranchType, Event, ExternalEvent, LineState, ResourceAccessPoint, ResourceAccessPoint_extract, ResourceTy, State, StructsInfo, Visualizable, VisualizationData, LINE_SPACE};
+use crate::svg_frontend::line_styles::OwnerLine;
 use handlebars::Handlebars;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap};
 use serde::Serialize;
-use std::cmp::{self, max, min};
+use std::cmp::{self, max};
 
 // set style for code string
 static SPAN_BEGIN : &'static str = "&lt;span style=&quot;font-family: 'Source Code Pro', Consolas, 'Ubuntu Mono', Menlo, 'DejaVu Sans Mono', monospace, monospace !important;&quot;&gt;";
@@ -81,11 +80,6 @@ struct BoxData {
     title: String
 }
 
-#[derive(Serialize)]
-struct StructTimelinePanelData {
-    struct_name: String,
-    struct_members: String
-}
 
 #[derive(Serialize, Clone)]
 struct VerticalLineData {
@@ -518,7 +512,7 @@ fn render_dot(
             Event::RefDie { .. } => {
                 continue;
             }
-            Event::Branch { is, branch_history, ty, split_point, merge_point, id } => { 
+            Event::Branch { is, branch_history, ty, split_point, merge_point, .. } => { 
                 // first append split dot
                 let b_data = EventDotData {
                     hash: *hash as u64,
@@ -627,7 +621,7 @@ fn render_dots_string(
 fn traverse_timeline2<'a> (t: &'a TimelineColumnData, history: & 'a Vec<(usize, Event)>, id: usize) -> Option<& 'a TimelineColumnData> {
     for (_, e) in history {
         match e {
-            Event::Branch { is, branch_history, .. } => {
+            Event::Branch { branch_history, .. } => {
                 for branch in branch_history {
                     let res = traverse_timeline2(&branch.t_data, &branch.e_data, id);
                     if res.is_some() {
@@ -698,10 +692,9 @@ fn render_arrow (
     registry: &Handlebars
 ) {
     match external_event {
-        ExternalEvent::Branch { live_vars, branches, .. } => {
+        ExternalEvent::Branch { branches, .. } => {
             // render all the events in the branch
-            for (b_index, branch) in branches.iter().enumerate() {
-                //gep.push_back((old_branch_freq, b_index));
+            for branch in branches.iter() {
                 for (l, e) in branch.e_data.iter() {
                     // somewhat redundant but have to filter out external events here
                     match e {
@@ -712,9 +705,7 @@ fn render_arrow (
                         }
                     }
                 }
-                //gep.pop_back(); // backtrack
             }
-            // *branch_freq = old_branch_freq;
         }
         _ => {
             // get the resource owners involved in the event
@@ -1081,8 +1072,8 @@ fn create_reference_line_string(
             } else {
                 data.title += "; can only read data";
             }
-            
-            let mut hollow_line_data = data.clone();
+          
+            let hollow_line_data = data.clone();
             // hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
             
             // registry.render("hollow_line_template", &hollow_line_data).unwrap()
@@ -1159,7 +1150,7 @@ fn render_timeline(
     if rap.is_fn() { return; } // functions have no timelines
     for (_, ev) in history {
         match ev {
-            Event::Branch { is, branch_history, ty, split_point, merge_point, id } => {
+            Event::Branch { branch_history, split_point, merge_point, ..} => {
                 let begin_state = states.iter().find(|&item| item.1 == *split_point).unwrap().clone();
                 let p_state = convert_back(&begin_state.2);
                 for (i, branch) in branch_history.iter().enumerate() {
@@ -1245,7 +1236,7 @@ fn render_timelines(
         match rap {
             ResourceAccessPoint::Function(_) => {},
             _ => {
-                println!("hash {}, timeline {:#?}", hash, timeline);
+                // println!("hash {}, timeline {:#?}", hash, timeline);
                 let t_data = resource_owners_layout.get(hash).unwrap();
                 render_timeline(hash, rap, &timeline.history, &timeline.states, output, visualization_data, t_data, registry);
             }

@@ -613,7 +613,7 @@ pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr, evt: Evt){
       self.match_rhs(lhs, &exp, evt);
     }
     _ => {
-      println!("unmatched rhs {:#?}", rhs);
+      warn!("unmatched rhs {:#?}", rhs);
     }
   }
 }

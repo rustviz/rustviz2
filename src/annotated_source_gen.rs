@@ -6,14 +6,7 @@
 //! with a new string. (It's a little more complicated but this is the gist)
 
 use crate::{expr_visitor::ExprVisitor, expr_visitor_utils::{hirid_to_var_name, span_to_line}};
-
-use rustc_middle::{
-    mir::Body,
-    ty::{TyCtxt,Ty},
-  };
-use rustc_hir::{Expr, ExprKind, QPath, Stmt, StmtKind, LetStmt, Path, Mutability, Pat, PatKind};
-use rustviz_lib::data::ResourceAccessPoint;
-use std::collections::{HashMap, BTreeMap};
+use rustc_hir::{Expr, ExprKind, QPath, Stmt, StmtKind, LetStmt, Pat, PatKind};
 use rustc_span::Span;
 
 
@@ -199,7 +192,7 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
       self.annotate_expr(&match_expr);
       for arm in arms {
         match &arm.guard {
-          Some(g) => {
+          Some(_g) => {
             //self.annotate_expr(&g);
           }
           None => {}

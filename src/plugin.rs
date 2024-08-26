@@ -10,7 +10,7 @@ use crate::expr_visitor::{ExprVisitor, RapData};
 use crate::RVPluginArgs;
 use crate::utils::{RV1Helper, annotate_enum_variant, annotate_toplevel_fn, annotate_struct_field};
 // "The main function"
-pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
+pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
 
   // configure the logger
   let log_file = match OpenOptions::new()
@@ -84,7 +84,6 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
         for item in imp.items.iter() {
           match item.kind {
             AssocItemKind::Fn {has_self: _} => {
-              println!("item ident {}", item.ident.as_str());
               // get the body of the function
               let local_def_id = item.id.owner_id.def_id;
               let hir_body = tcx.hir().body(tcx.hir().body_owned_by(local_def_id));
@@ -213,7 +212,7 @@ pub fn rv_visitor(tcx: TyCtxt, _args: &RVPluginArgs) {
   pre_events.sort_by_key(|k| k.0);
 
   // Pass information to svg-generator
-  match testing_helper.generate_vis(line_map2, pre_events, & mut a_line_map, rap_map.len() + 1) {
+  match testing_helper.generate_vis(line_map2, pre_events, & mut a_line_map, rap_map.len() + 1, args.write_to_cwd) {
     Ok(_) => {}
     Err(e) => {
       eprintln!("{}", e);

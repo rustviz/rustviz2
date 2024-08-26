@@ -205,8 +205,9 @@ impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
     // let b = a.0; (only a.0 is moved)
     // let c = a.1 (a.1 is moved)
     // https://rustc-dev-guide.rust-lang.org/borrow_check/moves_and_initialization/move_paths.html
+    #[allow(dead_code)]
     fn gather_move_data(&self, body: &'tcx rustc_hir::Body, body_with_facts: &BodyWithBorrowckFacts<'tcx>) -> MoveData<'tcx> {
-        fn filter<'tcx>(t: Ty<'tcx>) -> bool { true } // I have no idea what this filter is for or how to configure it
+        fn filter<'tcx>(_t: Ty<'tcx>) -> bool { true } // I have no idea what this filter is for or how to configure it
         let m = MoveData::gather_moves(&body_with_facts.body, self.tcx, self.tcx.param_env(body.value.hir_id.owner), filter);
         m
     }

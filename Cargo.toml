@@ -2,23 +2,31 @@
 name = "rv-plugin"
 version = "0.1.0"
 edition = "2021"
-authors = ["Andrew Mahler", "Alaric Chen", "Akshey Deokule", "Yue Huang", "Yifan Liu"]
+authors = ["Andrew Mahler <mahleran@umich.edu>", 
+          "Alaric Chen", 
+          "Akshey Deokule", 
+          "Yue Huang", 
+          "Yifan Liu"]
 repository = "https://github.com/rustviz/rustviz2"
 license = "MIT"
-description = "A tool that allows users to generate an interactive timeline depicting ownership and borrowing events for each variable in a Rust code example"
+description = "A tool that allows users to generate an interactive timeline depicting ownership and borrowing events for variables in a Rust code example"
+readme = "README.md"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[package.metadata.rust-analyzer]
-rustc_private = true
-
-
+exclude = [
+    "aquascope/*",
+    "aquascope_workspace_utils/*",
+    "rustviz-library/*",
+    "test-book/*",
+    "test-crate/*",
+    "tests/*",
+    "test-ex.sh"
+]
 
 [dependencies]
-rustviz_library = {path = "src/rustviz_library"}
-rustviz-svg = {path = "src/rustviz_library/src/svg_generator/"}
+rustviz_library = {path = "src/rustviz_library", version = "0.1.0"}
+rustviz-svg = {path = "src/rustviz_library/src/svg_generator/", version = "0.1.0"}
 env_logger = "0.10"
-clap = {version = "3", features = ["derive"]}
+clap = {version = "4.4", features = ["derive"]}
 serde = {version = "1", features = ["derive"]}
 anyhow = "1.0.0"
 log = "0.4"

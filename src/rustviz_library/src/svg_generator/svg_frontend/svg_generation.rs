@@ -4,7 +4,6 @@ use crate::data::{ExtBranchData, ExternalEvent, ResourceAccessPoint_extract, Vis
 use crate::svg_frontend::{code_panel, timeline_panel};
 use handlebars::Handlebars;
 use serde::Serialize;
-use std::cmp::{self, max};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use crate::svg_frontend::templates::*;
 use log::info;
@@ -292,7 +291,7 @@ pub fn render_svg(
     };
 
     let final_code_svg_content = handlebars.render("code_svg_template", &svg_data).unwrap();
-    svg_data.tl_width = cmp::max(max_width, 200);
+    svg_data.tl_width = std::cmp::max(max_width, 200);
     let final_timeline_svg_content = handlebars
         .render("timeline_svg_template", &svg_data)
         .unwrap();

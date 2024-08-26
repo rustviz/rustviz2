@@ -52,7 +52,6 @@
 // Haven't figured out how to ignore the red lines in rust-analyzer
 
 extern crate rustc_driver;
-// extern crate rustc_graphviz;
 extern crate rustc_hir;
 extern crate rustc_interface;
 extern crate rustc_middle;
@@ -78,10 +77,10 @@ pub mod mir_data;
 
 pub struct RVPlugin;
 
-#[derive(Parser, Serialize, Deserialize)]
+#[derive(Parser, Serialize, Deserialize, Debug)]
 pub struct RVPluginArgs {
-  //#[arg(short, long)]//add '--allcaps' or '-a' in command line both works
-  allcaps: bool,//can set default value
+  #[arg(short, long)]
+  write_to_cwd: bool, // write to cwd (from where the plugin is called)
 }
 
 
@@ -99,7 +98,7 @@ impl RustcPlugin for RVPlugin {
 
   fn args(&self, _target_dir: &Utf8Path) -> RustcPluginArgs<Self::Args> {
     let args = RVPluginArgs::parse_from(env::args().skip(1));//read command line arguments
-    let filter = CrateFilter::AllCrates;//decide which crate to compile
+    let filter = CrateFilter::AllCrates; //decide which crate to compile
     RustcPluginArgs { args, filter }
   }
 

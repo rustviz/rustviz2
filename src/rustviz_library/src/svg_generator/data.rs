@@ -1192,13 +1192,13 @@ impl Visualizable for VisualizationData {
             (State::FullPrivilege{..}, Event::RefGoOutOfScope) =>
                 State::OutOfScope,
 
-            (State::FullPrivilege{..}, Event::StaticLend{ to: to_ro ,..}) =>
+            (State::FullPrivilege{..}, Event::StaticLend{ ..}) =>
                 State::PartialPrivilege { s: LineState::Full },
 
             (State::PartialPrivilege{ .. }, Event::MutableLend{ to: to_ro, .. }) => 
             State::RevokedPrivilege { to: ResourceTy::Anonymous, borrow_to: to_ro.to_owned(), prev_state: Box::from(previous_state.to_owned()) },
 
-            (State::PartialPrivilege{ .. }, Event::StaticLend{ to: to_ro ,..}) => {
+            (State::PartialPrivilege{ .. }, Event::StaticLend{ ..}) => {
                 State::PartialPrivilege { s: LineState::Full }
             }
                 
@@ -1206,7 +1206,7 @@ impl Visualizable for VisualizationData {
             (State::PartialPrivilege{ .. }, Event::StaticDie{ .. }) =>
                 State::OutOfScope,
 
-            (State::PartialPrivilege{ .. }, Event::StaticReacquire{ from: ro , is, ..}) => {
+            (State::PartialPrivilege{ .. }, Event::StaticReacquire{ is, ..}) => {
                 if is.is_ref() && !is.is_mutref() { // TODO: think about if this is correct
                     State::PartialPrivilege { s: LineState::Full }
                 }
@@ -1214,7 +1214,7 @@ impl Visualizable for VisualizationData {
                     State::FullPrivilege {s: LineState::Full}
                 }
             }
-            (State::PartialPrivilege { .. }, Event::RefDie { from: ro, num_curr_borrowers, .. })=> {
+            (State::PartialPrivilege { .. }, Event::RefDie { .. })=> {
               State::PartialPrivilege{s: LineState::Full}
             }
 
@@ -1417,7 +1417,7 @@ impl Visualizable for VisualizationData {
           }
           else { vec![(line_num, Event::MutableDie{to : to_ro.to_owned(), is: from_ro.clone(), id: *id})] }    
         },
-        ExternalEvent::RefDie { from: from_ro, to: to_ro, id , num_curr_borrowers} => {
+        ExternalEvent::RefDie { from: from_ro, to: to_ro, id ,..} => {
           match from_ro.clone() {
               ResourceTy::Deref(ro_is) | ResourceTy::Value(ro_is) => {
                   if ro_is.is_mutref() && !to_o {
@@ -1664,7 +1664,7 @@ impl Visualizable for VisualizationData {
                 maybe_append_event(self, &from_ro.clone(), Event::MutableDie{to : to_ro.to_owned(), is: from_ro, id: id}, line_number);
             },
             // don't need to append an event to the to resource since a RefDie doesn't change the state of the to ro
-            ExternalEvent::RefDie { from: from_ro, to: to_ro, id , num_curr_borrowers} => { // need Ref Event to avoid drawing redundant arrows when rendering timelines
+            ExternalEvent::RefDie { from: from_ro, to: _, id, ..} => { // need Ref Event to avoid drawing redundant arrows when rendering timelines
                 match from_ro.clone() {
                     ResourceTy::Deref(ro_is) | ResourceTy::Value(ro_is) => {
                         if ro_is.is_mutref() {
@@ -1697,7 +1697,7 @@ impl Visualizable for VisualizationData {
             ExternalEvent::InitRefParam{param: ro, id} => {
                 maybe_append_event(self, &ResourceTy::Value(ro.clone()), Event::InitRefParam{param : ro.to_owned(), id: id}, line_number);
             },
-            ExternalEvent::GoOutOfScope{ro, id} => {
+            ExternalEvent::GoOutOfScope{ro, ..} => {
                 match ro {
                     ResourceAccessPoint::Owner(..) | ResourceAccessPoint::Struct(..) => {
                         maybe_append_event(self, &ResourceTy::Value(ro), Event::OwnerGoOutOfScope, line_number);

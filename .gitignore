@@ -6,3 +6,5 @@ Cargo.lock
 test-crate/src/vis*
 test-crate/target/
 test-crate/Cargo.lock
+test-crate/output.log
+test-crate/output.txt

@@ -1,7 +1,5 @@
 
-use core::borrow;
 use std::{cmp::max, collections::{BTreeMap, HashMap, HashSet, VecDeque}, ops::Bound};
-
 use log::warn;
 use rustc_hir::Mutability;
 use rustviz_lib::data::{ExternalEvent, ResourceAccessPoint, ResourceTy};
@@ -11,7 +9,7 @@ use rustc_hir::{Expr, ExprKind, Path, def::Res, Pat, PatKind, QPath, HirId, Stmt
 
 use crate::expr_visitor::{RapData, RefData};
 
-// A small helper function
+// outdated function don't use this to find a name of a variable/hir_id
 pub fn extract_var_name(input_string: &str ) -> Option<String> {
   let start_index = input_string.find('`')? + 1;
   let end_index = input_string.rfind('`')?;
@@ -55,11 +53,15 @@ pub fn is_addr(expr: &Expr) -> bool { // todo, probably a better way to do this 
   }
 }
 
+// The purpose of this function is to override the typechecking done on variables
+// when we want to consider them owners rather than structs. This is because for 99.9% of cases
+// users don't care about acessing String::len/buf members. 
+// We should work towards elimanting all struct members that are not used in the program
+// and that way we can just get rid of this hacky function.
 pub fn ty_is_special_owner<'tcx> (tcx: &TyCtxt<'tcx>, t: &Ty<'tcx>) -> bool {
   match &*t.sort_string(*tcx) {
     "`std::string::String`" => { true }
     _ => {
-      println!("t {}", &*t.sort_string(*tcx));
       false
     }
   }
