@@ -21,20 +21,20 @@ ex_name="$1"
 
 if [ "$#" -ge 2 ]; then
     arg="$2"
-    if [ arg != "automatic"]; then
+    if [ "$arg" != "automatic" ]; then
       usage
     fi
 
-    cat rustviz-library/rv_bin/examples/$1/source.rs > test-crate/src/lib.rs
+    cat rv-plugin/resources/rustviz-library/rv_bin/examples/$1/source.rs > test-crate/src/lib.rs
     cd test-crate
-    cargo rv-plugin > output.txt
+    cargo rv-plugin -w > output.txt
     cd ..
 fi
 
 cp test-crate/src/vis_code.svg test-book/src/
 cp test-crate/src/vis_timeline.svg test-book/src/
-cp rustviz-library/rv_bin/examples/$1/vis_code.svg test-book/src/ex-assets/
-cp rustviz-library/rv_bin/examples/$1/vis_timeline.svg test-book/src/ex-assets/
+cp rv-plugin/resources/rustviz-library/rv_bin/examples/$1/vis_code.svg test-book/src/ex-assets/
+cp rv-plugin/resources/rustviz-library/rv_bin/examples/$1/vis_timeline.svg test-book/src/ex-assets/
 cd test-book/
 mdbook build
 mdbook serve

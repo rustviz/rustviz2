@@ -1,0 +1,18 @@
+#err_card {
+  background-color: black;
+  padding: 10px;
+  border-radius: 5px;
+  max-width: 400px;
+  margin: 10px auto;
+}
+
+#err_header {
+  color: red;
+  font-weight: bold;
+  margin: 0;
+}
+
+#error_message {
+  color: white;
+  margin: 0;
+}

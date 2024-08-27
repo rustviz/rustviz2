@@ -1,0 +1,85 @@
+body {
+  font: 16px "Helvetica Neue", "Open Sans", Arial, sans-serif;  
+}
+
+
+h1 {
+  margin-top: 0;
+  font-weight: bold;
+  text-align: center;
+}
+
+p {
+  max-width: 800px;
+  margin-left: 50px;
+}
+
+
+/* Set editor dimensions */
+#editor {
+    height: 300px;
+    width: 50%;
+    margin-left: 50px;
+}
+
+/* Stretch editor to fit inside its containing div */
+.cm-editor {
+    height: 100%;
+    width: 100%;
+    border-style: solid;
+    border-width: 5px;
+    border-radius: 5px;
+}
+
+/* Button styles */
+.large-button {
+  padding: 20px 40px; /* Increase padding to make the button larger */
+  margin: 50px; /* Add a 50px margin on all sides */
+  font-size: 16px; /* Increase the font size for better readability */
+}
+
+.cm-button {
+  background-color: #cc7116; /* Example background color */
+  color: white; /* Example text color */
+  border: none; /* Remove default border */
+  border-radius: 5px; /* Example border radius */
+  cursor: pointer; /* Change cursor on hover */
+  /* Add other styles as needed */
+}
+
+.cm-button:disabled {
+  background-color: #ccc; /* Change background color when disabled */
+  cursor: not-allowed; /* Change cursor when disabled */
+}
+
+.loader {
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-left-color: #000;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
+/* 
+.flex-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.tl_panel {
+  flex-grow: 0;
+}
+
+.code_panel {
+  flex-grow: 1;
+} */
