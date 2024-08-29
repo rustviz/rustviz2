@@ -14,6 +14,7 @@ use rustc_span::Span;
 
 impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
 
+// TODO: need to account for /t
 pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool, hash: u64) {
   let line: usize = span_to_line(&s, &self.tcx);
   let left:usize = self.tcx.sess.source_map().lookup_char_pos(s.lo()).col_display;

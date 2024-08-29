@@ -35,20 +35,20 @@ struct Rect {
 
 fn main() {
     let r = Rect {
-        w: 30,
-        h: 50,
+      w: 30,
+      h: 50,
     };
 
     println!(
-        "The area of the rectangle is {} square pixels.",
-        area(&r)
+      "The area of the rectangle is {} square pixels.",
+      area(&r)
     );
     
     println!("The height of that is {}.", r.h);
 }
 
 fn area(rect: &Rect) -> u32 {
-    rect.w * rect.h
+  rect.w * rect.h
 }
 ```
 
@@ -64,24 +64,24 @@ struct Rectangle {
 
 impl Rectangle {
     fn area(&self) -> u32 {
-        self.width * self.height
+      self.width * self.height
     }
 }
 
 fn print_area(rect: &Rectangle) {
-    println!(
-        "The area of the rectangle is {} square pixels.",
-       	rect.area() // dot even though it's actually a reference
-    );
+  println!(
+    "The area of the rectangle is {} square pixels.",
+    rect.area() // dot even though it's actually a reference
+  );
 }
 
 fn main() {
-    let r = Rectangle {
-        width: 30,
-        height: 50,
-    };
+  let r = Rectangle {
+    width: 30,
+    height: 50,
+  };
 
-    print_area(&r);
+  print_area(&r);
 }
 ```
 

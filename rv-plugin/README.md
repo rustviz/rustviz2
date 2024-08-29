@@ -54,4 +54,4 @@ To fix/implement:
 - [ ] Chained method calls (goes hand in hand with anonymous owner interactions) (get(), get_mut())
 - [ ] lifetimes that are 'captured' by conditional statements (use MIR)
 - [ ] Struct Box kind of buggy
-
+- [ ] JSONify the output

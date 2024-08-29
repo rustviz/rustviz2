@@ -5,7 +5,7 @@ members = [
   "rv-plugin",
   "mdbook-rustviz",
   "rv-serve"
-]
+, "rust_viz"]
 # need this for rustc plugin
 exclude = [
   "test-crate"

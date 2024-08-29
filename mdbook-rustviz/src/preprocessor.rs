@@ -13,39 +13,17 @@ use core::str;
 use std::path::{Path, PathBuf};
 use std::fs::{self, File};
 use std::process::{Command, Stdio};
+use rust_viz::Rustviz;
 
 pub struct RustvizPlugin {
-	src_dir: PathBuf,
-	test_crate_dir: PathBuf
+	src_dir: PathBuf
 }
 
 impl RustvizPlugin {
 	pub fn new(path: &Path) -> RustvizPlugin {
-		// create test-crate directory
-		let parent_dir = match path.parent() {
-			Some(p) => p.to_owned(),
-			None => panic!("don't put this in root")
-		};
-		
-		let output = Command::new("cargo")
-			.arg("new")
-			.arg("--lib")
-			.arg("test-crate")
-			.current_dir(parent_dir.clone())
-			.output();
-
-		match output {
-			Ok(_res) => {
-				info!("test-crate successfully created")
-			}
-			Err(e) => {
-				warn!("error with creating test-crate {}", e)
-			}
-		}
 		
 		RustvizPlugin {
 			src_dir: PathBuf::from(path).join("src"),
-			test_crate_dir: parent_dir.join("test-crate")
 		}
 	}
 
@@ -102,7 +80,7 @@ impl Preprocessor for RustvizPlugin {
 
 		book.for_each_mut(|item| {
 			    if let BookItem::Chapter(chapter) = item {
-				    let _ = process_code_blocks(chapter, &cfg, &assets_dir, &self.test_crate_dir, &mut ex_counter).map(|s| {
+				    let _ = process_code_blocks(chapter, &cfg, &assets_dir, &mut ex_counter).map(|s| {
 					                                              chapter.content = s;
 					                                              trace!("chapter '{}' processed", &chapter.name);
 				                                              })
@@ -120,7 +98,7 @@ impl Preprocessor for RustvizPlugin {
 
 
 
-fn rustviz_handler(code_string: &str, a_dir: &PathBuf, tc_dir: &PathBuf, ex_counter: u32) -> String{
+fn rustviz_handler(code_string: &str, a_dir: &PathBuf,  ex_counter: u32) -> String{
 	// create new example directory: src/assets/example-x/
 	let example_dir_str = format!("example-{}", ex_counter);
 	let example_dir = a_dir.join(example_dir_str.clone());
@@ -129,96 +107,39 @@ fn rustviz_handler(code_string: &str, a_dir: &PathBuf, tc_dir: &PathBuf, ex_coun
 		info!("Error creating example directory: {}", err);
 	}
 
-	// write code string to test-crate/lib.rs
-	let src_path = tc_dir.join("src/lib.rs");
-	match fs::write(src_path, code_string.as_bytes()) {
-		Ok(_) => info!("successfully wrote code string to test-crate/lib.rs"),
-		Err(e) => warn!("error when writing code string to test-crate/lib.rs {}", e)
-	}
+  match rust_viz::Rustviz::new(code_string) {
+    Ok(rv) => {
+      // write strings to file
+      match fs::write(example_dir.join("vis_code.svg"), rv.code_panel_string()) {
+        Ok(_) => {}
+        Err(e) => warn!("error writing code panel to file {:#?}", e)
+      }
 
-	// run rv2
-	let output = Command::new("cargo")
-		.arg("rv-plugin")
-		.current_dir(tc_dir)
-		.stdout(Stdio::piped()) // very important that we pipe any output since the plugin parses stdout as the HTML for the book
-		.stderr(Stdio::piped())
-		.output();
+      match fs::write(example_dir.join("vis_timeline.svg"), rv.timeline_panel_string()) {
+        Ok(_)  => {}
+        Err(e) => warn!("error writing timeline panel to file {:#?}", e)
+      }
 
-	match output {
-		Ok(res) => {
-			if !res.status.success() {
-				// if there's an issue then just return stderr
-				warn!("rustviz failed on example {}", ex_counter);
-				info!("code: {}", code_string);
-				let err_string = String::from(str::from_utf8(&res.stderr).unwrap());
-				return format!("<div class=\"err-container\" style=\"position:relative; margin-left:-75px; margin-right:-75px;\">
-				<p>{}</p></div>", err_string)
-			}
-		}
-		Err(e) => {
-			warn!("error running rv-plugin {}", e)
-		}
-	}
-
-	// copy svgs to correct example directory
-	let code_panel_path = tc_dir.join("src/vis_code.svg");
-	let timeline_panel_path = tc_dir.join("src/vis_timeline.svg");
-
-	match fs::rename(code_panel_path, example_dir.join("vis_code.svg")) {
-		Ok(_) => {},
-		Err(e) => warn!("error moving code panel {:#?}", e)
-	}
-
-	match fs::rename(timeline_panel_path, example_dir.join("vis_timeline.svg")) {
-		Ok(_) => {},
-		Err(e) => warn!("error moving timeline panel {:#?}", e)
-	}
-
-	// hacky fix - read height off of timeline_panel
-	let height: i32 = match fs::read(example_dir.join("vis_timeline.svg")) {
-		Ok(v) => {
-			let timeline_str: &str = &String::from_utf8_lossy(&v);
-			match timeline_str.find("height=") {
-				Some(index) => {
-					let start = index + "height=\"".len();
-                        if let Some(end) = timeline_str[start..].find("px\"") {
-                            let height_str = &timeline_str[start..start + end];
-                            match height_str.parse::<i32>() {
-                                Ok(value) => value,
-                                Err(_) => {
-                                    warn!("unable to parse height value");
-                                    600 
-                                }
-                            }
-                        } else {
-                            warn!("px\" not found in the height attribute");
-                            600
-                        }
-				}
-				None => { 600 }
-			}
-		}
-		Err(e) => {
-			warn!("error reading timeline panel for height {}", e);
-			600
-		}
-	};
-
-	info!("successfully created visualization for example {}", ex_counter);
-
-	let visualization_div = format!("<div class=\"flex-container vis_block\" style=\"position:relative; margin-left:-75px; margin-right:-75px; display: flex; height: {}px\">
-	<object type=\"image/svg+xml\" class=\"{} code_panel\" data=\"examples/{}/vis_code.svg\"></object>
-	<object type=\"image/svg+xml\" class=\"{} tl_panel\" data=\"examples/{}/vis_timeline.svg\" style=\"width: auto;\" onmouseenter=\"helpers('{}')\"></object>
-	</div>", height, example_dir_str, example_dir_str, example_dir_str, example_dir_str, example_dir_str);
-
-	visualization_div
+      info!("successfully created visualization for example {}", ex_counter);
+      let visualization_div = format!("<div class=\"flex-container vis_block\" style=\"position:relative; margin-left:-75px; margin-right:-75px; display: flex; height: {}px\">
+      <object type=\"image/svg+xml\" class=\"{} code_panel\" data=\"examples/{}/vis_code.svg\"></object>
+      <object type=\"image/svg+xml\" class=\"{} tl_panel\" data=\"examples/{}/vis_timeline.svg\" style=\"width: auto;\" onmouseenter=\"helpers('{}')\"></object>
+      </div>", rv.height(), example_dir_str, example_dir_str, example_dir_str, example_dir_str, example_dir_str);
+    
+      visualization_div
+    }
+    Err(e) =>{
+      warn!("example {} failed with status: {:#?}", ex_counter, e);
+      warn!("example code {}", code_string);
+      format!("<p><b>Error generating visualization</b> {}</p>", e)
+    }
+  }
 }
 
 fn process_code_blocks(
 chapter: &mut Chapter, 
 cfg: &Cfg, 
 assets_dir: &PathBuf, 
-tc_dir: &PathBuf, 
 ex_counter: &mut u32) -> Result<String, std::fmt::Error> {
 
 	use pulldown_cmark::{CodeBlockKind, Event, CowStr, Tag};
@@ -257,7 +178,7 @@ ex_counter: &mut u32) -> Result<String, std::fmt::Error> {
 
 		                   (Event::Text(Borrowed(text)), Open) => {
                           state = Closing;
-                          let res = rustviz_handler(text, &assets_dir, tc_dir, *ex_counter);
+                          let res = rustviz_handler(text, &assets_dir, *ex_counter);
                           *ex_counter += 1;
                           Some(Event::Html(res.into()))
 		                   },

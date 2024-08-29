@@ -12,10 +12,14 @@ test-crate/output.txt
 
 mdbook-rustviz/test-crate/
 mdbook-rustviz/target
+mdbook-rustviz/test-book/src/examples
 
 rv-serve/test-crate/
 rv-serve/ex-assets/
 rv-serve/target/
+
+test-book/book
+
 
 target/
 Cargo.lock
