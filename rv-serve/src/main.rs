@@ -5,7 +5,7 @@ use log::info;
 use std::{fs, str};
 use std::process::Command;
 use serde::{Deserialize, Serialize};
-use rust_viz::Rustviz;
+use rustviz2::Rustviz;
 
 #[derive(Deserialize)]
 struct SubmitCodePayload {

@@ -1,6 +1,6 @@
-rv-plugin/target/
-rv-plugin/resources/aquascope/target/
-rv-plugin/Cargo.lock
+rustviz2-plugin/target/
+rustviz2-plugin/resources/aquascope/target/
+rustviz2-plugin/Cargo.lock
 
 .vscode/
 
@@ -19,7 +19,6 @@ rv-serve/ex-assets/
 rv-serve/target/
 
 test-book/book
-
 
 target/
 Cargo.lock

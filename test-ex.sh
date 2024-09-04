@@ -25,7 +25,7 @@ if [ "$#" -ge 2 ]; then
       usage
     fi
 
-    cat rv-plugin/resources/rustviz-library/rv_bin/examples/$1/source.rs > test-crate/src/lib.rs
+    cat rustviz2-plugin/resources/rustviz-library/rv_bin/examples/$1/source.rs > test-crate/src/lib.rs
     cd test-crate
     cargo rv-plugin -w > output.txt
     cd ..
@@ -33,8 +33,8 @@ fi
 
 cp test-crate/src/vis_code.svg test-book/src/
 cp test-crate/src/vis_timeline.svg test-book/src/
-cp rv-plugin/resources/rustviz-library/rv_bin/examples/$1/vis_code.svg test-book/src/ex-assets/
-cp rv-plugin/resources/rustviz-library/rv_bin/examples/$1/vis_timeline.svg test-book/src/ex-assets/
+cp rustviz2-plugin/resources/rustviz-library/rv_bin/examples/$1/vis_code.svg test-book/src/ex-assets/
+cp rustviz2-plugin/resources/rustviz-library/rv_bin/examples/$1/vis_timeline.svg test-book/src/ex-assets/
 cd test-book/
 mdbook build
 mdbook serve

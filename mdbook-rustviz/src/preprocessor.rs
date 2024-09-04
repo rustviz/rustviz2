@@ -11,9 +11,8 @@ use crate::cfg::Cfg;
 
 use core::str;
 use std::path::{Path, PathBuf};
-use std::fs::{self, File};
-use std::process::{Command, Stdio};
-use rust_viz::Rustviz;
+use std::fs;
+use rustviz2::Rustviz;
 
 pub struct RustvizPlugin {
 	src_dir: PathBuf
@@ -107,7 +106,7 @@ fn rustviz_handler(code_string: &str, a_dir: &PathBuf,  ex_counter: u32) -> Stri
 		info!("Error creating example directory: {}", err);
 	}
 
-  match rust_viz::Rustviz::new(code_string) {
+  match Rustviz::new(code_string) {
     Ok(rv) => {
       // write strings to file
       match fs::write(example_dir.join("vis_code.svg"), rv.code_panel_string()) {

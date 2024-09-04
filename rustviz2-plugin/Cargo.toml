@@ -1,5 +1,5 @@
 [package]
-name = "rv-plugin"
+name = "rustviz2-plugin"
 version = "0.1.0"
 edition = "2021"
 authors = ["Andrew Mahler <mahleran@umich.edu>", 
