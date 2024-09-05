@@ -13,6 +13,7 @@ test-crate/output.txt
 mdbook-rustviz/test-crate/
 mdbook-rustviz/target
 mdbook-rustviz/test-book/src/examples
+mdbook-rustviz/test-book/book
 
 rv-serve/test-crate/
 rv-serve/ex-assets/

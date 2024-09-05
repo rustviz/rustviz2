@@ -58,7 +58,6 @@ impl Preprocessor for RustvizPlugin {
 
 
 	fn run(&self, ctx: &PreprocessorContext, mut book: Book) -> Result<Book, Error> {
-		// create examples directory -- NOTE: needs to be called example for rv1
 		use std::fs;
 		let assets_dir = self.src_dir.join("examples");
 		if let Err(err) = fs::create_dir(self.src_dir.join("examples")){
