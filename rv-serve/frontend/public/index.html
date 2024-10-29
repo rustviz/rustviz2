@@ -24,9 +24,24 @@
       clicking the "Generate Visualization" button to convert your example code into an SVG diagram.
     </p>
   
-    <p>
-      Please note: RustViz is a research tool under active development, so it doesn't work for some Rust programs.
-    </p>
+    <div>
+    <p >
+      Please note: RustViz is a research tool under active development, so it doesn't work for some Rust programs. These are a few common Rust features that remain unimplemented 
+      by our plugin and as a result may result in undefined behavior when visualized:</p>
+      <ul style="margin-left: 50px;">
+        <li>For loops</li>
+        <li>Conditional let bindings</li>
+        <li>Borrows that occur inside of conditionals</li>
+        <li>Chained method calls</li>
+        <li>Lifetime annotations</li>
+        <li>Borrows over struct members</li>
+      </ul>
+    </div>
+    <div>
+      <p>If you come across an example that exposes some bug in our visualization please submit an issue on the <a href="https://github.com/rustviz/rustviz2/issues">repo</a> with 
+      the example code and error message (if applicable).</p>
+    </div>
+    
     <div id="editor"></div>
     <div id="root"></div>
 </body>

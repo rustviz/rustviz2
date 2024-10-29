@@ -6,7 +6,3 @@ title = "testb"
 
 
 [preprocessor.rustviz]
-
-[output.html]
-additional-css = ["mdbook_plugin/visualization.css"]
-additional-js = ["mdbook_plugin/helpers.js", "mdbook_plugin/book.js"]

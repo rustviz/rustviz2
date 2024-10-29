@@ -1,11 +1,20 @@
 fn main() {
-    let s = String::from("hello");
-    takes_ownership(s);
-    let mut x = 5;
-    let y = x;
-    x = 6;
-}
+  let mut x = 8;
+  let mut y = 8;
+  let mut z = 8;
+  let mut s = 9;
+  let mut c = &x; // c -> x
+  if true {
+      c = &y; // c -> y {x} // (returns x)
+      x += 8;
+      if true {
+          c = &z; // c -> z {y, x} (returns y)
+          y += 8;
+      }
 
-fn takes_ownership(some_string: String) {
-    println!("{}", some_string);
+      c = &s; // c -> s (returns y)
+      y += 9;
+  }
+
+  println!("c {}", *c);
 }
