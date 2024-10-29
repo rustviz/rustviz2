@@ -19,4 +19,5 @@ A preprocessor to generate embedded RustViz diagrams in mdbook.
     }
     ```
 
+  For extra debugging information, `mdbook serve` or `mdbook build` with `RUST_LOG=info`
 See `test-book/` for an example
