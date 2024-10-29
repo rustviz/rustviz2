@@ -14,10 +14,11 @@ A preprocessor to generate embedded RustViz diagrams in mdbook.
 
     ```rv
     fn main() {
-      let mut s = String::from("hello ");
+      let mut s = String::from("hello");
       s.push_str(" world");
     }
     ```
 
-  For extra debugging information, `mdbook serve` or `mdbook build` with `RUST_LOG=info`
+  For extra debugging information, `mdbook serve` or `mdbook build` with `RUST_LOG=info`.
+
 See `test-book/` for an example
