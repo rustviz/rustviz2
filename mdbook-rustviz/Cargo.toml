@@ -3,6 +3,7 @@ name = "mdbook-rustviz"
 version = "0.1.0"
 readme = "README.md"
 edition = "2021"
+description = "An mdbook preprocessor that allows users to embed RustViz visualizations into mdbook projects"
 
 exclude = [
     "test-book/",
