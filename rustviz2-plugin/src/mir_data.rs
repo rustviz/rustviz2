@@ -9,14 +9,11 @@
 
 use crate::{expr_visitor::*, expr_visitor_utils::span_to_line};
 use log::info;
-use rustc_middle::{
-  mir::{Location, Local},
-  ty::Ty,
-};
+use rustc_middle::mir::{Location, Local};
 use std::collections::HashMap;
 use rustc_utils::mir::{body::BodyExt, place::PlaceExt};
 use rustc_utils::SpanExt;
-use rustc_borrowck::consumers::{BodyWithBorrowckFacts, RichLocation, RustcFacts};
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, RustcFacts};
 use rustc_mir_dataflow::move_paths::MoveData;
 use rustc_span::Span;
 use polonius_engine::{Algorithm, Output, FactTypes};
@@ -36,9 +33,7 @@ pub struct MIRBorrowData {
 impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
     // these are just helper functions copied from aquascope permissionctxt
     fn point_to_location(&self, p: Point, body_with_facts: &BodyWithBorrowckFacts) -> Location {
-        match body_with_facts.location_table.as_ref().unwrap().to_location(p) {
-          RichLocation::Start(s) | RichLocation::Mid(s) => s
-        }
+        body_with_facts.location_table.as_ref().unwrap().to_location(p)
     }
 
     fn location_to_span(&self, l: Location, body_with_facts: &BodyWithBorrowckFacts) -> Span {
@@ -107,17 +102,15 @@ impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
 
         // refine loan regions (when testing they seem to be off sometimes) by looping through loan assignments
         for (_region, b_idx, location_idx) in body_with_facts.input_facts.as_ref().unwrap().loan_issued_at.iter() {
-            let location = match body_with_facts.location_table.as_ref().unwrap().to_location(*location_idx) {
-              RichLocation::Start(s) | RichLocation::Mid(s) => s
-            };
+            let location = body_with_facts.location_table.as_ref().unwrap().to_location(*location_idx);
             let assignment_line = self.location_to_line(location, &body_with_facts);
-            match body_with_facts.borrow_set.location_map.get(&location) {
+            match body_with_facts.borrow_set.location_map().get(&location) {
               Some(b_data) => {
                 // println!("borrow_data for location {:#?} : {:#?}", location, b_data);
-                let b_place = b_data.borrowed_place.local_or_deref_local();
-                let a_place = b_data.assigned_place.local_or_deref_local();
-                // println!("borrowed_place: {:#?}, as local: {:#?}", b_data.borrowed_place.to_string(self.tcx, &borrow_data.body), b_place);
-                // println!("assigned place {:#?}, as local {:#?}", b_data.assigned_place.to_string(self.tcx, &borrow_data.body), a_place);
+                let b_place = b_data.borrowed_place().local_or_deref_local();
+                let a_place = b_data.assigned_place().local_or_deref_local();
+                // println!("borrowed_place: {:#?}, as local: {:#?}", b_data.borrowed_place().to_string(self.tcx, &borrow_data.body), b_place);
+                // println!("assigned place {:#?}, as local {:#?}", b_data.assigned_place().to_string(self.tcx, &borrow_data.body), a_place);
                 let b_name = self.src_name_of_local(b_place, &loc_to_source_name);
                 let a_name = self.src_name_of_local(a_place, &loc_to_source_name);
 
@@ -135,24 +128,25 @@ impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
             info!("body string {}", self.bwf.body.to_string(self.tcx).unwrap());
             for (region, b_idx, location_idx) in body_with_facts.input_facts.as_ref().unwrap().loan_issued_at.iter() {
                 info!("loan issued at {:#?}", (region, b_idx, location_idx));
-                let location = match body_with_facts.location_table.as_ref().unwrap().to_location(*location_idx) {
-                    RichLocation::Start(s) | RichLocation::Mid(s) => s
-                };
-                match body_with_facts.borrow_set.location_map.get(&location) {
+                let location = body_with_facts.location_table.as_ref().unwrap().to_location(*location_idx);
+                match body_with_facts.borrow_set.location_map().get(&location) {
                     Some(b_data) => {
                     info!("borrow_data for location {:#?} : {:#?}", location, b_data);
-                    let b_place = b_data.borrowed_place.local_or_deref_local();
-                    let a_place = b_data.assigned_place.local_or_deref_local();
-                    info!("borrowed_place: {:#?}, as local: {:#?}", b_data.borrowed_place.to_string(self.tcx, &body_with_facts.body), b_place);
-                    info!("is source visible? {}", b_data.borrowed_place.is_source_visible(self.tcx, &body_with_facts.body));
-                    info!("region inference context {:#?}", body_with_facts.region_inference_context.var_infos.get(*region).unwrap());
+                    let b_place = b_data.borrowed_place().local_or_deref_local();
+                    let a_place = b_data.assigned_place().local_or_deref_local();
+                    info!("borrowed_place: {:#?}, as local: {:#?}", b_data.borrowed_place().to_string(self.tcx, &body_with_facts.body), b_place);
+                    info!("is source visible? {}", b_data.borrowed_place().is_source_visible(self.tcx, &body_with_facts.body));
+                    // RegionInferenceContext's per-region accessors are pub(crate) in 1.91;
+                    // log just the region id here. If we need the NLL origin, we can lift
+                    // this through rustc_utils' consumer wrappers later.
+                    info!("region inference context: region {:?}", region);
                     if b_place.is_some() { 
                         let b_loc = body_with_facts.body.local_decls.get(b_place.unwrap()).unwrap();
                         info!("local decl {:#?}", b_loc); 
                         //println!("span {}", b_loc.source_info.span.to_string(self.tcx));
                     }
-                    info!("assigned place {:#?}, as local {:#?}", b_data.assigned_place.to_string(self.tcx, &body_with_facts.body), a_place);
-                    info!("is source visible? {}", b_data.assigned_place.is_source_visible(self.tcx, &body_with_facts.body));
+                    info!("assigned place {:#?}, as local {:#?}", b_data.assigned_place().to_string(self.tcx, &body_with_facts.body), a_place);
+                    info!("is source visible? {}", b_data.assigned_place().is_source_visible(self.tcx, &body_with_facts.body));
                     if a_place.is_some() { 
                         let a_loc =  body_with_facts.body.local_decls.get(a_place.unwrap()).unwrap();
                         info!("local decl {:#?}", a_loc);
@@ -163,7 +157,7 @@ impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
                     // println!("origins live at {:#?}", p_output.origins_live_at(*location_idx));
                     // println!("loans in scope at {:#?}", p_output.loans_in_scope_at(*location_idx));
                     // println!("origin contains loans at {:#?}", p_output.origin_contains_loan_at(*location_idx));
-                    // let expr = self.tcx.hir().expect_expr(borrow_data.body.location_to_hir_id(location.clone()));
+                    // let expr = self.tcx.hir_expect_expr(borrow_data.body.location_to_hir_id(location.clone()));
                     // println!("line {}\n\n", self.span_to_line(&expr.span));
                     }
                     None => { println!("no borrow data found for location"); }
@@ -206,10 +200,9 @@ impl <'a, 'tcx> ExprVisitor<'a, 'tcx> {
     // let c = a.1 (a.1 is moved)
     // https://rustc-dev-guide.rust-lang.org/borrow_check/moves_and_initialization/move_paths.html
     #[allow(dead_code)]
-    fn gather_move_data(&self, body: &'tcx rustc_hir::Body, body_with_facts: &BodyWithBorrowckFacts<'tcx>) -> MoveData<'tcx> {
-        fn filter<'tcx>(_t: Ty<'tcx>) -> bool { true } // I have no idea what this filter is for or how to configure it
-        let m = MoveData::gather_moves(&body_with_facts.body, self.tcx, self.tcx.param_env(body.value.hir_id.owner), filter);
-        m
+    fn gather_move_data(&self, _body: &'tcx rustc_hir::Body, body_with_facts: &BodyWithBorrowckFacts<'tcx>) -> MoveData<'tcx> {
+        // The filter decides which types are tracked; `|_| true` tracks all.
+        MoveData::gather_moves(&body_with_facts.body, self.tcx, |_| true)
     }
 
     // Helper function to help refine loan regions that we compute in HIR

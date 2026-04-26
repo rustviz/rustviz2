@@ -2,7 +2,7 @@
 
 A preprocessor to generate embedded RustViz diagrams in mdbook. 
 
-To install the preprocessor run: `rustup run nightly-2024-05-20 cargo install mdbook-rustviz`
+To install the preprocessor run: `rustup run nightly-2025-08-20 cargo install mdbook-rustviz`
 
 ## Usage:
   First, enable `mdbook-rustviz` in your mdBook's `book.toml` like so:

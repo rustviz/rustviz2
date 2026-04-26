@@ -6,7 +6,6 @@
   min_specialization,
   type_alias_impl_trait,
   trait_alias,
-  let_chains,
   unboxed_closures,
   exact_size_is_empty,
   btree_cursors,
@@ -117,9 +116,8 @@ impl RustcPlugin for RVPlugin {
       .map(|s| s.to_owned()),
     );
     let mut callbacks = RVCallbacks { args: plugin_args };
-    let compiler = rustc_driver::RunCompiler::new(&compiler_args, &mut callbacks);
-
-    compiler.run()
+    rustc_driver::run_compiler(&compiler_args, &mut callbacks);
+    Ok(())
   }
 }
 
@@ -137,12 +135,9 @@ impl rustc_driver::Callbacks for RVCallbacks {
     fn after_analysis<'tcx>(
       &mut self,
       _compiler: &rustc_interface::interface::Compiler,
-      queries: &'tcx rustc_interface::Queries<'tcx>, 
+      tcx: rustc_middle::ty::TyCtxt<'tcx>,
     ) -> rustc_driver::Compilation {
-      queries
-        .global_ctxt()//return an option TyCtxt
-        .unwrap()
-        .enter(|tcx| plugin::rv_visitor(tcx, &self.args));
+      plugin::rv_visitor(tcx, &self.args);
       // allow compilation to continue.
       rustc_driver::Compilation::Continue
     }

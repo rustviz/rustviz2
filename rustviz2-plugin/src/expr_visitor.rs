@@ -135,7 +135,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         false
       }
       else{
-        return_type.is_copy_modulo_regions(self.tcx, self.tcx.param_env(fn_expr.hir_id.owner))
+        self.tcx.type_is_copy_modulo_regions(rustc_middle::ty::TypingEnv::post_analysis(self.tcx, fn_expr.hir_id.owner), return_type)
       }
     }
     else{
@@ -261,13 +261,13 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   pub fn resource_of_lhs(&mut self, expr: &'tcx Expr) -> ResourceTy {
     match expr.kind {
       ExprKind::Path(QPath::Resolved(_, p)) => {
-        let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+        let name = self.tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
         ResourceTy::Value(self.raps.get(&name).unwrap().rap.to_owned())
       }
       ExprKind::Field(expr, ident) => {
         match expr {
           Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
-            let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+            let name = self.tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
             let total_name = format!("{}.{}", name, ident.as_str());
             ResourceTy::Value(self.raps.get(&total_name).unwrap().rap.to_owned())
           }
@@ -295,7 +295,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     let line_num = expr_to_line(&arg, &self.tcx);
     let tycheck_results = self.tcx.typeck(arg.hir_id.owner);
     let arg_ty = tycheck_results.node_type(arg.hir_id);
-    let is_copyable = arg_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(arg.hir_id.owner));
+    let is_copyable = self.tcx.type_is_copy_modulo_regions(rustc_middle::ty::TypingEnv::post_analysis(self.tcx, arg.hir_id.owner), arg_ty);
     let from_ro = get_rap(arg, &self.tcx, &self.raps);
     let to_ro = ResourceTy::Value(self.raps.get(&fn_name).unwrap().rap.to_owned());
     // type-check the arg and add event accordingly
@@ -442,7 +442,7 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 if bool_of_mut(parent_ty.ref_mutability().unwrap()) { Evt::MBorrow }
                 else { Evt::SBorrow }
             } else {
-                if ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(pat.hir_id.owner)) { Evt::Copy }
+                if self.tcx.type_is_copy_modulo_regions(rustc_middle::ty::TypingEnv::post_analysis(self.tcx, pat.hir_id.owner), ty) { Evt::Copy }
                 else { Evt::Move }
             };
 
@@ -461,7 +461,7 @@ pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr, evt: Evt){
         Res::Def(rustc_hir::def::DefKind::Ctor(_, _), _) => {
           let mut name = String::new();
           for (i, segment) in p.segments.iter().enumerate() {
-            name.push_str(self.tcx.hir().name(segment.hir_id).as_str());
+            name.push_str(self.tcx.hir_name(segment.hir_id).as_str());
             if i < p.segments.len() - 1 {
               name.push_str("::");
             }
@@ -469,7 +469,7 @@ pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr, evt: Evt){
           name
         }
         _ => {
-          self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned()
+          self.tcx.hir_name(p.segments[0].hir_id).as_str().to_owned()
         }
       };
       let rhs_rap = self.raps.get(&rhs_name).unwrap().rap.to_owned();
@@ -560,7 +560,7 @@ pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr, evt: Evt){
           let new_lhs_name = format!("{}.{}", lhs.name(), field.ident.as_str());
           let field_rap = self.raps.get(&new_lhs_name).unwrap().rap.to_owned();
           let field_ty = self.tcx.typeck(field.expr.hir_id.owner).node_type(field.expr.hir_id);
-          let is_copyable = field_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(field.expr.hir_id.owner));
+          let is_copyable = self.tcx.type_is_copy_modulo_regions(rustc_middle::ty::TypingEnv::post_analysis(self.tcx, field.expr.hir_id.owner), field_ty);
           let e = if field_ty.is_ref() {
             match field_ty.ref_mutability().unwrap() {
               Mutability::Not => Evt::Copy,
@@ -580,7 +580,7 @@ pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr, evt: Evt){
       match expr {
         Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
           let line_num = span_to_line(&p.span, &self.tcx);
-          let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+          let name = self.tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
           let total_name = format!("{}.{}", name, id.as_str());
           let rhs_rap = self.raps.get(&total_name).unwrap().rap.to_owned();
           self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap), false);

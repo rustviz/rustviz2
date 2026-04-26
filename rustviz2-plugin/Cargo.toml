@@ -27,8 +27,8 @@ itertools = "0.10.5"
 ts-rs = "6.2"
 regex = "1"
 fluid-let = "1.0"
-rustc_utils = {version = "0.10.0-nightly-2024-05-20", features = ["graphviz", "ts-rs", "serde", "test"]}
-rustc_plugin = {version = "0.10.0-nightly-2024-05-20"}
+rustc_utils = {version = "0.14.3-nightly-2025-08-20", features = ["graphviz", "ts-rs", "serde", "test"]}
+rustc_plugin = {version = "0.14.3-nightly-2025-08-20"}
 simplelog = "0.11"
 handlebars = "3.0.1"
 

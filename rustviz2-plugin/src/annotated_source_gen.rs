@@ -20,22 +20,30 @@ pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool, hash: u64) 
   let left:usize = self.tcx.sess.source_map().lookup_char_pos(s.lo()).col_display;
   let right: usize = self.tcx.sess.source_map().lookup_char_pos(s.hi()).col_display;
 
-  // the reason we replace the '<' and '>' characters with [_ and _] is that 
+  // the reason we replace the '<' and '>' characters with [_ and _] is that
   // < and > characters are illegal on their own in html (need to use &gt; / &lt: / &amp; etc)
   // We eventually replace all the [_ and _] after we replace the </>
-  let mut line_contents:String = self.source_map.get(&line).unwrap().clone();
+  // Synthetic spans (e.g. desugared macro expansions) can map to lines outside the user's
+  // source; skip annotation for those rather than panic.
+  let mut line_contents = match self.source_map.get(&line) {
+    Some(c) => c.clone(),
+    None => return,
+  };
   let replace_with: String = if is_func {
       format!("[_tspan class=\"fn\" data-hash=\"{}\" hash=\"{}\"_]{}[_/tspan_]", 0, hash, name)
     } else {
       format!("[_tspan data-hash=\"{}\"_]{}[_/tspan_]", hash, name)
   };
 
+  if right > line_contents.len() || left > right {
+    return;
+  }
   line_contents.replace_range(left..right, &replace_with);
   // The reason we have a vector of strings associated with each line instead of just a single
-  // string that is constantly being mutated is because it would mess up the positions we get from 
-  // the span of the variable we want to replace. So we keep a collection of strings and then merge 
+  // string that is constantly being mutated is because it would mess up the positions we get from
+  // the span of the variable we want to replace. So we keep a collection of strings and then merge
   // them all together later.
-  let v = self.annotated_lines.get_mut(&line).unwrap();
+  let Some(v) = self.annotated_lines.get_mut(&line) else { return };
   if !v.contains(&line_contents) {
     v.push(line_contents);
   }
@@ -48,14 +56,14 @@ pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
         rustc_hir::def::Res::Def(rustc_hir::def::DefKind::Ctor(..), _) => {
           let mut name = String::new();
             for (i, segment) in p.segments.iter().enumerate() {
-              name.push_str(self.tcx.hir().name(segment.hir_id).as_str());
+              name.push_str(self.tcx.hir_name(segment.hir_id).as_str());
               if i < p.segments.len() - 1 {
                 name.push_str("::");
               }
             }
             (name, true)
         }
-        _ => (self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned(), false)
+        _ => (self.tcx.hir_name(p.segments[0].hir_id).as_str().to_owned(), false)
       };
       match self.raps.get(&name) {
         Some(r) => {
