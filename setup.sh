@@ -31,11 +31,28 @@ mkdir -p rv-serve/ex-assets
 # 5. Build the rest of the workspace.
 cargo build --workspace --release
 
+# 6. Build the sandboxed runner image if Docker is available locally. This
+#    is required before exposing rv-serve to untrusted input — see
+#    SECURITY.md. Skipped silently when docker is not on PATH so devs who
+#    only iterate against RV_RUNNER=local don't need it installed.
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    echo "Building rustviz/rustviz-runner image..."
+    docker build -t rustviz/rustviz-runner:latest -f runner/Dockerfile .
+else
+    cat <<'WARN'
+Skipping runner image build: docker is not available.
+
+For local dev, set RV_RUNNER=local to run the plugin in-process
+(NEVER do this on a public deployment — see SECURITY.md).
+WARN
+fi
+
 cat <<'EOF'
 
 Setup complete. To run the playground:
 
-  cd rv-serve && cargo run --release
+  RV_RUNNER=local cd rv-serve && cargo run --release   # local dev
+  cd rv-serve && cargo run --release                   # docker (default)
   open http://127.0.0.1:8080/
 
 To iterate on the frontend in dev mode (hot reload, proxies API to :8080):
@@ -43,7 +60,7 @@ To iterate on the frontend in dev mode (hot reload, proxies API to :8080):
   cd rv-serve/frontend && npm run dev
   open http://127.0.0.1:3000/
 
-To run the rustc plugin against test-crate:
+To run the rustc plugin directly (host toolchain) against test-crate:
 
   cd test-crate && cargo rv-plugin -w
 EOF

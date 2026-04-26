@@ -16,22 +16,15 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
-      # rust-toolchain.toml pins nightly-2024-05-20 with the components we need
-      # (rust-src, rustc-dev, llvm-tools-preview). rustup honors it automatically.
       - name: Install Rust toolchain (from rust-toolchain.toml)
         run: |
           rustup show active-toolchain || rustup show
           rustc --version
           cargo --version
-
-      # We also need a stable toolchain for `cargo update --precise` in setup.sh
-      # (the pinned nightly's cargo can't parse manifests that require edition 2024).
-      - name: Install stable toolchain
-        run: rustup toolchain install stable --profile minimal
 
       - name: Cache cargo registry + target
         uses: actions/cache@v4
@@ -49,7 +42,10 @@ jobs:
           cache: npm
           cache-dependency-path: rv-serve/frontend/package-lock.json
 
-      - name: Run setup.sh (toolchain check, deps, plugin install, frontend build)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Run setup.sh (toolchain, plugin install, frontend build, runner image)
         run: ./setup.sh
 
       - name: cargo build --workspace
@@ -61,9 +57,14 @@ jobs:
         # rather than blocking until we add a stable test corpus.
         continue-on-error: true
 
-      - name: Smoke test the playground end-to-end
+      - name: Smoke test the playground end-to-end (sandboxed backend)
+        env:
+          RV_RUNNER: docker
         run: |
-          (cd rv-serve && cargo run --release --locked &) &&
+          # Use --locked to surface lockfile drift; spawn rv-serve in the
+          # background and wait for /. Then POST a small program and confirm
+          # we get back both SVGs.
+          (cd rv-serve && RV_RUNNER=docker cargo run --release --locked &) &&
           for i in $(seq 1 60); do
             curl -fsS http://127.0.0.1:8080/ > /dev/null && break || sleep 1
           done
@@ -71,3 +72,16 @@ jobs:
             -H 'Content-Type: application/json' \
             -d '{"code":"fn main(){let s=String::from(\"hi\");let t=s;println!(\"{}\",t);}"}' \
             | grep -q '"code_panel"'
+
+      - name: Smoke test rate limit (expects 429 after burst exhausted)
+        run: |
+          ok=0
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+              http://127.0.0.1:8080/submit-code \
+              -H 'Content-Type: application/json' \
+              -d '{"code":"fn main(){}"}')
+            echo "request $i -> $code"
+            if [ "$code" = "429" ]; then ok=1; break; fi
+          done
+          [ "$ok" = "1" ] || { echo "rate limit never engaged"; exit 1; }
