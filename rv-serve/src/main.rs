@@ -1,9 +1,5 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, middleware::Logger, Result, error};
-use actix_files::{Files, NamedFile};
-use env_logger;
-use log::info;
-use std::{fs, str};
-use std::process::Command;
+use actix_web::{web, App, HttpResponse, HttpServer, middleware::Logger, error};
+use actix_files::Files;
 use serde::{Deserialize, Serialize};
 use rustviz2::Rustviz;
 

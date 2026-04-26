@@ -1,25 +1,25 @@
-rustviz2-plugin/target/
-rustviz2-plugin/resources/aquascope/target/
-rustviz2-plugin/Cargo.lock
-
 .vscode/
+.DS_Store
 
+# build outputs (workspace and per-package)
+target/
+*/target/
+
+# transient artifacts the rustc plugin writes into test-crate during iteration
 test-crate/src/vis*
-test-crate/target/
 test-crate/Cargo.lock
 test-crate/output.log
 test-crate/output.txt
 
+# per-run fixtures Cargo creates inside the mdbook + rv-serve test trees
 mdbook-rustviz/test-crate/
-mdbook-rustviz/target
 mdbook-rustviz/test-book/src/examples
 mdbook-rustviz/test-book/book
-
 rv-serve/test-crate/
-rv-serve/ex-assets/
-rv-serve/target/
 
-test-book/book
+# generated mdbook output
+test-book/book/
 
-target/
-Cargo.lock
+# frontend build artifacts (committed via setup.sh, not source-controlled)
+rv-serve/frontend/build/
+rv-serve/frontend/node_modules/
