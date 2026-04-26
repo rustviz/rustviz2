@@ -36,7 +36,12 @@ done
 #    the cached image from /var/lib/docker (mounted on a volume in fly.toml).
 if ! docker image inspect rustviz/rustviz-runner:latest >/dev/null 2>&1; then
     LOG "runner image not present, building (one-time, ~3-5 min)..."
-    docker build -t rustviz/rustviz-runner:latest \
+    # --network=host: the inner dockerd's default bridge network has no
+    # working DNS resolver inside Fly Machines, so build steps that hit the
+    # internet (rustup, cargo registry) fail with NXDOMAIN. Sharing the host
+    # network namespace lets buildkit use the Fly Machine's resolver.
+    docker build --network=host \
+        -t rustviz/rustviz-runner:latest \
         -f /opt/runner-context/runner/Dockerfile \
         /opt/runner-context
     LOG "runner image built"

@@ -1,45 +1,38 @@
-# Fly.io config for the RustViz playground.
+# fly.toml app configuration file generated for rustviz-playground on 2026-04-27T00:06:33+01:00
 #
-# `fly launch` will copy this file as a starting point — once you have an
-# app name and region picked, edit the `app` and `primary_region` fields.
-# `fly deploy` builds the Dockerfile at the repo root and rolls a Machine
-# in your primary region. See README.md "Deploy" section for the full
-# walkthrough.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app           = "rustviz-playground"   # rename to a unique app name when you launch
-primary_region = "ord"                  # any Fly region works; ord = Chicago
+app = 'rustviz-playground'
+primary_region = 'ord'
+
+[experimental]
+  # Required: the deploy image runs Docker-in-Docker so rv-serve can shell out
+  # to a per-request sandboxed runner (see SECURITY.md). The inner dockerd
+  # needs to manage cgroups / namespaces / overlayfs, which only works when
+  # the Fly Machine itself is privileged.
+  privileged = true
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
-# rv-serve reads RV_BIND for its bind address and RV_RUNNER for the backend.
-# RV_RATE_* are tunable rate-limit knobs documented in SECURITY.md.
 [env]
-  RV_BIND = "0.0.0.0:8080"
-  RV_RUNNER = "docker"
-  RV_RATE_BURST = "5"
-  RV_RATE_SECONDS_PER_REQUEST = "2"
+  RV_BIND = '0.0.0.0:8080'
+  RV_RATE_BURST = '5'
+  RV_RATE_SECONDS_PER_REQUEST = '2'
+  RV_RUNNER = 'docker'
+
+[[mounts]]
+  source = 'rustviz_docker'
+  destination = '/var/lib/docker'
 
 [http_service]
-  internal_port      = 8080
-  force_https        = true
-  auto_stop_machines = "stop"
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
-# /var/lib/docker holds the dockerd image cache (incl. the runner image).
-# Mounting a volume keeps the runner image around across restarts so the
-# 3-5 min first-boot build only happens once. Create the volume with
-# `fly volumes create rustviz_docker --size 10`.
-[mounts]
-  source      = "rustviz_docker"
-  destination = "/var/lib/docker"
-
-# DinD requires the Machine to run privileged so the inner dockerd can
-# manage cgroups, namespaces, and overlayfs. This is supported on Fly.
-[experimental]
-  privileged = true
-
 [[vm]]
-  size   = "shared-cpu-2x"
-  memory = "2gb"
+  size = 'shared-cpu-2x'
+  memory = '2gb'
