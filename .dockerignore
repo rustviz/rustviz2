@@ -1,0 +1,31 @@
+# Build outputs and local-only state. Without this, the deploy context
+# copies multi-GiB target/ and node_modules/ trees to the daemon on every
+# `docker build`, which both slows the build and risks confusing layer
+# caches.
+
+**/target/
+**/node_modules/
+**/dist/
+**/build/
+
+.git/
+.github/
+.vscode/
+
+# These exist only in iterating dev runs of the rustc plugin.
+test-crate/src/vis*
+test-crate/Cargo.lock
+test-crate/output.*
+mdbook-rustviz/test-book/book/
+rv-serve/test-crate/
+test-book/book/
+
+# Frontend caches
+**/.parcel-cache/
+**/.vite/
+**/.tsbuildinfo
+**/*.tsbuildinfo
+
+# OS / editor noise
+.DS_Store
+**/*.swp
