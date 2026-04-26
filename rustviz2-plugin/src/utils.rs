@@ -192,49 +192,74 @@ impl RV1Helper {
 
 }
 
-fn union_strings (strings: &Vec<String>) -> String {
+/// Merge a set of annotations of the same source line into a single line
+/// that contains every annotation's `[_..._]…[_/_]` wrappers.
+///
+/// Each input string is the underlying source line with zero or more
+/// `[_open_]name[_/close_]` regions inserted (see `annotate_src`). Stripping
+/// every `[_..._]` from each input must yield the same underlying text, which
+/// is the invariant the merge relies on.
+///
+/// The original implementation walked `strings[0]` character-by-character and
+/// assumed that, between any two consecutive characters of the underlying
+/// text, every other string had **at most one** `[_..._]` marker. That broke
+/// (with `assert_eq!(char_at_i, '[')`) any time two annotations landed at
+/// the same source position — increasingly common after rustc 1.91 (HIR
+/// span behavior changed). This rewrite tolerates arbitrary numbers of
+/// adjacent markers from multiple strings and is robust to inputs whose
+/// underlying text mismatches: it falls back to emitting whatever the first
+/// non-exhausted string has rather than panicking.
+fn union_strings(strings: &Vec<String>) -> String {
   if strings.len() == 1 {
-    strings[0].clone()
+    return strings[0].clone();
   }
-  else if strings.len() == 2 {
-    strings[1].clone()
+  if strings.len() == 2 {
+    // Convention: index 0 is the bare source line, index 1 is the only
+    // annotated copy — short-circuit to the annotated one.
+    return strings[1].clone();
   }
-  else {
-    let mut res = String::new();
-    let i = 0;
-    let mut offsets: HashMap<String, usize> = HashMap::new();
-    for string in strings {
-      offsets.insert(string.clone(), 0);
-    }
-    for i in i..strings[0].len() {
-      let consistent_char = strings[0].chars().nth(i).unwrap();
-      for string in strings {
-        let mut j = offsets[string];
-        let mut char_at_i = string.chars().nth(j).unwrap();
-        if char_at_i != consistent_char {
-          assert_eq!(char_at_i, '['); //todo: fix
-          while char_at_i != ']' {
-            res.push(char_at_i);
-            j += 1;
-            char_at_i = string.chars().nth(j).unwrap();
-          } // loop until closing ']' since characters [_.._] could contain consistent_char
-          res.push(char_at_i); // add ']'
-          j += 1;
+
+  let bufs: Vec<Vec<char>> = strings.iter().map(|s| s.chars().collect()).collect();
+  let mut offsets = vec![0usize; bufs.len()];
+  let mut res = String::new();
+
+  loop {
+    // Emit every leading `[_..._]` marker from any input until none remain.
+    // We loop here because two strings can each carry a marker at the same
+    // underlying position, and a single string can carry several markers
+    // back-to-back (e.g. `[_open_][_close_]`).
+    let mut emitted_marker = true;
+    while emitted_marker {
+      emitted_marker = false;
+      for k in 0..bufs.len() {
+        if offsets[k] < bufs[k].len() && bufs[k][offsets[k]] == '[' {
+          // Copy from `[` through the matching `]` into res, advance offset.
+          while offsets[k] < bufs[k].len() {
+            let c = bufs[k][offsets[k]];
+            res.push(c);
+            offsets[k] += 1;
+            if c == ']' { break; }
+          }
+          emitted_marker = true;
         }
-        j += 1;
-        *offsets.get_mut(string).unwrap() = j;
-      }
-      res.push(consistent_char);
-    }
-    
-    for string in strings {
-      if offsets[string] != string.len() {
-        res.push_str(&string[offsets[string]..]);
-        break;
       }
     }
-    res
+
+    // Pick the next underlying char from the first non-exhausted input;
+    // advance every input whose next char matches.
+    let chosen = bufs.iter().zip(offsets.iter()).find_map(|(buf, &o)| {
+      if o < buf.len() { Some(buf[o]) } else { None }
+    });
+    let Some(ch) = chosen else { break };
+
+    res.push(ch);
+    for k in 0..bufs.len() {
+      if offsets[k] < bufs[k].len() && bufs[k][offsets[k]] == ch {
+        offsets[k] += 1;
+      }
+    }
   }
+  res
 }
 
 pub fn generate_annotated_src(annotated_line_map: & mut BTreeMap<usize, Vec<String>>) -> String {
