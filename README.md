@@ -151,4 +151,5 @@ MIT. See per-crate `Cargo.toml` for details.
 
 ## Citing
 
-If you use RustViz in academic work, please cite the [HATRA paper](https://web.eecs.umich.edu/~comar/rustviz-hatra20.pdf) describing RustViz 1 and the corresponding RustViz 2 paper(s) (forthcoming).
+If you use RustViz in academic work, please cite the
+[VL/HCC 2022 paper](https://web.eecs.umich.edu/~comar/rustviz-vlhcc22.pdf).
