@@ -1,0 +1,26 @@
+name: deploy
+
+# Runs on tag pushes (vX.Y.Z) and on manual workflow_dispatch. Builds the
+# top-level Dockerfile and deploys to Fly. Requires a FLY_API_TOKEN secret
+# in the repo settings (Settings → Secrets → Actions).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: fly deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: fly-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: fly deploy
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
