@@ -88,23 +88,48 @@ inside a Fly Machine; rv-serve shells out to `docker run` per request, so
 the same per-request sandbox documented in `SECURITY.md` is in force in
 production.
 
-First-time setup:
+### First-time setup
 
 ```sh
-fly launch --copy-config --no-deploy        # picks an app name, region
-fly volumes create rustviz_docker --size 10 # caches the runner image
-                                            # across restarts
-fly secrets set ...                         # if you add any
-fly deploy
+fly auth login                                                 # browser OAuth
+fly launch --copy-config --no-deploy                           # creates the app
+fly volumes create rustviz_docker --size 10 --region <region>  # runner-image cache
+./deploy/deploy.sh                                             # two-phase deploy
 ```
 
-Subsequent deploys: `fly deploy`, or push a `vX.Y.Z` tag and the
-`.github/workflows/deploy.yml` workflow will deploy for you (requires a
-`FLY_API_TOKEN` repo secret).
+The first boot inside the Machine builds the `rustviz/rustviz-runner` image
+(downloads the Rust nightly, compiles the plugin) and takes 5–10 minutes.
+The image is then cached on the `rustviz_docker` volume, so future cold
+starts take ~10 s.
 
-The first boot of a fresh Machine builds the `rustviz/rustviz-runner` image
-inside the Machine (3–5 minutes); the image is cached on the mounted
-volume, so subsequent boots are fast.
+### Routine deploys
+
+```sh
+./deploy/deploy.sh
+```
+
+Or push a `vX.Y.Z` tag and the `.github/workflows/deploy.yml` workflow runs
+`flyctl deploy --remote-only` for you (requires a `FLY_API_TOKEN` repo
+secret).
+
+### Why a script instead of `fly deploy` directly
+
+`fly.toml` sets `auto_stop_machines = 'stop'` with `min_machines_running = 0`,
+so the Fly Machine idles down to zero cost when no traffic is hitting it
+(~$2–3/mo for the volume + IP). The catch: Fly's autoscaler stops the
+Machine after ~40 s of "no incoming traffic", which collides with our
+5–10 min first-boot bootstrap. `deploy/deploy.sh` handles the timing
+window automatically:
+
+1. Edits `fly.toml` to set `min_machines_running = 1`, runs `fly deploy`.
+2. Polls the public URL until it responds (up to 15 min).
+3. Edits `fly.toml` back to `min_machines_running = 0`, runs `fly deploy`
+   again so auto-stop is in force for steady state.
+
+Pass `--keep-warm` to skip step 3 if you want the Machine to never
+auto-stop (~$24/mo).
+
+### Security
 
 Read [`SECURITY.md`](SECURITY.md) before exposing the playground to the
 public internet. The runner image's sandbox flags are not optional.

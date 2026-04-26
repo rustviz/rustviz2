@@ -31,6 +31,10 @@ primary_region = 'ord'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
+  # Keep at 0 in the canonical config so the Machine auto-stops when idle
+  # (~$2-3/mo cost). `deploy/deploy.sh` flips this to 1 temporarily during
+  # deploys so Fly's autoscaler doesn't kill the Machine while it bootstraps
+  # the inner runner Docker image, then flips it back.
   min_machines_running = 0
 
 [[vm]]
