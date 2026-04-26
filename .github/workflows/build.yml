@@ -1,0 +1,72 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust-toolchain.toml pins nightly-2024-05-20 with the components we need
+      # (rust-src, rustc-dev, llvm-tools-preview). rustup honors it automatically.
+      - name: Install Rust toolchain (from rust-toolchain.toml)
+        run: |
+          rustup show active-toolchain || rustup show
+          rustc --version
+          cargo --version
+
+      # We also need a stable toolchain for `cargo update --precise` in setup.sh
+      # (the pinned nightly's cargo can't parse manifests that require edition 2024).
+      - name: Install stable toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: rv-serve/frontend/package-lock.json
+
+      - name: Run setup.sh (toolchain check, deps, plugin install, frontend build)
+        run: ./setup.sh
+
+      - name: cargo build --workspace
+        run: cargo build --workspace --locked
+
+      - name: cargo test --workspace
+        run: cargo test --workspace --locked
+        # Plugin tests exercise rustc-private; allow this to be informational
+        # rather than blocking until we add a stable test corpus.
+        continue-on-error: true
+
+      - name: Smoke test the playground end-to-end
+        run: |
+          (cd rv-serve && cargo run --release --locked &) &&
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8080/ > /dev/null && break || sleep 1
+          done
+          curl -fsS -X POST http://127.0.0.1:8080/submit-code \
+            -H 'Content-Type: application/json' \
+            -d '{"code":"fn main(){let s=String::from(\"hi\");let t=s;println!(\"{}\",t);}"}' \
+            | grep -q '"code_panel"'

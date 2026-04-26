@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import ReactDOM from 'react-dom/client';
 import './index.css';
-import { basicSetup, extensions } from './setup';
-import { Extension, EditorState } from "@codemirror/state";
-import { EditorView, ViewUpdate } from "@codemirror/view";
+import { extensions } from './setup';
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import axios from 'axios';
 import ErrorCard from './ErrorCard';
 
@@ -68,10 +67,9 @@ const App = () => {
     const code = editor.getCurrentCode();
 
     try {
-      const response = await axios.post('http://127.0.0.1:8080/submit-code', { code });
+      const response = await axios.post('/submit-code', { code });
 
       if (response.status === 200) {
-        //await reloadSvgs();
         setCodeSvg(response.data.code_panel);
         setTimelineSvg(response.data.timeline_panel);
         setErr(false);
@@ -93,22 +91,9 @@ const App = () => {
     }
   };
 
-  const reloadSvgs = async () => {
-    const timestamp = new Date().getTime();
-    const codePanel = document.querySelector('.code_panel') as HTMLObjectElement;
-    const tlPanel = document.querySelector('.tl_panel') as HTMLObjectElement;
-
-    if (codePanel) {
-      codePanel.data = `ex-assets/vis_code.svg?timestamp=${timestamp}`;
-    }
-
-    if (tlPanel) {
-      tlPanel.data = `ex-assets/vis_timeline.svg?timestamp=${timestamp}`;
-    }
-  };
-
   useEffect(() => {
     handleClick(); // Call handleClick when the component mounts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
 
@@ -117,33 +102,20 @@ const App = () => {
       <button className="cm-button large-button" id="gen-button" onClick={handleClick} disabled={isLoading}>
         {isLoading ? <span className="loader"></span> : 'Generate Visualization'}
       </button>
-      {isErr && error ? <ErrorCard err_string={error}></ErrorCard> : 
+      {isErr && error ? <ErrorCard err_string={error} /> :
         <div className="page">
-                <div className="flex-container vis_block" style={{marginLeft: '50px' }}>
-                  {/* <object 
-                    type="image/svg+xml" 
-                    className="ex2 code_panel" 
-                    data={code_svg ? code_svg : ""}>
-                  </object>
-                  <object 
-                    type="image/svg+xml" 
-                    className="ex2 tl_panel"
-                    style={{width: 'auto'}}
-                    data={timeline_svg ? timeline_svg : ""} 
-                    onMouseEnter={() => helpers('ex2')}>
-                  </object> */}
-                                    <div 
-                    className="ex2 code_panel" 
-                    style={{zIndex: 0}}
-                    dangerouslySetInnerHTML={{ __html: code_svg ? code_svg : "" }}>
-                  </div>
-                  <div 
-                    className="ex2 tl_panel" 
-                    style={{width: 'auto', zIndex: 0}} 
-                    dangerouslySetInnerHTML={{ __html: timeline_svg ? timeline_svg : "" }} 
-                    onMouseEnter={() => helpers('ex2')}>
-                  </div>
-                </div>
+          <div className="flex-container vis_block" style={{ marginLeft: '50px' }}>
+            <div
+              className="ex2 code_panel"
+              dangerouslySetInnerHTML={{ __html: code_svg ?? "" }}
+            />
+            <div
+              className="ex2 tl_panel"
+              style={{ width: 'auto' }}
+              dangerouslySetInnerHTML={{ __html: timeline_svg ?? "" }}
+              onMouseEnter={() => helpers('ex2')}
+            />
+          </div>
         </div>
       }
     </div>

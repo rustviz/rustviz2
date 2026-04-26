@@ -9,5 +9,4 @@ description = "An interface that allows users to easily generate RustViz visuali
 readme = "README.md"
 
 [dependencies]
-rv-plugin = "0.1"
 tempfile = "3"
