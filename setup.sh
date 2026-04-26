@@ -10,7 +10,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # 1. Toolchain (rust-toolchain.toml triggers rustup to auto-install
-#    nightly-2024-05-20 with the rustc-dev/rust-src components we need).
+#    nightly-2025-08-20 with the rustc-dev/rust-src components we need).
 rustup show active-toolchain >/dev/null
 
 # 2. Build & install the rustc plugin (provides `cargo rv-plugin`).

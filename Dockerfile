@@ -8,7 +8,7 @@
 #      (see SECURITY.md). The runner image is built at first boot from
 #      the sources baked into /opt/runner-context.
 
-ARG RUST_NIGHTLY=nightly-2024-05-20
+ARG RUST_NIGHTLY=nightly-2025-08-20
 
 # ---------- 1. rust-builder ----------
 # Alpine base shares its libc (musl) with the docker:dind final stage, so

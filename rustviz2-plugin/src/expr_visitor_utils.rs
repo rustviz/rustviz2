@@ -22,10 +22,30 @@ pub fn extract_var_name(input_string: &str ) -> Option<String> {
   }
 }
 
-// Try not to use this, not a good way to get a name from a node
-pub fn hirid_to_var_name(id:HirId, tcx: &TyCtxt)->Option<String>{
-  let long_name = tcx.hir().node_to_string(id);
-  extract_var_name(&long_name)
+// Best-effort name extraction from a HIR id. Originally implemented by
+// pretty-printing the node and grepping for backticked tokens; that pretty
+// printer (`Map::node_to_string`) was removed in rustc 1.85, so we now walk
+// the node directly.
+pub fn hirid_to_var_name(id: HirId, tcx: &TyCtxt) -> Option<String> {
+  fn name_of_path(p: &Path<'_>) -> String {
+    let segs: Vec<String> = p.segments.iter().map(|s| s.ident.as_str().to_owned()).collect();
+    segs.join("::")
+  }
+  let raw = match tcx.hir_node(id) {
+    rustc_hir::Node::Expr(e) => match e.kind {
+      ExprKind::Path(QPath::Resolved(_, path)) => name_of_path(path),
+      ExprKind::Path(QPath::TypeRelative(_, segment)) => segment.ident.as_str().to_owned(),
+      _ => return None,
+    },
+    n => n.ident().map(|i| i.as_str().to_owned())?,
+  };
+  // Preserve the historical normalization: any path containing String::from is
+  // collapsed to the bare String::from so callers don't see e.g. <String as From<&str>>::from.
+  if raw.contains("String::from") {
+    Some(String::from("String::from"))
+  } else {
+    Some(raw)
+  }
 }
 
 pub fn bool_of_mut (m: Mutability) -> bool {
@@ -73,7 +93,7 @@ pub fn string_of_path(p: &Path, tcx: &TyCtxt) -> String {
     Res::Def(rustc_hir::def::DefKind::Ctor(_, _), _) => {
       let mut name = String::new();
       for (i, segment) in p.segments.iter().enumerate() {
-        name.push_str(tcx.hir().name(segment.hir_id).as_str());
+        name.push_str(tcx.hir_name(segment.hir_id).as_str());
         if i < p.segments.len() - 1 {
           name.push_str("::");
         }
@@ -82,7 +102,7 @@ pub fn string_of_path(p: &Path, tcx: &TyCtxt) -> String {
     }
     _ => { // technically this is incomplete - there are more cases to cover
     
-      tcx.hir().name(p.segments[0].hir_id).as_str().to_owned()
+      tcx.hir_name(p.segments[0].hir_id).as_str().to_owned()
     }
   }
 }
@@ -95,7 +115,7 @@ pub fn get_name_of_pat(pat: &Pat, tcx: &TyCtxt) -> String {
     PatKind::TupleStruct(QPath::Resolved(_, p), _, _) => {
       string_of_path(&p, tcx)
     }
-    PatKind::Path(QPath::Resolved(_, p)) => {
+    PatKind::Expr(rustc_hir::PatExpr { kind: rustc_hir::PatExprKind::Path(QPath::Resolved(_, p)), .. }) => {
       string_of_path(&p, tcx)
     }
     PatKind::Wild => {
@@ -194,7 +214,7 @@ pub fn get_live_of_expr(expr: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapDat
           HashSet::new()
         }
         _ => {
-          let name = tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+          let name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
           HashSet::from([raps.get(&name).unwrap().rap.to_owned()])
         }
       }
@@ -202,7 +222,7 @@ pub fn get_live_of_expr(expr: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapDat
     ExprKind::Field(expr, ident) => {
       match expr {
         Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
-          let name = tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+          let name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
           let field_name: String = ident.as_str().to_owned();
           let total_name = format!("{}.{}", name, field_name);
           HashSet::from([raps.get(&total_name).unwrap().rap.to_owned()])
@@ -459,7 +479,7 @@ pub fn get_aliasing_data(r: &ResourceTy, borrow_map: &HashMap<String, RefData>) 
 pub fn get_rap(expr: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>) -> ResourceTy {
   match expr.kind {
     ExprKind::Path(QPath::Resolved(_,p)) => {
-      let name = tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+      let name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
       ResourceTy::Value(raps.get(&name).unwrap().rap.to_owned())
     }
     // In a deref expression 
@@ -490,7 +510,7 @@ pub fn get_rap(expr: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>) -> Re
     ExprKind::Field(expr, ident) => {
       match expr {
         Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
-          let name = tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+          let name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
           let field_name: String = ident.as_str().to_owned();
           let total_name = format!("{}.{}", name, field_name);
           ResourceTy::Value(raps.get(&total_name).unwrap().rap.to_owned())
@@ -508,7 +528,7 @@ pub fn fetch_rap(expr: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>) -> 
   match expr.kind {
     ExprKind::Call(..) | ExprKind::Binary(..) | ExprKind::Lit(_) | ExprKind::MethodCall(..) => None,
     ExprKind::Path(QPath::Resolved(_,p)) => {
-      let name = tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+      let name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
       Some(raps.get(&name).unwrap().rap.to_owned())
     }
     ExprKind::AddrOf(_, _, expr) | ExprKind::Unary(_, expr) => fetch_rap(expr, tcx, raps),
@@ -521,7 +541,7 @@ pub fn fetch_rap(expr: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>) -> 
     ExprKind::Field(expr, ident) => {
       match expr {
         Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
-          let name = tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+          let name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
           let field_name: String = ident.as_str().to_owned();
           let total_name = format!("{}.{}", name, field_name);
           Some(raps.get(&total_name).unwrap().rap.to_owned())
@@ -540,7 +560,7 @@ pub fn fetch_rap(expr: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>) -> 
 pub fn find_lender(rhs: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>, borrow_map: &HashMap<String, RefData>) -> ResourceTy {
   match rhs.kind {
     ExprKind::Path(QPath::Resolved(_,p)) => {
-      let name = tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+      let name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
       if borrow_map.contains_key(&name) {
         borrow_map.get(&name).unwrap().to_owned().lender
       }
@@ -578,7 +598,7 @@ pub fn find_lender(rhs: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>, bo
     ExprKind::Field(expr, ident) => {
       match expr {
         Expr{kind: ExprKind::Path(QPath::Resolved(_,p)), ..} => {
-          let mut name = tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+          let mut name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
           name = format!("{}.{}", name, ident.as_str());
           if borrow_map.contains_key(&name) {
             borrow_map.get(&name).unwrap().to_owned().lender

@@ -20,7 +20,7 @@ cd test-crate
 # nested cargo invocation can pick up an unrelated default.
 cat > rust-toolchain.toml <<'TOML'
 [toolchain]
-channel = "nightly-2024-05-20"
+channel = "nightly-2025-08-20"
 components = ["rust-src", "rustc-dev", "llvm-tools-preview"]
 TOML
 

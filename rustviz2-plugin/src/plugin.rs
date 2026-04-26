@@ -3,7 +3,7 @@ use simplelog::*;
 use std::fs::OpenOptions;
 use log::error;
 use rustc_hir::intravisit::Visitor;
-use rustc_hir::{ItemKind, FnRetTy, AssocItemKind};
+use rustc_hir::{ItemKind, FnRetTy};
 use rustc_middle::ty::TyCtxt;
 use rustc_utils::mir::borrowck_facts;
 use crate::expr_visitor::{ExprVisitor, RapData};
@@ -61,12 +61,12 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
   let mut rap_hash_num: usize = 1;
   let mut ids: usize = 0;
 
-  let hir = tcx.hir().clone();
+  
   
   // loop through top-level hir items
-  for id in hir.items() {
-    match &hir.item(id).kind {
-      ItemKind::Struct(vardata, _generics) => {
+  for id in tcx.hir_free_items() {
+    match &tcx.hir_item(id).kind {
+      ItemKind::Struct(_ident, _generics, vardata) => {
         match vardata {
           rustc_hir::VariantData::Struct{fields, ..} => {
             // annotate all the struct fields
@@ -82,61 +82,44 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
         }
       }
       ItemKind::Impl(imp) => {
-        for item in imp.items.iter() {
-          match item.kind {
-            AssocItemKind::Fn {has_self: _} => {
-              // get the body of the function
-              let local_def_id = item.id.owner_id.def_id;
-              let hir_body = tcx.hir().body(tcx.hir().body_owned_by(local_def_id));
-              let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, local_def_id);
-              let body = &bwf.body;
-              let output = match tcx.hir().fn_sig_by_hir_id(item.id.hir_id()) {
-                Some(fn_sig) => {
-                  match fn_sig.decl.output {
-                    FnRetTy::Return(_ty) => {
-                      true
-                    }
-                    _ => false
-                  }
-                },
-                None => {
-                  error!("Could not get function signature of impl fn");
-                  false
-                }
-              };
+        for item_ref in imp.items.iter() {
+          let impl_item = tcx.hir_impl_item(*item_ref);
+          if let rustc_hir::ImplItemKind::Fn(fn_sig, body_id) = &impl_item.kind {
+            let local_def_id = impl_item.owner_id.def_id;
+            let hir_body = tcx.hir_body(*body_id);
+            let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, local_def_id);
+            let body = &bwf.body;
+            let output = matches!(fn_sig.decl.output, FnRetTy::Return(_));
 
-              let mut visitor = ExprVisitor { 
-                tcx, 
-                mir_body: body,
-                hir_body: hir_body,
-                bwf: bwf, 
-                current_scope: 0,
-                borrow_map: HashMap::new(),
-                raps: &mut rap_map,
-                analysis_result: HashMap::new(),
-                event_line_map: & mut line_map2,
-                preprocessed_events: & mut pre_events,
-                rap_hashes: rap_hash_num,
-                source_map: & a_map,
-                annotated_lines: & mut a_line_map,
-                id_map: & mut owner_to_hash,
-                unique_id: & mut ids,
-                inside_branch: false,
-                fn_ret: output
-              };
-              visitor.visit_body(hir_body);
-              visitor.print_lifetimes();
-              visitor.print_out_of_scope();
-              rap_hash_num = visitor.rap_hashes;
-              
-            }
-            _ => {}
+            let mut visitor = ExprVisitor {
+              tcx,
+              mir_body: body,
+              hir_body,
+              bwf,
+              current_scope: 0,
+              borrow_map: HashMap::new(),
+              raps: &mut rap_map,
+              analysis_result: HashMap::new(),
+              event_line_map: &mut line_map2,
+              preprocessed_events: &mut pre_events,
+              rap_hashes: rap_hash_num,
+              source_map: &a_map,
+              annotated_lines: &mut a_line_map,
+              id_map: &mut owner_to_hash,
+              unique_id: &mut ids,
+              inside_branch: false,
+              fn_ret: output,
+            };
+            visitor.visit_body(hir_body);
+            visitor.print_lifetimes();
+            visitor.print_out_of_scope();
+            rap_hash_num = visitor.rap_hashes;
           }
         }
       }
-      ItemKind::Fn(fn_sig, _generic, body_id) => {        
-        let hir_body = hir.body(*body_id);
-        let def_id = tcx.hir().body_owner_def_id(*body_id);
+      ItemKind::Fn { sig: fn_sig, body: body_id, .. } => {
+        let hir_body = tcx.hir_body(*body_id);
+        let def_id = tcx.hir_body_owner_def_id(*body_id);
         let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, def_id);
         let body = &bwf.body;
         let output = match fn_sig.decl.output {
@@ -175,33 +158,30 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
   }
 
   // annotate items after visiting all function bodies since we can assign hashes to top-level structures in fn bodies
-  for id in hir.items() {
-    match &hir.item(id).kind {
-      ItemKind::Fn(fn_sig, _generic, _body_id) => {
-        let fn_ident = tcx.hir_owner_node(id.hir_id().owner).ident().unwrap();
+  for id in tcx.hir_free_items() {
+    match &tcx.hir_item(id).kind {
+      ItemKind::Fn { sig: fn_sig, ident: fn_ident, .. } => {
         let line = tcx.sess.source_map().lookup_char_pos(fn_sig.span.lo()).line;
         let line_str = &a_map[&line];
         if fn_ident.as_str() != "main" {
-          annotate_toplevel_fn(fn_ident, line_str, &rap_map, & mut a_line_map, & mut rap_hash_num, &tcx);
+          annotate_toplevel_fn(*fn_ident, line_str, &rap_map, &mut a_line_map, &mut rap_hash_num, &tcx);
         }
       }
-      ItemKind::Enum(e_def, _generics) => {
+      ItemKind::Enum(_ident, _generics, e_def) => {
         for variant in e_def.variants.iter() {
-          let ctor_name = hir.name(variant.data.ctor_hir_id().unwrap()).as_str().to_owned();
-          let parent_name = hir.name(tcx.parent_hir_id(variant.hir_id)).as_str().to_owned();
+          let ctor_name = tcx.hir_name(variant.data.ctor_hir_id().unwrap()).as_str().to_owned();
+          let parent_name = tcx.hir_name(tcx.parent_hir_id(variant.hir_id)).as_str().to_owned();
           annotate_enum_variant(ctor_name.as_str(), parent_name.as_str(), &variant, &rap_map, & mut a_line_map, &tcx);
         }
       }
       ItemKind::Impl(imp) => {
-        for item in imp.items.iter() {
-          match item.kind {
-            AssocItemKind::Fn {has_self: _} => {
-              let fn_ident = item.ident;
-              let line = tcx.sess.source_map().lookup_char_pos(fn_ident.span.lo()).line;
-              let line_str = &a_map[&line];
-              annotate_toplevel_fn(fn_ident, line_str, &rap_map, & mut a_line_map, &mut rap_hash_num, &tcx);
-            }
-            _ => {}
+        for item_ref in imp.items.iter() {
+          let impl_item = tcx.hir_impl_item(*item_ref);
+          if matches!(impl_item.kind, rustc_hir::ImplItemKind::Fn(_, _)) {
+            let fn_ident = impl_item.ident;
+            let line = tcx.sess.source_map().lookup_char_pos(fn_ident.span.lo()).line;
+            let line_str = &a_map[&line];
+            annotate_toplevel_fn(fn_ident, line_str, &rap_map, &mut a_line_map, &mut rap_hash_num, &tcx);
           }
         }
       }

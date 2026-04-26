@@ -17,7 +17,7 @@ use std::collections::{HashSet, VecDeque};
 
 impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
   // A fn body
-  fn visit_body(&mut self, body: &'tcx rustc_hir::Body<'tcx>) {
+  fn visit_body(&mut self, body: &rustc_hir::Body<'tcx>) -> Self::Result {
     self.current_scope = self.tcx.sess.source_map().lookup_char_pos(body.value.span.hi()).line;
     for param in body.params {
       self.visit_param(param);
@@ -32,7 +32,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
               // currently this logic would not be able to handle functions with multiple return points
               let tycheck_results = self.tcx.typeck(e.hir_id.owner);
               let lhs_ty = tycheck_results.node_type(e.hir_id);
-              let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(e.hir_id.owner));
+              let is_copyable = self.tcx.type_is_copy_modulo_regions(rustc_middle::ty::TypingEnv::post_analysis(self.tcx, e.hir_id.owner), lhs_ty);
               let evt = if lhs_ty.is_ref() {
                 match lhs_ty.ref_mutability().unwrap() {
                   Mutability::Not => Evt::Copy,
@@ -192,7 +192,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           Some(adj_vec) => { 
             for a in adj_vec.iter() {
               match a.kind {
-                Adjust::Borrow(AutoBorrow::Ref(_, m)) => {
+                Adjust::Borrow(AutoBorrow::Ref(m)) => {
                   match m {
                     AutoBorrowMutability::Mut{allow_two_phase_borrow: AllowTwoPhase::Yes} => {
                       self.add_ev(line_num, Evt::PassByMRef, ResourceTy::Value(fn_rap.clone()), ResourceTy::Value(rcvr_rap.clone()), false);
@@ -235,7 +235,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let lhs_rty = self.resource_of_lhs(lhs_expr);
         let lhs_rap = self.raps.get(&lhs_rty.real_name()).unwrap().rap.clone();
         let lhs_ty = self.tcx.typeck(lhs_expr.hir_id.owner).node_type(lhs_expr.hir_id);
-        let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(lhs_expr.hir_id.owner));
+        let is_copyable = self.tcx.type_is_copy_modulo_regions(rustc_middle::ty::TypingEnv::post_analysis(self.tcx, lhs_expr.hir_id.owner), lhs_ty);
         let e = if lhs_ty.is_ref() {
           match lhs_ty.ref_mutability().unwrap() {
             Mutability::Not => Evt::Copy,
@@ -374,7 +374,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           Res::Def(DefKind::Ctor(_, CtorKind::Const), _id) => {
             let mut name = String::new();
             for (i, segment) in p.segments.iter().enumerate() {
-              name.push_str(self.tcx.hir().name(segment.hir_id).as_str());
+              name.push_str(self.tcx.hir_name(segment.hir_id).as_str());
               if i < p.segments.len() - 1 {
                 name.push_str("::");
               }
@@ -384,7 +384,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           }
           _ => ()
         }
-        let name = self.tcx.hir().name(p.segments[0].hir_id).as_str().to_owned();
+        let name = self.tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
         let r = &self.raps.get(&name).unwrap().rap.clone();
         let line_num = span_to_line(&p.span, &self.tcx);
         self.update_rap(r, line_num);
@@ -677,7 +677,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         let lhs_var:String = ident.to_string();
         let tycheck_results = self.tcx.typeck(ann_hirid.owner);
         let lhs_ty = tycheck_results.node_type(ann_hirid);
-        let is_copyable = lhs_ty.is_copy_modulo_regions(self.tcx, self.tcx.param_env(local.hir_id.owner));
+        let is_copyable = self.tcx.type_is_copy_modulo_regions(rustc_middle::ty::TypingEnv::post_analysis(self.tcx, local.hir_id.owner), lhs_ty);
         // By finding out the type of LHS we know (kinda) what event will happen,
         // then we can just figure out what RHS is (match_rhs)
         let e = if lhs_ty.is_ref() {
