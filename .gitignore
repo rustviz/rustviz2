@@ -20,6 +20,7 @@ rv-serve/test-crate/
 # generated mdbook output
 test-book/book/
 
-# frontend build artifacts (committed via setup.sh, not source-controlled)
-rv-serve/frontend/build/
+# frontend build artifacts (Vite dist + node_modules — produced by setup.sh)
+rv-serve/frontend/dist/
 rv-serve/frontend/node_modules/
+rv-serve/frontend/*.tsbuildinfo

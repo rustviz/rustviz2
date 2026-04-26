@@ -3,8 +3,9 @@ name: build
 on:
   push:
     branches: [main]
+  # Run for PRs against any base so the stacked chore/phase-* branches get CI
+  # on every push, not only when they're rebased onto main.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 env:

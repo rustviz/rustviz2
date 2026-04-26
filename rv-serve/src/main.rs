@@ -30,18 +30,19 @@ async fn submit_code(payload: web::Json<SubmitCodePayload>) -> HttpResponse {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+    let bind_addr = std::env::var("RV_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
+
     HttpServer::new(|| {
         App::new()
-        .wrap(Logger::default()) // Enable logger
-        .service(Files::new("/static", "./frontend/build/static/").show_files_listing())
-        .service(Files::new("/dist", "./frontend/dist/").show_files_listing())
-        .service(Files::new("/ex-assets", "./ex-assets/").show_files_listing())
-        .route("/submit-code", web::post().to(submit_code))
-        .service(Files::new("/", "./frontend/build/").index_file("index.html"))
+            .wrap(Logger::default())
+            .service(Files::new("/ex-assets", "./ex-assets/"))
+            .route("/submit-code", web::post().to(submit_code))
+            // Vite emits the SPA + hashed assets/ subdir under frontend/dist/.
+            .service(Files::new("/", "./frontend/dist/").index_file("index.html"))
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(bind_addr)?
     .run()
     .await
 }
