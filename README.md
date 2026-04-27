@@ -117,9 +117,9 @@ Production runs in two pieces:
   Allowed origins for cross-origin requests are listed in
   `rv-serve/src/main.rs::cors`.
 
-The same `rv-serve` binary also still works as an all-in-one server (SPA
-+ API on a single origin); the GitHub Pages split is just a latency
-optimization for the static page-load.
+The same `rv-serve` binary also still works as an all-in-one server
+(SPA + API on a single origin); the GitHub Pages split is just a
+latency optimization for the static page-load.
 
 ### First-time setup (Fly compile API)
 
@@ -209,26 +209,33 @@ will refuse to call `/submit-code`.
 
 ### Why a script instead of `fly deploy` directly
 
-`fly.toml` sets `auto_stop_machines = 'stop'` with `min_machines_running = 0`,
-so the Fly Machine idles down to zero cost when no traffic is hitting it
-(~$2–3/mo for the volume + IP). The catch: Fly's autoscaler stops the
-Machine after ~40 s of "no incoming traffic", which collides with our
-5–10 min first-boot bootstrap. Empirically, bumping
-`min_machines_running` to 1 alone is *not* enough — during the warmup
-phase of a fresh deploy, the autoscaler can SIGINT the Machine before
-it's registered as part of the min-pool. The reliable fix is to disable
-auto-stop entirely during bootstrap. `deploy/deploy.sh` handles the
-timing window automatically:
+`fly.toml` ships with `auto_stop_machines = 'off'` because Fly's
+autoscaler stops a Machine after ~40 s of "no incoming traffic", and
+our entrypoint takes 5–15 min on a fresh Machine to extract the
+~1 GiB runner image through fuse-overlayfs. With `'stop'` set at
+deploy time, every fresh Machine would be killed mid-bootstrap before
+`rv-serve` ever binds `:8080` — `fly deploy` would deadlock. So `'off'`
+is the only value that lets a fresh deploy actually finish.
 
-1. Edits `fly.toml` to set `auto_stop_machines = 'off'` and
-   `min_machines_running = 1`, runs `fly deploy`.
-2. Polls the public URL until it responds (up to 15 min).
-3. Edits `fly.toml` back to `auto_stop_machines = 'stop'` and
-   `min_machines_running = 0`, runs `fly deploy` again so auto-stop is
-   in force for steady state.
+The cost-saving auto-stop behavior is then applied per-Machine after
+deploy. `deploy/deploy.sh`:
 
-Pass `--keep-warm` to skip step 3 if you want the Machine to never
-auto-stop (~$24/mo).
+1. Runs `fly scale count` and `fly deploy --strategy immediate`, then
+   polls `fly status --json` until every Machine's HTTP check passes.
+2. Runs `fly machine update --autostop=stop` against every Machine in
+   parallel, flipping the per-Machine service config via the Machines
+   API — no second `fly deploy`. The Machine bounces, but
+   `persist_rootfs = 'always'` (set on the `[[vm]]` block in fly.toml)
+   keeps `/var/lib/docker` across the bounce, so it comes back in
+   ~30 s without re-pulling the runner image.
+
+End state: every Machine has `auto_stop = 'stop'` per-Machine, the
+fleet idles cheaply (~$2–3/mo for the IP and Machine baseline), and
+future cold starts after auto-stop take ~10 s (image still on
+rootfs).
+
+Pass `--keep-warm` to skip step 2 if you want Machines to never
+auto-stop (~$24/mo per always-running Machine).
 
 ### Security
 
