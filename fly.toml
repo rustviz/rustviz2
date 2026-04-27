@@ -70,7 +70,14 @@ primary_region = 'ord'
   # of the ~1 GiB runner image can take 20-30 min on a fresh Machine; a
   # tighter window would have Fly mark the Machine unhealthy mid-bootstrap.
   [[http_service.checks]]
-    interval = '10s'
+    # 60s rather than the default 10s: at 10 Machines × 6 checks/min the
+    # default produces ~86k log lines per Machine per day of pure noise
+    # (User-Agent: "Consul Health Check") and burns CPU on dind for nothing
+    # interesting. 60s still detects a wedged Machine within a minute,
+    # which is fine for a research tool with sparse traffic. These checks
+    # come over Fly's private 6PN network, not through fly-proxy, so they
+    # don't interfere with auto_stop's idle-traffic accounting.
+    interval = '60s'
     grace_period = '30m'
     method = 'GET'
     path = '/'

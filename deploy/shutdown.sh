@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Destroy all Machines for the RustViz playground Fly app.
+#
+# Useful for:
+#   * a clean deploy.sh test — next deploy starts every Machine from a
+#     fresh rootfs and exercises the cold-pull path through fuse-overlayfs
+#   * a cost emergency where you want zero compute capacity immediately
+#
+# Doesn't touch the app itself, the IP, or any other Fly resources. Just
+# zeros the Machine count. Re-run ./deploy/deploy.sh to bring the fleet
+# back.
+#
+# Why we don't use `fly scale count 0`:
+#   `fly scale count 0` cooperatively acquires each Machine's lease before
+#   destroying it. If a previous deploy was interrupted and left a stale
+#   lease behind, the command hangs indefinitely on "Waiting on lease for
+#   machine ...". `fly machine destroy --force` bypasses the lease, which
+#   is what we always want when the operator's intent is "tear it down".
+#
+# Usage:
+#   deploy/shutdown.sh           # interactive confirmation
+#   deploy/shutdown.sh --yes     # skip the confirmation prompt
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+YES=0
+for arg in "$@"; do
+    case "$arg" in
+        --yes|-y) YES=1 ;;
+        -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
+        *) echo "Unknown argument: $arg" >&2; exit 2 ;;
+    esac
+done
+
+command -v fly >/dev/null 2>&1 || { echo "fly CLI not on PATH" >&2; exit 1; }
+command -v jq  >/dev/null 2>&1 || { echo "jq not on PATH; brew install jq" >&2; exit 1; }
+fly auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run 'fly auth login' first." >&2; exit 1; }
+
+APP_NAME=$(awk -F"'" '/^app =/ {print $2; exit}' fly.toml)
+
+# `sort -u` because Fly's API occasionally returns the same Machine id
+# twice (same bug deploy.sh's jq query works around with unique_by(.id)).
+mapfile -t IDS < <(fly machines list --app "$APP_NAME" --json | jq -r '.[].id' | sort -u)
+
+if [ "${#IDS[@]}" -eq 0 ]; then
+    echo "No Machines exist for ${APP_NAME}; nothing to do."
+    exit 0
+fi
+
+echo "About to force-destroy ${#IDS[@]} Machine(s) for Fly app: ${APP_NAME}"
+echo "(The app, IP, and other resources are left intact. Only Machines go.)"
+echo "Re-run ./deploy/deploy.sh afterwards to rebuild the fleet."
+echo
+
+if [ "$YES" -ne 1 ]; then
+    read -rp "Type the app name to confirm: " confirm
+    [ "$confirm" = "$APP_NAME" ] || { echo "Confirmation didn't match; aborting." >&2; exit 1; }
+fi
+
+# Destroy in parallel — each `fly machine destroy --force` is independent
+# and the API handles the concurrency fine. With 10+ Machines this is the
+# difference between ~5 s and ~minute of wallclock.
+printf '%s\n' "${IDS[@]}" | xargs -P 10 -I {} fly machine destroy {} --app "$APP_NAME" --force
+
+echo "==> All Machines destroyed."

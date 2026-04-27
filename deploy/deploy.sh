@@ -74,6 +74,7 @@ done
 # --- preflight ----------------------------------------------------------
 command -v fly >/dev/null 2>&1 || { echo "fly CLI not on PATH; install it with 'brew install flyctl'" >&2; exit 1; }
 fly auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run 'fly auth login' first." >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || { echo "jq is required for the health-check polling loop. brew install jq" >&2; exit 1; }
 
 if ! git diff --quiet fly.toml 2>/dev/null; then
     echo "fly.toml has uncommitted changes; commit or stash them before deploying." >&2
@@ -148,16 +149,6 @@ deadline=$(( $(date +%s) + TIMEOUT_SECS ))
 # whose GET / fails, but the script still benefits from knowing when the
 # whole fleet is ready: that's when we can confidently move to phase 2
 # (re-enable auto-stop) and tell the operator the deploy is done.
-#
-# Requires jq; tell the user clearly if it's missing rather than silently
-# misbehaving.
-command -v jq >/dev/null 2>&1 || {
-    echo "ERROR: jq is required for the health-check polling loop." >&2
-    echo "       brew install jq" >&2
-    RESTORE=
-    exit 1
-}
-
 while true; do
     # `fly status --json` returns an object with a Machines array; each
     # Machine has a Checks array. We want every Machine in the app
@@ -215,9 +206,15 @@ fi
 echo "==> Phase 2: re-enabling auto_stop with min_machines_running = 0 so the Machine idles cheap"
 set_autoscale 0 stop
 RESTORE=
-# Phase 2 is a config-only change (autoscale knobs); no image change, so
-# the rollout is fast regardless of strategy. Use immediate for symmetry
-# with phase 1 and to skip the per-Machine sequential rollover.
-fly deploy --strategy immediate
+# Phase 2 is a config-only change (autoscale knobs); the image hash is
+# unchanged from phase 1. We deliberately do NOT pass --strategy immediate
+# here: with no image change, the default rolling strategy updates each
+# Machine's config in-place instead of recreating the Machine, which
+# avoids triggering a fresh ~1 GiB runner-image pull through
+# fuse-overlayfs on every Machine. Rolling also blocks on the health
+# check before moving to the next Machine, so when this command returns
+# the fleet is genuinely ready — no separate polling loop needed for
+# phase 2.
+fly deploy
 
 echo "==> Done. Cold starts after idle take ~10 s (runner image already on each Machine's rootfs)."
