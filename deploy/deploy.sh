@@ -74,8 +74,20 @@ for arg in "$@"; do
 done
 
 # --- preflight ----------------------------------------------------------
-command -v fly >/dev/null 2>&1 || { echo "fly CLI not on PATH; install it with 'brew install flyctl'" >&2; exit 1; }
-fly auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run 'fly auth login' first." >&2; exit 1; }
+# Resolve the fly CLI: locally `brew install flyctl` provides both `fly`
+# and `flyctl`, but superfly/flyctl-actions/setup-flyctl in CI installs
+# only `flyctl` (no `fly` symlink). Pick whichever is on PATH and use it
+# via $FLY everywhere below; xargs and other subprocesses see the
+# already-expanded binary name, not a shell alias.
+if command -v fly >/dev/null 2>&1; then
+    FLY=fly
+elif command -v flyctl >/dev/null 2>&1; then
+    FLY=flyctl
+else
+    echo "fly CLI not on PATH; install it with 'brew install flyctl'" >&2
+    exit 1
+fi
+"$FLY" auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run '$FLY auth login' first." >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "jq is required for the health-check polling loop. brew install jq" >&2; exit 1; }
 
 APP_NAME=$(awk -F"'" '/^app =/ {print $2; exit}' fly.toml)
@@ -124,7 +136,7 @@ wait_for_fleet_healthy() {
         # Machine has a Checks array. We want every Machine in the app
         # process group to have all its checks passing.
         local json summary passing total
-        json=$(fly status --json 2>/dev/null) || json='{}'
+        json=$("$FLY" status --json 2>/dev/null) || json='{}'
         # `unique_by(.id)` is load-bearing: Fly's API occasionally returns
         # the same Machine twice in `fly status --json`; without dedupe the
         # count ends up like "0/11" for a 10-Machine fleet and the loop
@@ -167,7 +179,7 @@ say "==> Phase 1: fly deploy (auto_stop_machines = 'off', Machines won't be kill
 # them in parallel, single wallclock-window for everyone.
 DESIRED_COUNT="${RV_FLY_MACHINES:-10}"
 say "==> Ensuring fleet size of ${DESIRED_COUNT} Machines before the deploy roll"
-fly scale count "$DESIRED_COUNT" --yes
+"$FLY" scale count "$DESIRED_COUNT" --yes
 
 # --strategy immediate: replace all Machines in parallel rather than rolling
 # them one-at-a-time. Each new Machine has to pull the ~1 GiB runner image
@@ -177,7 +189,7 @@ fly scale count "$DESIRED_COUNT" --yes
 # window during the swap where requests can 503 because the new fleet is
 # still bootstrapping. Fine for a research tool with sparse traffic;
 # obviously bad for a high-availability service.
-fly deploy --strategy immediate
+"$FLY" deploy --strategy immediate
 
 # 30-minute timeout. fuse-overlayfs's per-layer extraction is significantly
 # slower than kernel overlay2 — a fresh-Machine pull of the ~1 GiB runner
@@ -228,11 +240,11 @@ say "==> Phase 2: flipping each Machine's auto_stop from 'off' to 'stop' (no red
 # /dev/null; xargs blocks until every fly machine update returns
 # (which itself only returns once the Machine is back to passing
 # checks), so when the wait is done the fleet is fully updated.
-mapfile -t IDS < <(fly machines list --app "$APP_NAME" --json | jq -r '.[].id' | sort -u)
+mapfile -t IDS < <("$FLY" machines list --app "$APP_NAME" --json | jq -r '.[].id' | sort -u)
 say "    Updating ${#IDS[@]} Machines (auto_stop → stop)"
 
 printf '%s\n' "${IDS[@]}" \
-    | xargs -P 10 -I {} fly machine update {} \
+    | xargs -P 10 -I {} "$FLY" machine update {} \
         --app "$APP_NAME" \
         --autostop=stop \
         --autostart=true \
