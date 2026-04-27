@@ -22,13 +22,22 @@ primary_region = 'ord'
   RV_RATE_SECONDS_PER_REQUEST = '2'
   RV_RUNNER = 'docker'
 
-# No `[[mounts]]` block: as of the runner-from-registry change the runner
-# image is pulled from GHCR on first boot rather than built in-place, so
-# /var/lib/docker doesn't need to persist across Machine recreations. This
-# makes `fly scale count N` horizontal scaling drop in without per-Machine
-# volume provisioning. If you previously created a `rustviz_docker` volume,
-# `fly volumes list && fly volumes destroy <id>` cleans it up after the
-# next deploy.
+# Each Machine needs its own volume mounted at /var/lib/docker. Without
+# this, dockerd inside the Machine fails to start with
+# "failed to mount overlay: invalid argument" because the Machine's
+# rootfs is itself an overlay filesystem, and the kernel doesn't support
+# overlay-on-overlay for dockerd's overlay2 storage driver. The volume
+# is a real ext4 filesystem where overlay2 works fine.
+#
+# Fly creates a volume per Machine on first deploy (auto-named with the
+# `source` below). With `fly scale count 10`, you'll end up with 10
+# volumes at ~3 GB each (`initial_size`), costing ~$4.50/mo total at
+# $0.15/GB. The size is sufficient for the ~1 GiB runner image plus
+# dockerd's working layers.
+[[mounts]]
+  source = 'rustviz_docker'
+  destination = '/var/lib/docker'
+  initial_size = '3gb'
 
 [http_service]
   internal_port = 8080
