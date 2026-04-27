@@ -243,7 +243,7 @@ each PR focused on a single concern, and run `./setup.sh` plus
 
 ## License
 
-MIT. See per-crate `Cargo.toml` for details.
+[MIT](LICENSE).
 
 ## Citing
 
