@@ -103,11 +103,23 @@ trap '[ "${RESTORE:-1}" = "1" ] && set_autoscale 0 stop || true' EXIT
 # --- phase 1 ------------------------------------------------------------
 echo "==> Phase 1: deploying with auto_stop_machines = off and min_machines_running = 1"
 set_autoscale 1 off
+
+# Scale BEFORE deploy so all RV_FLY_MACHINES Machines exist when fly deploy
+# rolls them. If we deployed first and scaled afterward, fly deploy would
+# only roll the existing fleet (often just 2, Fly's HA default for a fresh
+# app), then scale-up would create the rest from the just-deployed image
+# and each of those would do its own ~30 min cold-pull *sequentially* with
+# the rolling deploy. Scaling first lets --strategy immediate roll all of
+# them in parallel, single wallclock-window for everyone.
+DESIRED_COUNT="${RV_FLY_MACHINES:-10}"
+echo "==> Ensuring fleet size of ${DESIRED_COUNT} Machines before the deploy roll"
+fly scale count "$DESIRED_COUNT" --yes
+
 # --strategy immediate: replace all Machines in parallel rather than rolling
 # them one-at-a-time. Each new Machine has to pull the ~1 GiB runner image
-# from GHCR and extract it via fuse-overlayfs (~15 min/Machine on first
+# from GHCR and extract it via fuse-overlayfs (~15-30 min/Machine on first
 # boot), so rolling 10 Machines sequentially would be ~2.5 hours of
-# wallclock; in parallel it's ~15 min. Tradeoff is a brief few-minute
+# wallclock; in parallel it's ~30 min. Tradeoff is a brief few-minute
 # window during the swap where requests can 503 because the new fleet is
 # still bootstrapping. Fine for a research tool with sparse traffic;
 # obviously bad for a high-availability service.
@@ -186,17 +198,6 @@ EOF
     echo "    ${summary} Machines healthy; waiting…"
     sleep 15
 done
-
-# --- ensure fleet size --------------------------------------------------
-# Machine count is server-side state on Fly, not in fly.toml. We set it on
-# every deploy so the fleet stays at the desired size if it ever drifts
-# (e.g. someone ran `fly scale count 1` ad-hoc to debug). With auto_stop on,
-# the extra Machines stay stopped when idle and cost essentially nothing;
-# they exist purely so the edge proxy has somewhere to spill load when one
-# Machine gets saturated. Default 10; override with RV_FLY_MACHINES.
-DESIRED_COUNT="${RV_FLY_MACHINES:-10}"
-echo "==> Ensuring fleet size of ${DESIRED_COUNT} Machines (idle ones auto-stop)"
-fly scale count "$DESIRED_COUNT" --yes
 
 # --- phase 2 ------------------------------------------------------------
 if [ "$KEEP_WARM" -eq 1 ]; then
