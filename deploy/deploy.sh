@@ -40,7 +40,9 @@
 #   deploy/deploy.sh --keep-warm # always-warm mode, skips phase 2
 #
 # Env:
-#   RV_FLY_MACHINES   fleet size; default 10
+#   RV_FLY_MACHINES         fleet size; default 10
+#   RV_DEPLOY_TIMEOUT_SECS   how long to wait for the URL to come back
+#                            up after a deploy; default 1800 (30 min)
 #
 # Prerequisites:
 #   * `fly` (flyctl) installed and authenticated (`fly auth login`).
@@ -111,12 +113,19 @@ set_autoscale 1 off
 # obviously bad for a high-availability service.
 fly deploy --strategy immediate
 
-echo "==> Waiting for ${URL} to respond (up to 15 min for fresh-volume bootstraps)..."
-deadline=$(( $(date +%s) + 900 ))
+# 30-minute timeout. fuse-overlayfs's per-layer extraction is significantly
+# slower than kernel overlay2 — a fresh-Machine pull of the ~1 GiB runner
+# image extracts each layer through userspace FUSE, and the Rust toolchain
+# layers (hundreds of MiB each) extract one at a time. We've measured ~20+
+# min on cold pulls. Routine redeploys (image already on the rootfs)
+# complete in a couple minutes. Override with RV_DEPLOY_TIMEOUT_SECS.
+TIMEOUT_SECS="${RV_DEPLOY_TIMEOUT_SECS:-1800}"
+echo "==> Waiting for ${URL} to respond (up to $((TIMEOUT_SECS / 60)) min for fresh-Machine bootstraps)..."
+deadline=$(( $(date +%s) + TIMEOUT_SECS ))
 while ! curl --max-time 10 -fsS "$URL" -o /dev/null 2>/dev/null; do
     if [ "$(date +%s)" -gt "$deadline" ]; then
         cat >&2 <<EOF
-ERROR: ${URL} did not respond within 15 minutes.
+ERROR: ${URL} did not respond within $((TIMEOUT_SECS / 60)) minutes.
 fly.toml has been left at auto_stop_machines = 'off' / min_machines_running = 1
 so the Machine won't auto-stop while you investigate. Useful next steps:
 
