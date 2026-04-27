@@ -106,7 +106,7 @@ const App = () => {
   return (
     <div id="page-wrapper" className="page-wrapper">
       <button className="cm-button large-button" id="gen-button" onClick={handleClick} disabled={isLoading}>
-        {isLoading ? <span className="loader"></span> : 'Generate Visualization'}
+        {isLoading ? <>Generating<span className="ellipsis"></span></> : 'Generate Visualization'}
       </button>
       {isLoading && (
         <div className="loading-status">

@@ -36,6 +36,9 @@ p {
   padding: 20px 40px; /* Increase padding to make the button larger */
   margin: 50px; /* Add a 50px margin on all sides */
   font-size: 16px; /* Increase the font size for better readability */
+  /* Hold the button width steady so it doesn't visibly shrink when its
+     label switches from "Generate Visualization" to "Generating…". */
+  min-width: 280px;
 }
 
 .cm-button {
