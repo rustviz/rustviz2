@@ -52,10 +52,12 @@ jobs:
         run: cargo build --workspace --locked
 
       - name: cargo test --workspace
+        env:
+          # Corpus tests use the in-process plugin path (faster than spinning
+          # up a fresh runner container per case, and we're not testing
+          # sandboxing here). The plugin itself was installed by setup.sh.
+          RV_RUNNER: local
         run: cargo test --workspace --locked
-        # Plugin tests exercise rustc-private; allow this to be informational
-        # rather than blocking until we add a stable test corpus.
-        continue-on-error: true
 
       - name: Smoke test the playground end-to-end (sandboxed backend)
         env:
