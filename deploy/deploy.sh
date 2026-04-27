@@ -3,15 +3,20 @@
 #
 # Why two phases:
 # Fly's autoscaler stops a Machine after ~40 s of "no incoming traffic"
-# when min_machines_running = 0, even if the Machine is in the middle of
-# doing useful work. Our entrypoint pre-builds the rustviz/rustviz-runner
-# image on first boot, which takes 5-10 min on a fresh volume — well past
-# the autoscaler's patience. So we:
+# even if the Machine is in the middle of doing useful work. Our entrypoint
+# pre-builds the rustviz/rustviz-runner image on first boot, which takes
+# 5-10 min on a fresh volume — well past the autoscaler's patience.
+# Empirically, even `min_machines_running = 1` does NOT protect the Machine
+# during the warmup phase of a fresh deploy (the autoscaler sends SIGINT
+# before the Machine is registered in the min-pool). The reliable fix is
+# to disable auto_stop entirely during bootstrap, then re-enable it for
+# steady state.
 #
-#   1. Set min_machines_running = 1 in fly.toml, deploy. The Machine
-#      stays alive long enough for the inner build to finish.
+#   1. Set auto_stop_machines = 'off' and min_machines_running = 1 in
+#      fly.toml, then deploy.
 #   2. Poll the public URL until it responds (up to 15 min).
-#   3. Set min_machines_running = 0, deploy again. Auto-stop is back on.
+#   3. Set auto_stop_machines = 'stop' and min_machines_running = 0, then
+#      deploy again. Auto-stop is back on for cheap steady-state idling.
 #
 # After step 3, the runner image is cached on the rustviz_docker volume,
 # so future cold starts take ~10 s and the Machine can safely idle. Cost
@@ -63,20 +68,24 @@ APP_NAME=$(awk -F"'" '/^app =/ {print $2; exit}' fly.toml)
 URL="https://${APP_NAME}.fly.dev/"
 
 # --- helpers ------------------------------------------------------------
-set_min_machines() {
-    local val="$1"
-    perl -i -pe "s|^(\s*min_machines_running = )\d+|\${1}$val|" fly.toml
+# Args: <min_machines_running> <auto_stop_machines>
+set_autoscale() {
+    local min="$1"
+    local stop="$2"
+    perl -i -pe "s|^(\s*min_machines_running = )\d+|\${1}$min|" fly.toml
+    perl -i -pe "s|^(\s*auto_stop_machines = )'[^']*'|\${1}'$stop'|" fly.toml
 }
 
-# Phase 2 (and any error path) restores fly.toml so the working tree
-# stays clean if the script aborts mid-flight.
-RESTORE_TO=0
-trap '[ -n "${RESTORE_TO:-}" ] && set_min_machines "$RESTORE_TO" || true' EXIT
+# Phase 2 (and any error path) restores fly.toml to the canonical
+# steady-state config so the working tree stays clean if the script
+# aborts mid-flight. Set RESTORE='' to skip the restore (e.g. when
+# we want to leave the bootstrap config in place after a failure).
+RESTORE=1
+trap '[ "${RESTORE:-1}" = "1" ] && set_autoscale 0 stop || true' EXIT
 
 # --- phase 1 ------------------------------------------------------------
-echo "==> Phase 1: deploying with min_machines_running = 1"
-set_min_machines 1
-RESTORE_TO=0
+echo "==> Phase 1: deploying with auto_stop_machines = off and min_machines_running = 1"
+set_autoscale 1 off
 fly deploy
 
 echo "==> Waiting for ${URL} to respond (up to 15 min for fresh-volume bootstraps)..."
@@ -85,8 +94,8 @@ while ! curl --max-time 10 -fsS "$URL" -o /dev/null 2>/dev/null; do
     if [ "$(date +%s)" -gt "$deadline" ]; then
         cat >&2 <<EOF
 ERROR: ${URL} did not respond within 15 minutes.
-fly.toml has been left at min_machines_running = 1 so the Machine
-won't auto-stop while you investigate. Useful next steps:
+fly.toml has been left at auto_stop_machines = 'off' / min_machines_running = 1
+so the Machine won't auto-stop while you investigate. Useful next steps:
 
   fly logs                        # see what entrypoint is doing
   fly status --all                # check Machine state
@@ -94,8 +103,8 @@ won't auto-stop while you investigate. Useful next steps:
 
 Re-run this script when you've fixed the underlying issue.
 EOF
-        # don't restore in the EXIT trap — leave at 1 for the operator
-        RESTORE_TO=
+        # don't restore in the EXIT trap — leave at the bootstrap config
+        RESTORE=
         exit 1
     fi
     sleep 10
@@ -104,14 +113,15 @@ echo "==> ${URL} is live"
 
 # --- phase 2 ------------------------------------------------------------
 if [ "$KEEP_WARM" -eq 1 ]; then
-    echo "==> --keep-warm passed; leaving min_machines_running = 1 (Machine never auto-stops)."
-    RESTORE_TO=1
+    echo "==> --keep-warm passed; leaving auto_stop = off, min_machines_running = 1."
+    echo "    Machine never auto-stops; ~\$24/mo at shared-cpu-2x."
+    RESTORE=
     exit 0
 fi
 
-echo "==> Phase 2: setting min_machines_running = 0 so the Machine auto-stops when idle"
-set_min_machines 0
-RESTORE_TO=0
+echo "==> Phase 2: re-enabling auto_stop with min_machines_running = 0 so the Machine idles cheap"
+set_autoscale 0 stop
+RESTORE=
 fly deploy
 
 echo "==> Done. Cold starts after idle take ~10 s (runner image cached on volume)."
