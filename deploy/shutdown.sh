@@ -34,15 +34,24 @@ for arg in "$@"; do
     esac
 done
 
-command -v fly >/dev/null 2>&1 || { echo "fly CLI not on PATH" >&2; exit 1; }
+# Resolve fly CLI: locally `brew install flyctl` provides both names,
+# but CI installers (e.g. superfly/flyctl-actions) provide only `flyctl`.
+if command -v fly >/dev/null 2>&1; then
+    FLY=fly
+elif command -v flyctl >/dev/null 2>&1; then
+    FLY=flyctl
+else
+    echo "fly CLI not on PATH" >&2
+    exit 1
+fi
 command -v jq  >/dev/null 2>&1 || { echo "jq not on PATH; brew install jq" >&2; exit 1; }
-fly auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run 'fly auth login' first." >&2; exit 1; }
+"$FLY" auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run '$FLY auth login' first." >&2; exit 1; }
 
 APP_NAME=$(awk -F"'" '/^app =/ {print $2; exit}' fly.toml)
 
 # `sort -u` because Fly's API occasionally returns the same Machine id
 # twice (same bug deploy.sh's jq query works around with unique_by(.id)).
-mapfile -t IDS < <(fly machines list --app "$APP_NAME" --json | jq -r '.[].id' | sort -u)
+mapfile -t IDS < <("$FLY" machines list --app "$APP_NAME" --json | jq -r '.[].id' | sort -u)
 
 if [ "${#IDS[@]}" -eq 0 ]; then
     echo "No Machines exist for ${APP_NAME}; nothing to do."
@@ -62,6 +71,6 @@ fi
 # Destroy in parallel — each `fly machine destroy --force` is independent
 # and the API handles the concurrency fine. With 10+ Machines this is the
 # difference between ~5 s and ~minute of wallclock.
-printf '%s\n' "${IDS[@]}" | xargs -P 10 -I {} fly machine destroy {} --app "$APP_NAME" --force
+printf '%s\n' "${IDS[@]}" | xargs -P 10 -I {} "$FLY" machine destroy {} --app "$APP_NAME" --force
 
 echo "==> All Machines destroyed."
