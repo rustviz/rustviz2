@@ -45,7 +45,13 @@ else
     exit 1
 fi
 command -v jq  >/dev/null 2>&1 || { echo "jq not on PATH; brew install jq" >&2; exit 1; }
-"$FLY" auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run '$FLY auth login' first." >&2; exit 1; }
+# `fly auth whoami` reads ~/.fly/config.yml (populated by
+# `fly auth login`), not FLY_API_TOKEN — so it returns "not logged in"
+# in CI even though the rest of flyctl is authenticated via the env
+# var. Skip the preflight when the token is set.
+if [ -z "${FLY_API_TOKEN:-}" ]; then
+    "$FLY" auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run '$FLY auth login' first or set FLY_API_TOKEN." >&2; exit 1; }
+fi
 
 APP_NAME=$(awk -F"'" '/^app =/ {print $2; exit}' fly.toml)
 
