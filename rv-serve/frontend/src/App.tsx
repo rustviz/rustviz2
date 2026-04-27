@@ -106,8 +106,20 @@ const App = () => {
   return (
     <div id="page-wrapper" className="page-wrapper">
       <button className="cm-button large-button" id="gen-button" onClick={handleClick} disabled={isLoading}>
-        {isLoading ? <span className="loader"></span> : 'Generate Visualization'}
+        {isLoading ? <>Generating<span className="ellipsis"></span></> : 'Generate Visualization'}
       </button>
+      {isLoading && (
+        <div className="loading-status">
+          <p className="loading-message">
+            Generating visualization<span className="ellipsis"></span>
+          </p>
+          <p className="loading-note">
+            The first request after a quiet period can take up to ~30 s
+            while the compile server wakes up; subsequent requests are
+            fast.
+          </p>
+        </div>
+      )}
       {isErr && error ? <ErrorCard err_string={error} /> :
         <div className="page">
           <div className="flex-container vis_block" style={{ marginLeft: '50px' }}>

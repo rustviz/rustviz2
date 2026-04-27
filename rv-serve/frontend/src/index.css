@@ -36,6 +36,9 @@ p {
   padding: 20px 40px; /* Increase padding to make the button larger */
   margin: 50px; /* Add a 50px margin on all sides */
   font-size: 16px; /* Increase the font size for better readability */
+  /* Hold the button width steady so it doesn't visibly shrink when its
+     label switches from "Generate Visualization" to "Generating…". */
+  min-width: 280px;
 }
 
 .cm-button {
@@ -64,6 +67,36 @@ p {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Loading status block under the button while a /submit-code request is
+   in flight. The button's own spinner indicates "doing work"; this block
+   adds a textual cue + a note about the cold-start latency the Fly
+   compile server can introduce after auto-stop. */
+.loading-status {
+  margin-top: -25px; /* tighten the gap to the button (which has margin: 50px) */
+}
+.loading-message {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+/* Animated ellipsis: render fixed "..." but reveal one dot at a time by
+   animating the visible width in 4 steps (0 → 3 dots, then loops). */
+.ellipsis::after {
+  display: inline-block;
+  vertical-align: bottom;
+  overflow: hidden;
+  width: 0;
+  content: "...";
+  animation: ellipsis 1.5s steps(4, end) infinite;
+}
+@keyframes ellipsis {
+  to { width: 1.5em; }
+}
+.loading-note {
+  font-size: 14px;
+  color: #666;
+  margin-top: 0;
 }
 
 
