@@ -163,8 +163,13 @@ while true; do
     # Machine has a Checks array. We want every Machine in the app
     # process group to have all its checks passing.
     json=$(fly status --json 2>/dev/null) || json='{}'
+    # `unique_by(.id)` is load-bearing: Fly's API occasionally returns the
+    # same Machine twice in `fly status --json`; without dedupe the count
+    # ends up like "0/11" for a 10-Machine fleet and the loop never sees
+    # passing == total.
     summary=$(printf '%s' "$json" | jq -r '
         .Machines // []
+        | unique_by(.id)
         | map(select(.config.metadata.fly_process_group == "app" or
                      (.config.metadata.fly_process_group // "app") == "app"))
         | "\(map(select(.checks // [] | all(.status == "passing"))) | length)/\(length)"
