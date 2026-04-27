@@ -123,11 +123,21 @@ optimization for the static page-load.
 ```sh
 fly auth login                                  # browser OAuth
 fly launch --copy-config --no-deploy            # creates the app
-gh workflow run runner-image.yml                # builds & pushes runner to GHCR
-# Wait for the workflow to finish (~30 min first time);
-# then mark the package public:
+
+# Trigger the runner-image workflow manually for the first publication.
+# It also auto-fires on every push to main that touches runner/** or
+# rustviz2-plugin/**, but the very first time it has to be kicked off
+# by hand because there's nothing in GHCR yet for the deploy to pull.
+gh workflow run runner-image.yml --ref main
+gh run watch                                    # blocks until the run finishes
+                                                # (~30 min first time, ~5 min later)
+
+# Mark the new GHCR package public so Fly Machines can pull without auth:
 #   GitHub → Org → Packages → rustviz-runner →
 #     Package settings → Change visibility → Public.
+# This step has to happen before the next command, otherwise the deploy's
+# first-boot `docker pull` fails.
+
 ./deploy/deploy.sh                              # two-phase Fly deploy
 ```
 
