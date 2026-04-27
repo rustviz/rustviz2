@@ -14,8 +14,7 @@ program rather than a hand-curated approximation.
 RustViz is a project of the [Future of Programming Lab](http://fplab.mplse.org/)
 at the University of Michigan.
 
-> *Live playground: TBD — replace with the public URL once the Fly app is
-> launched.*
+> **Try it live:** <https://rustviz-playground.fly.dev/>
 
 ![screenshot placeholder](rustviz2-plugin/src/svg_generator/rv2_example.png)
 
