@@ -40,13 +40,31 @@ primary_region = 'ord'
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = 'stop'
+  # auto_stop_machines = 'off' is intentional for the *deploy-time*
+  # config recorded here, even though the *steady-state* intent is for
+  # idle Machines to stop. Reason: Fly's autoscaler stops a Machine
+  # after ~40 s of "no incoming traffic", but our entrypoint takes
+  # 5-15 min on a fresh Machine to extract the ~1 GiB runner image
+  # through fuse-overlayfs. With auto_stop_machines = 'stop' set at
+  # deploy time, every fresh Machine would be killed mid-bootstrap
+  # before rv-serve ever binds :8080 — fly deploy just deadlocks. So
+  # 'off' is the only value that makes a fresh fly deploy actually
+  # complete.
+  #
+  # Steady-state idling is achieved per-Machine after deploy:
+  # deploy/deploy.sh runs `fly machine update --autostop=stop` against
+  # every Machine once they're healthy, so the running fleet *does*
+  # auto-stop when idle (~$2-3/mo cost). The per-Machine override
+  # outlives this fly.toml setting — Fly's edge proxy reads the
+  # per-Machine service config when deciding whether to auto-stop, so
+  # what's recorded here only affects new Machines created by the
+  # *next* fly deploy (which deploy.sh will re-flip post-deploy).
+  auto_stop_machines = 'off'
   auto_start_machines = true
-  # Keep at 0 in the canonical config so the Machine auto-stops when idle
-  # (~$2-3/mo cost). `deploy/deploy.sh` flips this to 1 temporarily during
-  # deploys so Fly's autoscaler doesn't kill the Machine while it bootstraps
-  # the inner runner Docker image (pulling from GHCR takes ~30 s), then
-  # flips it back.
+  # Stays at 0; per-Machine 'stop' (applied after deploy) lets every
+  # Machine idle. min=1 used to live here as bootstrap protection, but
+  # Fly's autoscaler stops Machines before they register in the
+  # min-pool, so min=1 doesn't actually keep anything alive.
   min_machines_running = 0
 
   # Concurrency thresholds the edge proxy uses to decide when to spill load
@@ -95,3 +113,18 @@ primary_region = 'ord'
 [[vm]]
   size = 'shared-cpu-2x'
   memory = '2gb'
+  # Default is 'never' — the rootfs is wiped on every restart and every
+  # `fly machine update`, including the post-deploy auto_stop flip in
+  # deploy/deploy.sh. With 'never', dockerd's storage at /var/lib/docker
+  # vanishes between restarts, so each restart triggers a fresh ~1 GiB
+  # runner-image pull from GHCR (5-15 min via fuse-overlayfs). With
+  # 'always', the rootfs survives both stop/start cycles AND
+  # `fly machine update` calls, so the runner image stays cached
+  # locally — phase 2's auto_stop flip becomes a fast bounce, and
+  # steady-state auto-stop/auto-start cold starts take ~10 s instead of
+  # 5-15 min. Fly explicitly warns that rootfs isn't a *reliable* place
+  # for critical data (maintenance can still wipe it), but the runner
+  # image is in GHCR — entrypoint.sh just re-pulls if it's gone — so
+  # the residual risk is purely a one-time slow cold start, not
+  # data loss.
+  persist_rootfs = 'always'

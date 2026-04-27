@@ -5,27 +5,26 @@
 # Fly's autoscaler stops a Machine after ~40 s of "no incoming traffic"
 # even if the Machine is in the middle of doing useful work. Our entrypoint
 # pulls the rustviz/rustviz-runner image from GHCR on first boot of each
-# fresh Machine (~30-60 s); even that short window can collide with the
-# autoscaler's patience. Empirically, `min_machines_running = 1` does NOT
-# protect the Machine during the warmup phase of a fresh deploy (the
-# autoscaler sends SIGINT before the Machine is registered in the
-# min-pool). The reliable fix is to disable auto_stop entirely during
-# bootstrap, then re-enable it for steady state.
+# fresh Machine (5-15 min via fuse-overlayfs); that easily collides with
+# the autoscaler's patience. fly.toml is therefore committed with
+# `auto_stop_machines = 'off'`, which is the only value that makes a
+# fresh `fly deploy` actually finish — Machines stay alive through the
+# cold-pull window. After they're healthy, the script flips each
+# Machine's per-Machine service config to 'stop' via the Machines API
+# so the running fleet idles cheaply. Steps:
 #
-#   1. Set auto_stop_machines = 'off' and min_machines_running = 1 in
-#      fly.toml, then deploy.
-#   2. Poll the public URL until it responds (up to 5 min on a fresh
-#      Machine, ~10 s on a routine redeploy).
-#   3. Set auto_stop_machines = 'stop' and min_machines_running = 0, then
-#      deploy again. Auto-stop is back on for cheap steady-state idling.
+#   1. fly scale count + fly deploy --strategy immediate (parallel).
+#   2. Poll `fly status --json` until every Machine's health check passes.
+#   3. Run `fly machine update --autostop=stop` against every Machine.
+#      No second `fly deploy`, no Firecracker-VM recreation, no second
+#      cold-pull window. Takes seconds, not minutes.
 #
 # After step 3, the runner image is cached on each Machine's local
 # filesystem, so future cold starts after auto-stop take ~10 s. Cost in
 # steady state: ~$2-3 / mo for the IP and Machine baseline.
 #
-# Pass --keep-warm to skip step 3 (Machine never auto-stops; ~$24 / mo
-# *per always-running Machine* — the fleet still has count = $RV_FLY_MACHINES
-# total, but only $RV_FLY_MACHINES of them stay running).
+# Pass --keep-warm to skip step 3 (Machines never auto-stop; ~$24/mo
+# *per always-running Machine*).
 #
 # The script also ensures the fleet is at $RV_FLY_MACHINES (default 10)
 # Machines on every deploy. Idle Machines auto-stop, so the extra capacity
@@ -51,8 +50,11 @@
 #   * The runner image has been published to ghcr.io/rustviz/rustviz-runner
 #     and the package is public. (Run `gh workflow run runner-image.yml`
 #     once, then flip the package to public on GitHub.)
-#   * fly.toml is committed-clean — this script edits it in place and
-#     would clobber unrelated uncommitted edits.
+#
+# fly.toml is never mutated by this script. Phase 1 just runs
+# `fly deploy` against the committed fly.toml (which has
+# `auto_stop_machines = 'off'`); phase 2 uses `fly machine update`
+# directly against the Machines API and doesn't read fly.toml at all.
 
 set -euo pipefail
 
@@ -76,43 +78,47 @@ command -v fly >/dev/null 2>&1 || { echo "fly CLI not on PATH; install it with '
 fly auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run 'fly auth login' first." >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "jq is required for the health-check polling loop. brew install jq" >&2; exit 1; }
 
-if ! git diff --quiet fly.toml 2>/dev/null; then
-    echo "fly.toml has uncommitted changes; commit or stash them before deploying." >&2
-    git diff fly.toml >&2
-    exit 1
-fi
-
 APP_NAME=$(awk -F"'" '/^app =/ {print $2; exit}' fly.toml)
 URL="https://${APP_NAME}.fly.dev/"
 
-# --- helpers ------------------------------------------------------------
-# Args: <min_machines_running> <auto_stop_machines>
-set_autoscale() {
-    local min="$1"
-    local stop="$2"
-    perl -i -pe "s|^(\s*min_machines_running = )\d+|\${1}$min|" fly.toml
-    perl -i -pe "s|^(\s*auto_stop_machines = )'[^']*'|\${1}'$stop'|" fly.toml
+# --- progress helpers ---------------------------------------------------
+# All script-emitted progress lines go through these so they share a
+# consistent format ("[MM:SS] message") and a consistent in-place update
+# behavior. Output goes to stderr to keep stdout clean for any future
+# piping; in an interactive terminal it's interleaved naturally with
+# fly's own stdout output.
+START_TS=$(date +%s)
+elapsed() {
+    local now diff
+    now=$(date +%s)
+    diff=$(( now - START_TS ))
+    printf '%02d:%02d' $(( diff / 60 )) $(( diff % 60 ))
 }
+# In-place update: \r returns to start of line, \033[K clears to EOL,
+# so consecutive `status` calls overwrite each other on the same row.
+# Use while a step is in flight and you want a ticking display.
+status() { printf '\r\033[K[%s] %s' "$(elapsed)" "$*" >&2; }
+# Same as status() but commits the line with a trailing newline. Use
+# for one-shot announcements ("==> Phase 2: …") and for the final line
+# of an in-flight phase, so the next bit of output lands on a fresh row.
+say()    { status "$*"; printf '\n' >&2; }
 
 # Polls `fly status --json` until every Machine in the app process group
 # is reporting all health checks passing. Returns 0 on success, 1 on
-# timeout. Caller is expected to set RESTORE='' before calling on error
-# paths if it wants to preserve the bootstrap fly.toml config.
+# timeout.
 #
 # Why we do this in the script rather than relying on fly deploy's own
-# health-check wait: our http_service.checks block has a 30-minute
-# grace_period (the runner image's first cold pull through fuse-overlayfs
-# legitimately takes that long), and fly deploy's --wait-timeout default
-# is only ~5 min. With --strategy immediate the deploy returns as soon as
-# Machines are recreated, regardless of check status, which lets us own
-# the timing window with a deadline of our own.
+# health-check wait: with --strategy immediate the deploy returns as soon
+# as Machines are recreated, regardless of check status. fly deploy's own
+# --wait-timeout (default 2 min) is also too short for our cold-pull
+# bootstrap (5-15 min/Machine through fuse-overlayfs). Owning the wait
+# in the script lets us pick a deadline that matches reality.
 #
 # Args: <timeout_secs>
 wait_for_fleet_healthy() {
     local timeout_secs="$1"
     local deadline=$(( $(date +%s) + timeout_secs ))
-    echo "==> Waiting for every Machine to pass its HTTP health check..."
-    echo "    (up to $((timeout_secs / 60)) min)"
+    say "==> Waiting for every Machine to pass its HTTP health check (up to $((timeout_secs / 60)) min)"
     while true; do
         # `fly status --json` returns an object with a Machines array; each
         # Machine has a Checks array. We want every Machine in the app
@@ -135,29 +141,22 @@ wait_for_fleet_healthy() {
         total=${summary#*/}
 
         if [ "$total" != "0" ] && [ "$total" != "?" ] && [ "$passing" = "$total" ]; then
-            echo "==> All ${total} Machines passing health check"
+            say "    ${total}/${total} Machines healthy"
             return 0
         fi
 
         if [ "$(date +%s)" -gt "$deadline" ]; then
+            printf '\n' >&2
             return 1
         fi
 
-        echo "    ${summary} Machines healthy; waiting…"
+        status "    ${summary} Machines healthy; waiting…"
         sleep 15
     done
 }
 
-# Phase 2 (and any error path) restores fly.toml to the canonical
-# steady-state config so the working tree stays clean if the script
-# aborts mid-flight. Set RESTORE='' to skip the restore (e.g. when
-# we want to leave the bootstrap config in place after a failure).
-RESTORE=1
-trap '[ "${RESTORE:-1}" = "1" ] && set_autoscale 0 stop || true' EXIT
-
 # --- phase 1 ------------------------------------------------------------
-echo "==> Phase 1: deploying with auto_stop_machines = off and min_machines_running = 1"
-set_autoscale 1 off
+say "==> Phase 1: fly deploy (auto_stop_machines = 'off', Machines won't be killed mid-bootstrap)"
 
 # Scale BEFORE deploy so all RV_FLY_MACHINES Machines exist when fly deploy
 # rolls them. If we deployed first and scaled afterward, fly deploy would
@@ -167,7 +166,7 @@ set_autoscale 1 off
 # the rolling deploy. Scaling first lets --strategy immediate roll all of
 # them in parallel, single wallclock-window for everyone.
 DESIRED_COUNT="${RV_FLY_MACHINES:-10}"
-echo "==> Ensuring fleet size of ${DESIRED_COUNT} Machines before the deploy roll"
+say "==> Ensuring fleet size of ${DESIRED_COUNT} Machines before the deploy roll"
 fly scale count "$DESIRED_COUNT" --yes
 
 # --strategy immediate: replace all Machines in parallel rather than rolling
@@ -191,8 +190,9 @@ TIMEOUT_SECS="${RV_DEPLOY_TIMEOUT_SECS:-1800}"
 if ! wait_for_fleet_healthy "$TIMEOUT_SECS"; then
     cat >&2 <<EOF
 ERROR: not all Machines passed health checks within $((TIMEOUT_SECS / 60)) minutes.
-fly.toml has been left at auto_stop_machines = 'off' / min_machines_running = 1
-so Machines won't auto-stop while you investigate. Useful next steps:
+The fleet is currently running with auto_stop_machines = 'off' (bootstrap
+config), so Machines won't auto-stop while you investigate. Useful next
+steps:
 
   fly logs                        # see what entrypoint is doing
   fly status --all                # check Machine state + per-check status
@@ -200,31 +200,51 @@ so Machines won't auto-stop while you investigate. Useful next steps:
 
 Re-run this script when you've fixed the underlying issue.
 EOF
-    # don't restore in the EXIT trap — leave at the bootstrap config
-    RESTORE=
     exit 1
 fi
 
 # --- phase 2 ------------------------------------------------------------
 if [ "$KEEP_WARM" -eq 1 ]; then
-    echo "==> --keep-warm passed; leaving auto_stop = off, min_machines_running = 1."
-    echo "    Machine never auto-stops; ~\$24/mo at shared-cpu-2x."
-    RESTORE=
+    say "==> --keep-warm passed; leaving auto_stop = off (~\$24/mo per Machine)."
     exit 0
 fi
 
-echo "==> Phase 2: re-enabling auto_stop with min_machines_running = 0 so the Machine idles cheap"
-set_autoscale 0 stop
-RESTORE=
-# Phase 2 uses default rolling strategy (NOT --strategy immediate). The
-# image hash is unchanged from phase 1, so rolling does an in-place
-# restart of each Machine — same VM, same rootfs, dockerd's image cache
-# preserved, no re-pull. fly deploy waits for each Machine's health
-# check to pass before moving to the next, which is exactly what we
-# want. We bump --wait-timeout from its 120s default because our boot
-# sequence (dockerd init ~60s + grace_period 60s + a couple of check
-# ticks) routinely exceeds 2 min; 600s is generous enough that a slow
-# Machine never trips the per-Machine deadline.
-fly deploy --wait-timeout 600
+say "==> Phase 2: flipping each Machine's auto_stop from 'off' to 'stop' (no redeploy)"
+# `fly machine update` does bounce the Machine (it stops, applies the
+# new config, and starts again). What makes it cheap here is that
+# fly.toml has `persist_rootfs = 'always'` set on the [[vm]] block, so
+# the bounce preserves /var/lib/docker — dockerd comes back up to find
+# the runner image already cached on rootfs, no re-pull, ~30 s end to
+# end. Without persist_rootfs='always' (Fly's default is 'never'), this
+# update would wipe rootfs and trigger a 5-15 min cold pull on every
+# Machine, with the just-applied auto_stop='stop' setting active during
+# the no-traffic re-pull window — i.e. the autoscaler would kill the
+# Machines before they came back. That's the deadlock persist_rootfs is
+# protecting us from.
+#
+# We background the xargs so we can show our own ticking status line
+# instead of fly machine update's ~10 lines/sec "Waiting for X to
+# become healthy (started, 0/1)" noise. fly's stdout/stderr go to
+# /dev/null; xargs blocks until every fly machine update returns
+# (which itself only returns once the Machine is back to passing
+# checks), so when the wait is done the fleet is fully updated.
+mapfile -t IDS < <(fly machines list --app "$APP_NAME" --json | jq -r '.[].id' | sort -u)
+say "    Updating ${#IDS[@]} Machines (auto_stop → stop)"
 
-echo "==> Done. Cold starts after idle take ~10 s (runner image already on each Machine's rootfs)."
+printf '%s\n' "${IDS[@]}" \
+    | xargs -P 10 -I {} fly machine update {} \
+        --app "$APP_NAME" \
+        --autostop=stop \
+        --autostart=true \
+        --yes >/dev/null 2>&1 &
+UPDATE_PID=$!
+
+while kill -0 "$UPDATE_PID" 2>/dev/null; do
+    status "    Updating ${#IDS[@]} Machines (auto_stop → stop)…"
+    sleep 1
+done
+wait "$UPDATE_PID"
+say "    ${#IDS[@]}/${#IDS[@]} Machines updated"
+
+say "==> Done. Machines match fly.toml's canonical config; they'll auto-stop when idle."
+say "    Cold starts after idle take ~10 s (runner image stays on each Machine's rootfs)."
