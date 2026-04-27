@@ -48,8 +48,14 @@ command -v jq  >/dev/null 2>&1 || { echo "jq not on PATH; brew install jq" >&2; 
 # `fly auth whoami` reads ~/.fly/config.yml (populated by
 # `fly auth login`), not FLY_API_TOKEN — so it returns "not logged in"
 # in CI even though the rest of flyctl is authenticated via the env
-# var. Skip the preflight when the token is set.
-if [ -z "${FLY_API_TOKEN:-}" ]; then
+# var. Skip the preflight when the token is set, and strip any
+# leading/trailing whitespace from it (a stray trailing newline picked
+# up by `gh secret set` from stdin makes flyctl send a malformed
+# Authorization header).
+if [ -n "${FLY_API_TOKEN:-}" ]; then
+    FLY_API_TOKEN=$(printf '%s' "$FLY_API_TOKEN" | tr -d '[:space:]')
+    export FLY_API_TOKEN
+else
     "$FLY" auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run '$FLY auth login' first or set FLY_API_TOKEN." >&2; exit 1; }
 fi
 
