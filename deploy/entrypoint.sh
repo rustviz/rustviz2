@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy entrypoint: bring up dockerd, ensure the runner image exists,
+# Deploy entrypoint: bring up dockerd, ensure the runner image is loaded,
 # then exec rv-serve. Runs as PID 1 inside the docker:dind base; tini
 # wraps us so signal handling is sane.
 
@@ -7,9 +7,16 @@ set -euo pipefail
 
 LOG() { printf '[entrypoint] %s\n' "$*" >&2; }
 
+# Where to pull the runner image from. The default points at the
+# rustviz/rustviz-runner package on GHCR, populated by
+# .github/workflows/runner-image.yml on every push to main that touches
+# runner/** or rustviz2-plugin/**. Override with RV_RUNNER_PULL_REF for
+# staging/private deployments.
+PULL_REF="${RV_RUNNER_PULL_REF:-ghcr.io/rustviz/rustviz-runner:latest}"
+LOCAL_TAG="rustviz/rustviz-runner:latest"
+
 # 1. Start dockerd in the background. The default dind entrypoint takes
-#    care of cgroup setup, certificate handling for TLS, etc.; we just
-#    point it at the host socket.
+#    care of cgroup setup, certificate handling for TLS, etc.
 LOG "starting dockerd..."
 dockerd-entrypoint.sh dockerd \
     --host=unix:///var/run/docker.sock \
@@ -31,22 +38,29 @@ for i in $(seq 1 60); do
     fi
 done
 
-# 3. Ensure the runner image exists. On first boot we build it from the
-#    /opt/runner-context tree baked into this image. Subsequent boots reuse
-#    the cached image from /var/lib/docker (mounted on a volume in fly.toml).
-if ! docker image inspect rustviz/rustviz-runner:latest >/dev/null 2>&1; then
-    LOG "runner image not present, building (one-time, ~3-5 min)..."
-    # --network=host: the inner dockerd's default bridge network has no
-    # working DNS resolver inside Fly Machines, so build steps that hit the
-    # internet (rustup, cargo registry) fail with NXDOMAIN. Sharing the host
-    # network namespace lets buildkit use the Fly Machine's resolver.
-    docker build --network=host \
-        -t rustviz/rustviz-runner:latest \
-        -f /opt/runner-context/runner/Dockerfile \
-        /opt/runner-context
-    LOG "runner image built"
+# 3. Ensure the runner image is present locally. Three cases:
+#
+#    a) We're on a Fly Machine that already pulled this image and its
+#       /var/lib/docker still has the layers. No-op, instant.
+#    b) We're on a freshly-created Fly Machine (post-`fly scale count N+1`)
+#       that has no docker state yet. Pull from the registry; takes ~30 s
+#       for the ~600 MB image.
+#    c) We're on a dev box that built the runner image locally with
+#       `setup.sh`. Image is already tagged rustviz/rustviz-runner:latest;
+#       the inspect succeeds and we don't try to pull (which would fail
+#       in offline dev).
+#
+if docker image inspect "$LOCAL_TAG" >/dev/null 2>&1; then
+    LOG "runner image already present locally"
 else
-    LOG "runner image already cached"
+    LOG "pulling runner image from ${PULL_REF} (~30 s on first boot)..."
+    if ! docker pull "$PULL_REF"; then
+        LOG "ERROR: pull failed. If you're running offline, build the image"
+        LOG "       locally first: docker build -t ${LOCAL_TAG} -f runner/Dockerfile ."
+        exit 1
+    fi
+    docker tag "$PULL_REF" "$LOCAL_TAG"
+    LOG "runner image pulled and tagged as ${LOCAL_TAG}"
 fi
 
 # 4. Exec rv-serve. Bind addr + RV_RUNNER come from the env (set in

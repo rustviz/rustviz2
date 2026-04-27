@@ -24,16 +24,34 @@ cargo install --path rustviz2-plugin --locked
 # 4. Build the rest of the workspace.
 cargo build --workspace --release
 
-# 6. Build the sandboxed runner image if Docker is available locally. This
-#    is required before exposing rv-serve to untrusted input — see
-#    SECURITY.md. Skipped silently when docker is not on PATH so devs who
-#    only iterate against RV_RUNNER=local don't need it installed.
+# 5. Get the sandboxed runner image into the local docker daemon. Two paths:
+#    - Pull from GHCR (faster, ~30 s, what production does).
+#    - Build from runner/Dockerfile locally (slower, ~5 min, but works offline
+#      and lets you iterate on plugin changes without round-tripping through
+#      a CI image push).
+#    Pull is the default; pass --build-runner to force a local build.
+#    Skipped silently when docker isn't on PATH so devs who only iterate
+#    against RV_RUNNER=local don't need it installed.
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-    echo "Building rustviz/rustviz-runner image..."
-    docker build -t rustviz/rustviz-runner:latest -f runner/Dockerfile .
+    if [ "${1:-}" = "--build-runner" ]; then
+        echo "Building rustviz/rustviz-runner image locally..."
+        docker build -t rustviz/rustviz-runner:latest -f runner/Dockerfile .
+    elif docker image inspect rustviz/rustviz-runner:latest >/dev/null 2>&1; then
+        echo "Runner image already present locally; pass --build-runner to rebuild."
+    else
+        echo "Pulling rustviz/rustviz-runner image from GHCR..."
+        if docker pull ghcr.io/rustviz/rustviz-runner:latest && \
+           docker tag ghcr.io/rustviz/rustviz-runner:latest rustviz/rustviz-runner:latest; then
+            echo "Runner image pulled."
+        else
+            echo "Pull failed (registry unreachable, image not yet published, or no internet)." >&2
+            echo "Building locally as fallback (~5 min)..." >&2
+            docker build -t rustviz/rustviz-runner:latest -f runner/Dockerfile .
+        fi
+    fi
 else
     cat <<'WARN'
-Skipping runner image build: docker is not available.
+Skipping runner image setup: docker is not available.
 
 For local dev, set RV_RUNNER=local to run the plugin in-process
 (NEVER do this on a public deployment — see SECURITY.md).

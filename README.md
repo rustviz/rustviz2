@@ -118,16 +118,19 @@ optimization for the static page-load.
 ### First-time setup (Fly compile API)
 
 ```sh
-fly auth login                                                 # browser OAuth
-fly launch --copy-config --no-deploy                           # creates the app
-fly volumes create rustviz_docker --size 10 --region <region>  # runner-image cache
-./deploy/deploy.sh                                             # two-phase deploy
+fly auth login                                  # browser OAuth
+fly launch --copy-config --no-deploy            # creates the app
+gh workflow run runner-image.yml                # builds & pushes runner to GHCR
+# Wait for the workflow to finish (~30 min first time);
+# then mark the package public:
+#   GitHub → Org → Packages → rustviz-runner →
+#     Package settings → Change visibility → Public.
+./deploy/deploy.sh                              # two-phase Fly deploy
 ```
 
-The first boot inside the Machine builds the `rustviz/rustviz-runner` image
-(downloads the Rust nightly, compiles the plugin) and takes 5–10 minutes.
-The image is then cached on the `rustviz_docker` volume, so future cold
-starts take ~10 s.
+The first boot of each Fly Machine pulls the `rustviz/rustviz-runner`
+image from GHCR (~30 s for ~600 MB). It's then cached on the Machine's
+local filesystem; subsequent cold starts after auto-stop take ~10 s.
 
 ### Routine deploys
 
@@ -135,9 +138,33 @@ starts take ~10 s.
 ./deploy/deploy.sh
 ```
 
-Or push a `vX.Y.Z` tag and the `.github/workflows/deploy.yml` workflow runs
-`flyctl deploy --remote-only` for you (requires a `FLY_API_TOKEN` repo
-secret).
+When you change `runner/**` or `rustviz2-plugin/**`,
+`.github/workflows/runner-image.yml` automatically republishes the
+sandbox image to GHCR; the next `./deploy/deploy.sh` picks it up on
+each Machine's first boot.
+
+Push a `vX.Y.Z` tag and the `.github/workflows/deploy.yml` workflow
+runs `flyctl deploy --remote-only` for you (requires a `FLY_API_TOKEN`
+repo secret).
+
+### Scaling for traffic spikes
+
+`fly.toml` ships a single Fly Machine in cheap-mode (auto-stops when
+idle). To handle a traffic surge — e.g. someone posts the playground
+URL on Hacker News:
+
+```sh
+fly scale count 5                # five Machines, all auto-start/stop
+fly scale memory 4096            # bump each to 4 GB if needed
+```
+
+Each new Machine pulls the runner image from GHCR independently on
+first boot, then auto-stops when the surge settles. Idle cost stays at
+~$2–3/mo regardless of fleet size; surge cost is ~$5–10 for an HN
+front-page-day's worth of running.
+
+After the surge, scale back down with `fly scale count 1` to free the
+extra Machine slots.
 
 ### First-time setup (GitHub Pages SPA)
 
