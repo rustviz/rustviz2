@@ -1,29 +1,38 @@
 #!/usr/bin/env bash
-# Two-phase Fly.io deploy for the RustViz playground.
+# Destroy-and-recreate Fly.io deploy for the RustViz playground.
 #
-# Why two phases:
-# Fly's autoscaler stops a Machine after ~40 s of "no incoming traffic"
-# even if the Machine is in the middle of doing useful work. Our entrypoint
-# pulls the rustviz/rustviz-runner image from GHCR on first boot of each
-# fresh Machine (5-15 min via fuse-overlayfs); that easily collides with
-# the autoscaler's patience. fly.toml is therefore committed with
-# `auto_stop_machines = 'off'`, which is the only value that makes a
-# fresh `fly deploy` actually finish — Machines stay alive through the
-# cold-pull window. After they're healthy, the script flips each
-# Machine's per-Machine service config to 'stop' via the Machines API
-# so the running fleet idles cheaply. Steps:
+# Every deploy starts from a clean fleet:
 #
-#   1. fly scale count + fly deploy --strategy immediate (parallel).
-#   2. Poll `fly status --json` until every Machine's health check passes.
-#   3. Run `fly machine update --autostop=stop` against every Machine.
-#      No second `fly deploy`, no Firecracker-VM recreation, no second
-#      cold-pull window. Takes seconds, not minutes.
+#   1. Destroy every existing Machine (parallel).
+#   2. fly scale count + fly deploy --strategy immediate to create
+#      $RV_FLY_MACHINES fresh Machines on the new release.
+#   3. Poll `fly status --json` until every Machine's health check passes.
+#   4. Run `fly machine update --autostop=stop` against every Machine
+#      to flip the per-Machine service config from the bootstrap-friendly
+#      'off' (set in fly.toml) to the cost-saving 'stop' for steady state.
+#      Verify the config landed; do NOT poll for health afterwards
+#      (the autoscaler immediately starts auto-stopping idle Machines
+#      under the new setting, and Consul health probes don't count as
+#      traffic, so a poll-for-all-healthy loop is unwinnable).
 #
-# After step 3, the runner image is cached on each Machine's local
-# filesystem, so future cold starts after auto-stop take ~10 s. Cost in
-# steady state: ~$2-3 / mo for the IP and Machine baseline.
+# Why destroy-and-recreate instead of in-place updates: every previous
+# attempt to incrementally update an existing fleet hit a different
+# stale-state edge case — Machines stopped pre-deploy that fly deploy
+# updates but doesn't auto-start, fly machine update timing out vs the
+# autoscaler that just took effect, drift between Machines created
+# under different fly.toml settings, etc. Nuking the fleet sidesteps
+# all of it for the cost of a few minutes of downtime per deploy
+# (acceptable for a research tool with sparse traffic). Each deploy
+# pays one fuse-overlayfs cold pull per Machine in parallel
+# (~10-15 min wallclock total).
 #
-# Pass --keep-warm to skip step 3 (Machines never auto-stop; ~$24/mo
+# In steady state between deploys, the auto-stop / auto-start cycle
+# still benefits from `persist_rootfs = 'always'` on the [[vm]] block
+# in fly.toml: an auto-stopped Machine that gets traffic comes back
+# in ~10 s without re-pulling the runner image. Cost in steady state:
+# ~$2-3 / mo for the IP and Machine baseline.
+#
+# Pass --keep-warm to skip step 4 (Machines never auto-stop; ~$24/mo
 # *per always-running Machine*).
 #
 # The script also ensures the fleet is at $RV_FLY_MACHINES (default 10)
@@ -53,8 +62,10 @@
 #
 # fly.toml is never mutated by this script. Phase 1 just runs
 # `fly deploy` against the committed fly.toml (which has
-# `auto_stop_machines = 'off'`); phase 2 uses `fly machine update`
-# directly against the Machines API and doesn't read fly.toml at all.
+# `auto_stop_machines = 'off'` so freshly-created Machines aren't
+# killed by the autoscaler mid-cold-pull). Phase 2 uses
+# `fly machine update` directly against the Machines API to flip
+# auto_stop on each running Machine, doesn't touch fly.toml.
 
 set -euo pipefail
 
@@ -194,43 +205,47 @@ wait_for_fleet_healthy() {
 # --- phase 1 ------------------------------------------------------------
 say "==> Phase 1: fly deploy (auto_stop_machines = 'off', Machines won't be killed mid-bootstrap)"
 
-# Scale BEFORE deploy so all RV_FLY_MACHINES Machines exist when fly deploy
-# rolls them. If we deployed first and scaled afterward, fly deploy would
-# only roll the existing fleet (often just 2, Fly's HA default for a fresh
-# app), then scale-up would create the rest from the just-deployed image
-# and each of those would do its own ~30 min cold-pull *sequentially* with
-# the rolling deploy. Scaling first lets --strategy immediate roll all of
-# them in parallel, single wallclock-window for everyone.
+# Destroy every existing Machine before scaling + deploying. We accept
+# a few minutes of downtime per deploy in exchange for never having
+# to debug stale-state edge cases:
+#
+#   - Stopped Machines that fly deploy applies a new release to but
+#     doesn't auto-start (script then hangs waiting for them to pass
+#     health checks they can't satisfy until traffic forces a start)
+#   - Machines created under an older fly.toml that still have its
+#     persist_rootfs / auto_stop / VM-size config baked in
+#   - Half-rolled fleets from a previous deploy that crashed mid-way
+#
+# Every deploy starts from zero: `fly machines list` empty → `fly
+# scale count $DESIRED_COUNT` creates $DESIRED_COUNT fresh Machines
+# from the new fly.toml → fly deploy rolls them to the new release.
+# Tradeoffs: this forces a fuse-overlayfs cold pull on every Machine
+# every deploy (~5–15 min/Machine, all in parallel), and there's a
+# brief window where the public URL serves 503s because every Machine
+# is mid-bootstrap. Fine for a research tool that deploys infrequently
+# and tolerates a few minutes of downtime.
+mapfile -t EXISTING_IDS < <("$FLY" machines list --app "$APP_NAME" --json | jq -r '.[].id' | sort -u)
+if [ "${#EXISTING_IDS[@]}" -gt 0 ]; then
+    say "==> Destroying ${#EXISTING_IDS[@]} existing Machine(s) for a clean redeploy"
+    printf '%s\n' "${EXISTING_IDS[@]}" \
+        | xargs -P 10 -I {} "$FLY" machine destroy {} --app "$APP_NAME" --force >/dev/null 2>&1
+fi
+
+# Scale up from zero. With no existing Machines, fly scale count
+# creates $DESIRED_COUNT brand-new ones using the most recently
+# released image; the subsequent fly deploy then rolls them to the
+# image we're about to publish. (`fly deploy` alone, against an empty
+# fleet, would fall back to Fly's HA default of 2 — so we still need
+# the explicit scale step.)
 DESIRED_COUNT="${RV_FLY_MACHINES:-10}"
-say "==> Ensuring fleet size of ${DESIRED_COUNT} Machines before the deploy roll"
+say "==> Scaling fleet to ${DESIRED_COUNT} Machine(s)"
 "$FLY" scale count "$DESIRED_COUNT" --yes
 
-# --strategy immediate: replace all Machines in parallel rather than rolling
-# them one-at-a-time. Each new Machine has to pull the ~1 GiB runner image
-# from GHCR and extract it via fuse-overlayfs (~15-30 min/Machine on first
-# boot), so rolling 10 Machines sequentially would be ~2.5 hours of
-# wallclock; in parallel it's ~30 min. Tradeoff is a brief few-minute
-# window during the swap where requests can 503 because the new fleet is
-# still bootstrapping. Fine for a research tool with sparse traffic;
-# obviously bad for a high-availability service.
+# --strategy immediate: roll all Machines in parallel, not one-at-a-
+# time. Each fresh Machine has to extract the ~1 GiB runner image
+# through fuse-overlayfs (5-15 min); rolling sequentially would be
+# >2 h, in parallel it's ~15 min wallclock.
 "$FLY" deploy --strategy immediate
-
-# fly deploy --strategy immediate updates every Machine's release in
-# parallel, but it does NOT auto-start Machines that were already
-# `stopped` going in (e.g. ones that auto-stopped during the idle
-# period after the previous deploy). Those Machines now have the new
-# release applied to their config but are still in stopped state, and
-# wait_for_fleet_healthy below polls for "all checks passing" — which
-# a stopped Machine can never satisfy, so the wait would hang until
-# RV_DEPLOY_TIMEOUT_SECS expires. Start any stopped Machine
-# explicitly so the entire fleet comes up to passing within one
-# bootstrap window.
-mapfile -t STOPPED_IDS < <("$FLY" machines list --app "$APP_NAME" --json | jq -r '.[] | select(.state == "stopped") | .id' | sort -u)
-if [ "${#STOPPED_IDS[@]}" -gt 0 ]; then
-    say "==> Starting ${#STOPPED_IDS[@]} previously-stopped Machine(s)"
-    printf '%s\n' "${STOPPED_IDS[@]}" \
-        | xargs -P 10 -I {} "$FLY" machine start {} --app "$APP_NAME" >/dev/null 2>&1
-fi
 
 # 30-minute timeout. fuse-overlayfs's per-layer extraction is significantly
 # slower than kernel overlay2 — a fresh-Machine pull of the ~1 GiB runner

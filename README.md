@@ -221,24 +221,34 @@ deploy time, every fresh Machine would be killed mid-bootstrap before
 `rv-serve` ever binds `:8080` — `fly deploy` would deadlock. So `'off'`
 is the only value that lets a fresh deploy actually finish.
 
-The cost-saving auto-stop behavior is then applied per-Machine after
-deploy. `deploy/deploy.sh`:
+The cost-saving auto-stop behavior is applied per-Machine after
+deploy. `deploy/deploy.sh` does a destroy-and-recreate every time:
 
-1. Runs `fly scale count` and `fly deploy --strategy immediate`, then
-   polls `fly status --json` until every Machine's HTTP check passes.
-2. Runs `fly machine update --autostop=stop` against every Machine in
-   parallel, flipping the per-Machine service config via the Machines
-   API — no second `fly deploy`. The Machine bounces, but
-   `persist_rootfs = 'always'` (set on the `[[vm]]` block in fly.toml)
-   keeps `/var/lib/docker` across the bounce, so it comes back in
-   ~30 s without re-pulling the runner image.
+1. Destroys every existing Machine (parallel `fly machine destroy --force`).
+2. Runs `fly scale count` and `fly deploy --strategy immediate`, then
+   polls `fly status --json` until every freshly-created Machine's
+   HTTP check passes.
+3. Runs `fly machine update --autostop=stop --skip-health-checks`
+   against every Machine in parallel, flipping the per-Machine
+   service config via the Machines API. Verifies the config landed;
+   doesn't poll for health afterwards (auto-stop kicks in immediately,
+   so a poll-for-all-healthy loop is unwinnable).
 
-End state: every Machine has `auto_stop = 'stop'` per-Machine, the
-fleet idles cheaply (~$2–3/mo for the IP and Machine baseline), and
-future cold starts after auto-stop take ~10 s (image still on
-rootfs).
+We destroy and recreate rather than incrementally updating the
+existing fleet because every iteration of the in-place approach hit
+a different stale-state edge case (stopped Machines that don't
+auto-start during deploy, drift between Machines created under
+different fly.toml settings, autoscaler racing the post-update
+bounce, etc.). Nuking the fleet sidesteps all of it for the cost
+of a few minutes of downtime per deploy — acceptable for a research
+tool with sparse traffic. End state: every Machine on the new
+release with `auto_stop = 'stop'`, fleet idles cheaply (~$2–3/mo
+for the IP and Machine baseline). In steady state between deploys
+the auto-stop / auto-start cycle is fast (~10 s cold start) thanks
+to `persist_rootfs = 'always'` keeping the runner image cached on
+each Machine's rootfs.
 
-Pass `--keep-warm` to skip step 2 if you want Machines to never
+Pass `--keep-warm` to skip step 3 if you want Machines to never
 auto-stop (~$24/mo per always-running Machine).
 
 ### Security
