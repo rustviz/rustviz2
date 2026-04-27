@@ -62,6 +62,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # amd64 is what Fly Machines run in production; arm64 lets us
+          # pull and run the image locally on Apple Silicon dev boxes for
+          # debugging without cross-emulation overhead. Roughly doubles the
+          # workflow runtime; with the registry buildcache below it stays
+          # well under the timeout-minutes ceiling.
+          platforms: linux/amd64,linux/arm64
           # Keep an inline registry cache so reruns reuse layers.
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
