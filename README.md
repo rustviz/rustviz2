@@ -118,13 +118,19 @@ secret).
 so the Fly Machine idles down to zero cost when no traffic is hitting it
 (~$2–3/mo for the volume + IP). The catch: Fly's autoscaler stops the
 Machine after ~40 s of "no incoming traffic", which collides with our
-5–10 min first-boot bootstrap. `deploy/deploy.sh` handles the timing
-window automatically:
+5–10 min first-boot bootstrap. Empirically, bumping
+`min_machines_running` to 1 alone is *not* enough — during the warmup
+phase of a fresh deploy, the autoscaler can SIGINT the Machine before
+it's registered as part of the min-pool. The reliable fix is to disable
+auto-stop entirely during bootstrap. `deploy/deploy.sh` handles the
+timing window automatically:
 
-1. Edits `fly.toml` to set `min_machines_running = 1`, runs `fly deploy`.
+1. Edits `fly.toml` to set `auto_stop_machines = 'off'` and
+   `min_machines_running = 1`, runs `fly deploy`.
 2. Polls the public URL until it responds (up to 15 min).
-3. Edits `fly.toml` back to `min_machines_running = 0`, runs `fly deploy`
-   again so auto-stop is in force for steady state.
+3. Edits `fly.toml` back to `auto_stop_machines = 'stop'` and
+   `min_machines_running = 0`, runs `fly deploy` again so auto-stop is
+   in force for steady state.
 
 Pass `--keep-warm` to skip step 3 if you want the Machine to never
 auto-stop (~$24/mo).
