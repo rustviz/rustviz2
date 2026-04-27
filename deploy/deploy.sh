@@ -101,7 +101,15 @@ trap '[ "${RESTORE:-1}" = "1" ] && set_autoscale 0 stop || true' EXIT
 # --- phase 1 ------------------------------------------------------------
 echo "==> Phase 1: deploying with auto_stop_machines = off and min_machines_running = 1"
 set_autoscale 1 off
-fly deploy
+# --strategy immediate: replace all Machines in parallel rather than rolling
+# them one-at-a-time. Each new Machine has to pull the ~1 GiB runner image
+# from GHCR and extract it via fuse-overlayfs (~15 min/Machine on first
+# boot), so rolling 10 Machines sequentially would be ~2.5 hours of
+# wallclock; in parallel it's ~15 min. Tradeoff is a brief few-minute
+# window during the swap where requests can 503 because the new fleet is
+# still bootstrapping. Fine for a research tool with sparse traffic;
+# obviously bad for a high-availability service.
+fly deploy --strategy immediate
 
 echo "==> Waiting for ${URL} to respond (up to 15 min for fresh-volume bootstraps)..."
 deadline=$(( $(date +%s) + 900 ))
@@ -148,6 +156,9 @@ fi
 echo "==> Phase 2: re-enabling auto_stop with min_machines_running = 0 so the Machine idles cheap"
 set_autoscale 0 stop
 RESTORE=
-fly deploy
+# Phase 2 is a config-only change (autoscale knobs); no image change, so
+# the rollout is fast regardless of strategy. Use immediate for symmetry
+# with phase 1 and to skip the per-Machine sequential rollover.
+fly deploy --strategy immediate
 
-echo "==> Done. Cold starts after idle take ~10 s (runner image cached on volume)."
+echo "==> Done. Cold starts after idle take ~10 s (runner image already on each Machine's rootfs)."
