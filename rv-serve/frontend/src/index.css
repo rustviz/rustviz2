@@ -69,12 +69,14 @@ p {
   100% { transform: rotate(360deg); }
 }
 
-/* Loading status block under the button while a /submit-code request is
-   in flight. The button's own spinner indicates "doing work"; this block
-   adds a textual cue + a note about the cold-start latency the Fly
-   compile server can introduce after auto-stop. */
+/* Loading status block under the rust-version note while a /submit-code
+   request is in flight. The button's own animated label indicates
+   "doing work"; this block adds a textual cue + a note about the
+   cold-start latency the Fly compile server can introduce after
+   auto-stop. Stacks naturally under .rust-version (rust-version's
+   bottom margin provides the gap). */
 .loading-status {
-  margin-top: -25px; /* tighten the gap to the button (which has margin: 50px) */
+  margin-top: 0;
 }
 .loading-message {
   font-size: 18px;
@@ -97,6 +99,26 @@ p {
   font-size: 14px;
   color: #666;
   margin-top: 0;
+}
+
+/* Toolchain note under the button. Small + subdued because it's
+   informational metadata, not user-facing UI; we want users to glance
+   at it and immediately know which rustc their snippet runs against
+   without it competing with the editor and visualization for
+   attention.
+   margin-top: -50px fully cancels the button's 50px bottom margin so
+   this paragraph sits directly under the button with no gap; the
+   loading-status block (when present) and the result panel both stack
+   below it using rust-version's own bottom margin as the gap, so
+   they can never overlap. */
+.rust-version {
+  font-size: 13px;
+  color: #888;
+  margin-top: -50px;
+  margin-bottom: 16px;
+}
+.rust-version code {
+  font-size: 13px;
 }
 
 

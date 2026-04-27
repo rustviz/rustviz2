@@ -108,6 +108,9 @@ const App = () => {
       <button className="cm-button large-button" id="gen-button" onClick={handleClick} disabled={isLoading}>
         {isLoading ? <>Generating<span className="ellipsis"></span></> : 'Generate Visualization'}
       </button>
+      <p className="rust-version">
+        Compiles with <code>rustc {__RUST_VERSION__}</code>
+      </p>
       {isLoading && (
         <div className="loading-status">
           <p className="loading-message">
