@@ -165,9 +165,11 @@ When you change `runner/**` or `rustviz2-plugin/**`,
 sandbox image to GHCR; the next `./deploy/deploy.sh` picks it up on
 each Machine's first boot.
 
-Push a `vX.Y.Z` tag and the `.github/workflows/deploy.yml` workflow
-runs `flyctl deploy --remote-only` for you (requires a `FLY_API_TOKEN`
-repo secret).
+Every push to `main` triggers `.github/workflows/deploy.yml`, which
+runs `./deploy/deploy.sh` on a hosted runner (requires a `FLY_API_TOKEN`
+repo secret). The workflow opens a `deploy-failure`-labelled issue if
+the deploy errors out, in addition to GitHub's default email-on-failure
+notification.
 
 ### First-time setup (GitHub Pages SPA)
 
