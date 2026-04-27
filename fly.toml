@@ -22,9 +22,13 @@ primary_region = 'ord'
   RV_RATE_SECONDS_PER_REQUEST = '2'
   RV_RUNNER = 'docker'
 
-[[mounts]]
-  source = 'rustviz_docker'
-  destination = '/var/lib/docker'
+# No `[[mounts]]` block: as of the runner-from-registry change the runner
+# image is pulled from GHCR on first boot rather than built in-place, so
+# /var/lib/docker doesn't need to persist across Machine recreations. This
+# makes `fly scale count N` horizontal scaling drop in without per-Machine
+# volume provisioning. If you previously created a `rustviz_docker` volume,
+# `fly volumes list && fly volumes destroy <id>` cleans it up after the
+# next deploy.
 
 [http_service]
   internal_port = 8080
@@ -34,8 +38,22 @@ primary_region = 'ord'
   # Keep at 0 in the canonical config so the Machine auto-stops when idle
   # (~$2-3/mo cost). `deploy/deploy.sh` flips this to 1 temporarily during
   # deploys so Fly's autoscaler doesn't kill the Machine while it bootstraps
-  # the inner runner Docker image, then flips it back.
+  # the inner runner Docker image (pulling from GHCR takes ~30 s), then
+  # flips it back.
   min_machines_running = 0
+
+  # Concurrency thresholds the edge proxy uses to decide when to spill load
+  # to a second Machine in the fleet. Defaults are tuned for cheap web apps
+  # (~hundreds of concurrent connections per Machine) — way too high for our
+  # workload, where each Machine maxes out at ~4 concurrent compile
+  # containers. With these values, Fly starts spilling to a second Machine
+  # the moment a fourth concurrent /submit-code lands, and avoids piling
+  # an HN-class spike onto a single Machine until OOM. Fleet size itself is
+  # set server-side via `fly scale count N` and maintained by deploy.sh.
+  [http_service.concurrency]
+    type = 'requests'
+    soft_limit = 3
+    hard_limit = 5
 
 [[vm]]
   size = 'shared-cpu-2x'

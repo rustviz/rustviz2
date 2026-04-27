@@ -5,8 +5,11 @@
 #   2. frontend-builder: vite build for the SPA.
 #   3. final: docker:dind base — rv-serve runs alongside an in-VM dockerd
 #      and shells out to `docker run rustviz/rustviz-runner` per request
-#      (see SECURITY.md). The runner image is built at first boot from
-#      the sources baked into /opt/runner-context.
+#      (see SECURITY.md). The runner image itself is published separately
+#      to GHCR by .github/workflows/runner-image.yml, and entrypoint.sh
+#      pulls it on first boot. This keeps the deploy image small (~135 MiB)
+#      and Fly Machines stateless wrt the runner — `fly scale count N`
+#      horizontal scaling needs no per-Machine bootstrap.
 
 ARG RUST_NIGHTLY=nightly-2025-08-20
 
@@ -56,12 +59,12 @@ COPY --from=rust-builder /src/target/release/rustviz_serve /usr/local/bin/rustvi
 WORKDIR /app
 COPY --from=frontend-builder /src/dist/ /app/frontend/dist/
 
-# Build context for the runner image, baked in so the entrypoint can
-# `docker build` it on first boot. runner/Dockerfile overwrites Cargo.toml
-# itself, so we ship the workspace Cargo.toml as-is.
-COPY rust-toolchain.toml Cargo.toml Cargo.lock /opt/runner-context/
-COPY rustviz2-plugin/ /opt/runner-context/rustviz2-plugin/
-COPY runner/ /opt/runner-context/runner/
+# The runner image (rustviz/rustviz-runner:latest) is built and pushed by
+# .github/workflows/runner-image.yml to ghcr.io/rustviz/rustviz-runner.
+# entrypoint.sh pulls it on first boot. Pre-Phase-6 deploys baked the
+# runner build context into /opt/runner-context here and built at boot;
+# now Machines are stateless wrt the runner image so `fly scale count N`
+# horizontal scaling Just Works without per-Machine bootstrapping.
 
 COPY deploy/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

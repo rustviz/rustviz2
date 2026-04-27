@@ -107,8 +107,11 @@ Production runs in two pieces:
   pushed to the `rustviz/playground` repo on every change. Loads instantly
   even when no one has visited recently.
 - **Compile API on Fly.io**, at <https://rustviz-playground.fly.dev/>.
-  Auto-stops when idle to keep costs at ~$2–3/mo; cold starts cost ~10 s
-  on first request after idle. Allowed origins are listed in
+  Ten Machines provisioned, all auto-stopping when idle; the edge proxy
+  routes traffic to whichever ones are awake and starts more from stopped
+  state when concurrency thresholds (`fly.toml::http_service.concurrency`)
+  are crossed. Idle cost ~$2–3/mo total; an HN-spike day adds ~$5–10 of
+  Machine compute. Allowed origins for cross-origin requests are listed in
   `rv-serve/src/main.rs::cors`.
 
 The same `rv-serve` binary also still works as an all-in-one server (SPA
@@ -118,16 +121,35 @@ optimization for the static page-load.
 ### First-time setup (Fly compile API)
 
 ```sh
-fly auth login                                                 # browser OAuth
-fly launch --copy-config --no-deploy                           # creates the app
-fly volumes create rustviz_docker --size 10 --region <region>  # runner-image cache
-./deploy/deploy.sh                                             # two-phase deploy
+fly auth login                                  # browser OAuth
+fly launch --copy-config --no-deploy            # creates the app
+
+# Trigger the runner-image workflow manually for the first publication.
+# It also auto-fires on every push to main that touches runner/** or
+# rustviz2-plugin/**, but the very first time it has to be kicked off
+# by hand because there's nothing in GHCR yet for the deploy to pull.
+gh workflow run runner-image.yml --ref main
+gh run watch                                    # blocks until the run finishes
+                                                # (~30 min first time, ~5 min later)
+
+# Mark the new GHCR package public so Fly Machines can pull without auth:
+#   GitHub → Org → Packages → rustviz-runner →
+#     Package settings → Change visibility → Public.
+# This step has to happen before the next command, otherwise the deploy's
+# first-boot `docker pull` fails.
+
+./deploy/deploy.sh                              # two-phase Fly deploy
 ```
 
-The first boot inside the Machine builds the `rustviz/rustviz-runner` image
-(downloads the Rust nightly, compiles the plugin) and takes 5–10 minutes.
-The image is then cached on the `rustviz_docker` volume, so future cold
-starts take ~10 s.
+The first boot of each Fly Machine pulls the `rustviz/rustviz-runner`
+image from GHCR (~30 s for ~600 MB). It's then cached on the Machine's
+local filesystem; subsequent cold starts after auto-stop take ~10 s.
+
+`./deploy/deploy.sh` also ensures the fleet stays at 10 Machines (override
+with `RV_FLY_MACHINES=N`). With auto-stop on, idle Machines are free; the
+extra capacity exists so the edge proxy has somewhere to spill load when
+one Machine gets saturated. No need to manually scale up before posting
+the URL somewhere.
 
 ### Routine deploys
 
@@ -135,9 +157,14 @@ starts take ~10 s.
 ./deploy/deploy.sh
 ```
 
-Or push a `vX.Y.Z` tag and the `.github/workflows/deploy.yml` workflow runs
-`flyctl deploy --remote-only` for you (requires a `FLY_API_TOKEN` repo
-secret).
+When you change `runner/**` or `rustviz2-plugin/**`,
+`.github/workflows/runner-image.yml` automatically republishes the
+sandbox image to GHCR; the next `./deploy/deploy.sh` picks it up on
+each Machine's first boot.
+
+Push a `vX.Y.Z` tag and the `.github/workflows/deploy.yml` workflow
+runs `flyctl deploy --remote-only` for you (requires a `FLY_API_TOKEN`
+repo secret).
 
 ### First-time setup (GitHub Pages SPA)
 
