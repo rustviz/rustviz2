@@ -94,6 +94,60 @@ set_autoscale() {
     perl -i -pe "s|^(\s*auto_stop_machines = )'[^']*'|\${1}'$stop'|" fly.toml
 }
 
+# Polls `fly status --json` until every Machine in the app process group
+# is reporting all health checks passing. Returns 0 on success, 1 on
+# timeout. Caller is expected to set RESTORE='' before calling on error
+# paths if it wants to preserve the bootstrap fly.toml config.
+#
+# Why we do this in the script rather than relying on fly deploy's own
+# health-check wait: our http_service.checks block has a 30-minute
+# grace_period (the runner image's first cold pull through fuse-overlayfs
+# legitimately takes that long), and fly deploy's --wait-timeout default
+# is only ~5 min. With --strategy immediate the deploy returns as soon as
+# Machines are recreated, regardless of check status, which lets us own
+# the timing window with a deadline of our own.
+#
+# Args: <timeout_secs>
+wait_for_fleet_healthy() {
+    local timeout_secs="$1"
+    local deadline=$(( $(date +%s) + timeout_secs ))
+    echo "==> Waiting for every Machine to pass its HTTP health check..."
+    echo "    (up to $((timeout_secs / 60)) min)"
+    while true; do
+        # `fly status --json` returns an object with a Machines array; each
+        # Machine has a Checks array. We want every Machine in the app
+        # process group to have all its checks passing.
+        local json summary passing total
+        json=$(fly status --json 2>/dev/null) || json='{}'
+        # `unique_by(.id)` is load-bearing: Fly's API occasionally returns
+        # the same Machine twice in `fly status --json`; without dedupe the
+        # count ends up like "0/11" for a 10-Machine fleet and the loop
+        # never sees passing == total.
+        summary=$(printf '%s' "$json" | jq -r '
+            .Machines // []
+            | unique_by(.id)
+            | map(select(.config.metadata.fly_process_group == "app" or
+                         (.config.metadata.fly_process_group // "app") == "app"))
+            | "\(map(select(.checks // [] | all(.status == "passing"))) | length)/\(length)"
+        ' 2>/dev/null) || summary='?/?'
+
+        passing=${summary%/*}
+        total=${summary#*/}
+
+        if [ "$total" != "0" ] && [ "$total" != "?" ] && [ "$passing" = "$total" ]; then
+            echo "==> All ${total} Machines passing health check"
+            return 0
+        fi
+
+        if [ "$(date +%s)" -gt "$deadline" ]; then
+            return 1
+        fi
+
+        echo "    ${summary} Machines healthy; waiting…"
+        sleep 15
+    done
+}
+
 # Phase 2 (and any error path) restores fly.toml to the canonical
 # steady-state config so the working tree stays clean if the script
 # aborts mid-flight. Set RESTORE='' to skip the restore (e.g. when
@@ -133,49 +187,9 @@ fly deploy --strategy immediate
 # min on cold pulls. Routine redeploys (image already on the rootfs)
 # complete in a couple minutes. Override with RV_DEPLOY_TIMEOUT_SECS.
 TIMEOUT_SECS="${RV_DEPLOY_TIMEOUT_SECS:-1800}"
-echo "==> Waiting for every Machine to pass its HTTP health check..."
-echo "    (up to $((TIMEOUT_SECS / 60)) min — fuse-overlayfs's per-layer extraction"
-echo "     of the ~1 GiB runner image takes 20-30 min on a fresh Machine)"
-deadline=$(( $(date +%s) + TIMEOUT_SECS ))
 
-# We poll `fly status --json` for per-Machine health-check status rather
-# than just polling the public URL. Reason: with N Machines, the URL
-# starts responding as soon as ANY single Machine passes its check, but
-# Fly's edge will still route some fraction of traffic to Machines whose
-# check is failing — those return connection-refused / 503, and a browser
-# user sees mysterious errors.
-#
-# fly.toml's [[http_service.checks]] block makes Fly's edge skip Machines
-# whose GET / fails, but the script still benefits from knowing when the
-# whole fleet is ready: that's when we can confidently move to phase 2
-# (re-enable auto-stop) and tell the operator the deploy is done.
-while true; do
-    # `fly status --json` returns an object with a Machines array; each
-    # Machine has a Checks array. We want every Machine in the app
-    # process group to have all its checks passing.
-    json=$(fly status --json 2>/dev/null) || json='{}'
-    # `unique_by(.id)` is load-bearing: Fly's API occasionally returns the
-    # same Machine twice in `fly status --json`; without dedupe the count
-    # ends up like "0/11" for a 10-Machine fleet and the loop never sees
-    # passing == total.
-    summary=$(printf '%s' "$json" | jq -r '
-        .Machines // []
-        | unique_by(.id)
-        | map(select(.config.metadata.fly_process_group == "app" or
-                     (.config.metadata.fly_process_group // "app") == "app"))
-        | "\(map(select(.checks // [] | all(.status == "passing"))) | length)/\(length)"
-    ' 2>/dev/null) || summary='?/?'
-
-    passing=${summary%/*}
-    total=${summary#*/}
-
-    if [ "$total" != "0" ] && [ "$total" != "?" ] && [ "$passing" = "$total" ]; then
-        echo "==> All ${total} Machines passing health check"
-        break
-    fi
-
-    if [ "$(date +%s)" -gt "$deadline" ]; then
-        cat >&2 <<EOF
+if ! wait_for_fleet_healthy "$TIMEOUT_SECS"; then
+    cat >&2 <<EOF
 ERROR: not all Machines passed health checks within $((TIMEOUT_SECS / 60)) minutes.
 fly.toml has been left at auto_stop_machines = 'off' / min_machines_running = 1
 so Machines won't auto-stop while you investigate. Useful next steps:
@@ -186,14 +200,10 @@ so Machines won't auto-stop while you investigate. Useful next steps:
 
 Re-run this script when you've fixed the underlying issue.
 EOF
-        # don't restore in the EXIT trap — leave at the bootstrap config
-        RESTORE=
-        exit 1
-    fi
-
-    echo "    ${summary} Machines healthy; waiting…"
-    sleep 15
-done
+    # don't restore in the EXIT trap — leave at the bootstrap config
+    RESTORE=
+    exit 1
+fi
 
 # --- phase 2 ------------------------------------------------------------
 if [ "$KEEP_WARM" -eq 1 ]; then
@@ -206,15 +216,15 @@ fi
 echo "==> Phase 2: re-enabling auto_stop with min_machines_running = 0 so the Machine idles cheap"
 set_autoscale 0 stop
 RESTORE=
-# Phase 2 is a config-only change (autoscale knobs); the image hash is
-# unchanged from phase 1. We deliberately do NOT pass --strategy immediate
-# here: with no image change, the default rolling strategy updates each
-# Machine's config in-place instead of recreating the Machine, which
-# avoids triggering a fresh ~1 GiB runner-image pull through
-# fuse-overlayfs on every Machine. Rolling also blocks on the health
-# check before moving to the next Machine, so when this command returns
-# the fleet is genuinely ready — no separate polling loop needed for
-# phase 2.
-fly deploy
+# Phase 2 uses default rolling strategy (NOT --strategy immediate). The
+# image hash is unchanged from phase 1, so rolling does an in-place
+# restart of each Machine — same VM, same rootfs, dockerd's image cache
+# preserved, no re-pull. fly deploy waits for each Machine's health
+# check to pass before moving to the next, which is exactly what we
+# want. We bump --wait-timeout from its 120s default because our boot
+# sequence (dockerd init ~60s + grace_period 60s + a couple of check
+# ticks) routinely exceeds 2 min; 600s is generous enough that a slow
+# Machine never trips the per-Machine deadline.
+fly deploy --wait-timeout 600
 
 echo "==> Done. Cold starts after idle take ~10 s (runner image already on each Machine's rootfs)."
