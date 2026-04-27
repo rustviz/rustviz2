@@ -94,17 +94,20 @@ fi
 # the rest of flyctl is perfectly authenticated. Locally without a
 # token, the check still helps with a friendly error.
 if [ -n "${FLY_API_TOKEN:-}" ]; then
-    # Strip ALL whitespace from the token. `gh secret set` via stdin
-    # or a file commonly picks up a trailing newline; flyctl then
-    # sends it as part of the `Authorization: Bearer <token>` header
-    # and Go's net/http rejects it with "invalid header field value
-    # for Authorization", which is a confusing way to say "your token
-    # has a newline in it". Fly tokens are opaque alphanumeric/symbol
-    # strings with no internal whitespace, so a blanket `tr -d` is
-    # safe — and it's the simplest portable way to strip a trailing
-    # newline (sed's `$` matches end-of-line, not end-of-string, so
-    # `s/[[:space:]]*$//` doesn't actually drop a trailing \n).
-    FLY_API_TOKEN=$(printf '%s' "$FLY_API_TOKEN" | tr -d '[:space:]')
+    # Strip CR/LF from the token. `gh secret set` via stdin or a file
+    # commonly picks up a trailing newline; flyctl then sends it as
+    # part of the `Authorization: <token>` header and Go's net/http
+    # rejects it with "invalid header field value for Authorization".
+    #
+    # Importantly we strip ONLY \r and \n, not all whitespace: deploy
+    # tokens from `fly tokens create deploy` come back as
+    # `FlyV1 fm2_lJPE…` — the space between the version prefix and
+    # the token body is part of the token format Fly expects in the
+    # Authorization header. Stripping it (e.g. with tr -d '[:space:]')
+    # mangles the token into `FlyV1fm2_…`, which the API accepts as
+    # syntactically valid bytes but rejects as a "token validation
+    # error".
+    FLY_API_TOKEN=$(printf '%s' "$FLY_API_TOKEN" | tr -d '\r\n')
     export FLY_API_TOKEN
 else
     "$FLY" auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run '$FLY auth login' first or set FLY_API_TOKEN." >&2; exit 1; }

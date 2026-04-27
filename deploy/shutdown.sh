@@ -53,7 +53,11 @@ command -v jq  >/dev/null 2>&1 || { echo "jq not on PATH; brew install jq" >&2; 
 # up by `gh secret set` from stdin makes flyctl send a malformed
 # Authorization header).
 if [ -n "${FLY_API_TOKEN:-}" ]; then
-    FLY_API_TOKEN=$(printf '%s' "$FLY_API_TOKEN" | tr -d '[:space:]')
+    # Strip ONLY CR/LF, not all whitespace — `fly tokens create deploy`
+    # returns `FlyV1 fm2_…` and the space between the prefix and the
+    # body is part of the token format. See deploy.sh for the longer
+    # version of this comment.
+    FLY_API_TOKEN=$(printf '%s' "$FLY_API_TOKEN" | tr -d '\r\n')
     export FLY_API_TOKEN
 else
     "$FLY" auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run '$FLY auth login' first or set FLY_API_TOKEN." >&2; exit 1; }
