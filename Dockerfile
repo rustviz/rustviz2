@@ -51,10 +51,10 @@ RUN apk add --no-cache bash curl tini
 # rv-serve binary (built on Alpine in stage 1, so already musl).
 COPY --from=rust-builder /src/target/release/rustviz_serve /usr/local/bin/rustviz_serve
 
-# Frontend bundle (Vite output) and the runtime helpers.js / visualization.css
+# Frontend bundle (Vite output). The Vite build copies frontend/public/
+# into dist/, so ex-assets/{helpers.js,visualization.css} ride along.
 WORKDIR /app
 COPY --from=frontend-builder /src/dist/ /app/frontend/dist/
-COPY rv-serve/ex-assets/ /app/ex-assets/
 
 # Build context for the runner image, baked in so the entrypoint can
 # `docker build` it on first boot. runner/Dockerfile overwrites Cargo.toml

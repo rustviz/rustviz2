@@ -1,6 +1,7 @@
+use actix_cors::Cors;
 use actix_files::Files;
 use actix_governor::{Governor, GovernorConfigBuilder};
-use actix_web::{error, middleware::Logger, web, App, HttpResponse, HttpServer};
+use actix_web::{error, http::header, middleware::Logger, web, App, HttpResponse, HttpServer};
 use rustviz2::Rustviz;
 use serde::{Deserialize, Serialize};
 
@@ -72,16 +73,36 @@ async fn main() -> std::io::Result<()> {
         .expect("governor config");
 
     HttpServer::new(move || {
+        // CORS allowlist. The all-in-one Fly deploy serves the SPA and the
+        // API from the same origin (no preflight needed) but we also support
+        // hosting the static frontend on GitHub Pages and only proxying
+        // /submit-code back to the Fly origin. That cross-origin path needs
+        // explicit CORS. Vite dev server origins are listed too so
+        // `npm run dev` can talk to a locally-running rv-serve.
+        //
+        // The allowlist is *the* control over who can drive the API from a
+        // browser; widen it sparingly. Adding a new public origin here also
+        // means agreeing to absorb the compute cost of its traffic.
+        let cors = Cors::default()
+            .allowed_origin("https://rustviz.github.io")
+            .allowed_origin("http://localhost:3000")
+            .allowed_origin("http://127.0.0.1:3000")
+            .allowed_methods(["GET", "POST", "OPTIONS"])
+            .allowed_headers([header::CONTENT_TYPE])
+            .max_age(3600);
+
         App::new()
             .wrap(Logger::default())
+            .wrap(cors)
             .app_data(web::JsonConfig::default().limit(MAX_BODY_BYTES))
-            .service(Files::new("/ex-assets", "./ex-assets/"))
             .service(
                 web::resource("/submit-code")
                     .wrap(Governor::new(&governor_conf))
                     .route(web::post().to(submit_code)),
             )
-            // Vite emits the SPA + hashed assets/ subdir under frontend/dist/.
+            // Vite emits the SPA + hashed assets/ + the ex-assets/ helper
+            // scripts under frontend/dist/. Single mount handles all static
+            // routes (assets/*, ex-assets/*, manifest.json, /).
             .service(Files::new("/", "./frontend/dist/").index_file("index.html"))
     })
     .bind(bind_addr)?
