@@ -165,11 +165,13 @@ When you change `runner/**` or `rustviz2-plugin/**`,
 sandbox image to GHCR; the next `./deploy/deploy.sh` picks it up on
 each Machine's first boot.
 
-Every push to `main` triggers `.github/workflows/deploy.yml`, which
-runs `./deploy/deploy.sh` on a hosted runner (requires a `FLY_API_TOKEN`
-repo secret). The workflow opens a `deploy-failure`-labelled issue if
-the deploy errors out, in addition to GitHub's default email-on-failure
-notification.
+Every push to `main` triggers `.github/workflows/build.yml`. The
+workflow runs the build + tests first (also on every PR), then on
+`main` pushes only a downstream `deploy` job runs `./deploy/deploy.sh`
+on a hosted runner (requires a `FLY_API_TOKEN` repo secret). Because
+`deploy` declares `needs: build`, a failing test suite blocks the
+deploy. The deploy job opens a `deploy-failure`-labelled issue on
+failure, in addition to GitHub's default email-on-failure notification.
 
 ### First-time setup (GitHub Pages SPA)
 
