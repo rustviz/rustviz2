@@ -110,11 +110,11 @@ Production runs in two pieces:
   Ten Machines provisioned, all auto-stopping when idle; the edge proxy
   routes traffic to whichever ones are awake and starts more from stopped
   state when concurrency thresholds (`fly.toml::http_service.concurrency`)
-  are crossed. Each Machine has its own 3 GB Fly volume mounted at
-  `/var/lib/docker` (required by DinD; see fly.toml comment for the
-  overlay-on-overlay reason). Idle cost ~$5–7/mo total ($4.50 for the
-  volumes + ~$1 baseline); an HN-spike day adds ~$5–10 of Machine
-  compute. Allowed origins for cross-origin requests are listed in
+  are crossed. dockerd uses the `fuse-overlayfs` storage driver so
+  Machines don't need a per-Machine ext4 volume for `/var/lib/docker`
+  (see `fly.toml` and `deploy/entrypoint.sh` for context). Idle cost
+  ~$2–3/mo total; an HN-spike day adds ~$5–10 of Machine compute.
+  Allowed origins for cross-origin requests are listed in
   `rv-serve/src/main.rs::cors`.
 
 The same `rv-serve` binary also still works as an all-in-one server (SPA

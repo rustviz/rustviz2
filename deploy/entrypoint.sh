@@ -18,9 +18,16 @@ LOCAL_TAG="rustviz/rustviz-runner:latest"
 # 1. Start dockerd in the background. The default dind entrypoint takes
 #    care of cgroup setup, certificate handling for TLS, etc.
 LOG "starting dockerd..."
+# fuse-overlayfs storage driver: works on top of the Fly Machine's overlay
+# rootfs without needing a per-Machine ext4 volume mounted at
+# /var/lib/docker. Slightly slower than the kernel overlay2 driver
+# (~10-20% per-container-start) but acceptable for our workload (one image,
+# small per-request containers) and removes ~$5/mo of volume cost across a
+# 10-Machine fleet. Requires fuse-overlayfs in the image and FUSE in the
+# kernel (Fly Machines have it).
 dockerd-entrypoint.sh dockerd \
     --host=unix:///var/run/docker.sock \
-    --storage-driver=overlay2 \
+    --storage-driver=fuse-overlayfs \
     > /var/log/dockerd.log 2>&1 &
 
 # 2. Wait up to 60s for dockerd to accept connections.

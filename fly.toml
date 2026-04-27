@@ -22,22 +22,20 @@ primary_region = 'ord'
   RV_RATE_SECONDS_PER_REQUEST = '2'
   RV_RUNNER = 'docker'
 
-# Each Machine needs its own volume mounted at /var/lib/docker. Without
-# this, dockerd inside the Machine fails to start with
-# "failed to mount overlay: invalid argument" because the Machine's
-# rootfs is itself an overlay filesystem, and the kernel doesn't support
-# overlay-on-overlay for dockerd's overlay2 storage driver. The volume
-# is a real ext4 filesystem where overlay2 works fine.
+# No `[[mounts]]` block: dockerd uses the fuse-overlayfs storage driver
+# (configured in deploy/entrypoint.sh and packaged in the deploy image),
+# which works on top of the Fly Machine's overlay rootfs without needing
+# a per-Machine ext4 volume. The kernel doesn't support nested overlay2
+# (which is why the previous /var/lib/docker volume existed); fuse-overlayfs
+# sidesteps the limitation by doing the overlay in userspace via FUSE.
 #
-# Fly creates a volume per Machine on first deploy (auto-named with the
-# `source` below). With `fly scale count 10`, you'll end up with 10
-# volumes at ~3 GB each (`initial_size`), costing ~$4.50/mo total at
-# $0.15/GB. The size is sufficient for the ~1 GiB runner image plus
-# dockerd's working layers.
-[[mounts]]
-  source = 'rustviz_docker'
-  destination = '/var/lib/docker'
-  initial_size = '3gb'
+# If you need to fall back to overlay2 + a volume (e.g. fuse-overlayfs
+# turns out to be too slow under real load), reinstate:
+#   [[mounts]]
+#     source = 'rustviz_docker'
+#     destination = '/var/lib/docker'
+#     initial_size = '3gb'
+# and switch the storage driver back in deploy/entrypoint.sh.
 
 [http_service]
   internal_port = 8080

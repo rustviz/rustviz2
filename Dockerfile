@@ -49,7 +49,11 @@ RUN npm run build
 
 # ---------- 3. final (docker:dind) ----------
 FROM docker:27-dind
-RUN apk add --no-cache bash curl tini
+# fuse-overlayfs is a userspace overlay implementation that lets dockerd's
+# storage driver work on top of the Fly Machine's overlay rootfs (the
+# kernel doesn't allow nested overlay2). Avoids needing a per-Machine ext4
+# volume mounted at /var/lib/docker just for dockerd's storage.
+RUN apk add --no-cache bash curl tini fuse-overlayfs
 
 # rv-serve binary (built on Alpine in stage 1, so already musl).
 COPY --from=rust-builder /src/target/release/rustviz_serve /usr/local/bin/rustviz_serve
