@@ -87,7 +87,15 @@ else
     echo "fly CLI not on PATH; install it with 'brew install flyctl'" >&2
     exit 1
 fi
-"$FLY" auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run '$FLY auth login' first." >&2; exit 1; }
+# Skip the `auth whoami` preflight when FLY_API_TOKEN is set. flyctl
+# honors that env var for deploy/status/machine-update calls, but
+# `auth whoami` itself reads ~/.fly/config.yml (populated by
+# `fly auth login`), so it returns "not logged in" in CI even though
+# the rest of flyctl is perfectly authenticated. Locally without a
+# token, the check still helps with a friendly error.
+if [ -z "${FLY_API_TOKEN:-}" ]; then
+    "$FLY" auth whoami >/dev/null 2>&1 || { echo "Not logged in. Run '$FLY auth login' first or set FLY_API_TOKEN." >&2; exit 1; }
+fi
 command -v jq >/dev/null 2>&1 || { echo "jq is required for the health-check polling loop. brew install jq" >&2; exit 1; }
 
 APP_NAME=$(awk -F"'" '/^app =/ {print $2; exit}' fly.toml)
