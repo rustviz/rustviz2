@@ -82,7 +82,29 @@ entrypoint. There is no shell access surface in the playground HTTP path.
   refilled at one token per 2 seconds by default; tunable via
   `RV_RATE_SECONDS_PER_REQUEST` / `RV_RATE_BURST`).
 
-### 3. The `local` backend is dev-only
+### 3. CORS allowlist on the API
+
+The static SPA is served from GitHub Pages at
+`https://rustviz.github.io/playground/`, so cross-origin requests to the
+Fly API are required and gated by an explicit `actix-cors` allowlist in
+`rv-serve/src/main.rs`. The allowlist is the *only* control over which
+sites can drive the API from a browser:
+
+- `https://rustviz.github.io` — the Pages origin.
+- `http://localhost:3000` / `http://127.0.0.1:3000` — Vite dev server.
+
+Other origins fail the preflight OPTIONS and the browser refuses to send
+the request. If a new origin is added (mirror, custom domain), add it
+*and only it* — wildcards (`Cors::default().allow_any_origin()`) would
+let any site embed the playground and have you absorb its compute cost.
+
+Note that CORS is a browser-enforced control; a determined attacker
+can hit `/submit-code` from non-browser clients (curl, scripts) and
+bypass it entirely. The rate limiter and the per-request sandbox are the
+defenses against that case; CORS just prevents drive-by abuse from
+arbitrary websites.
+
+### 4. The `local` backend is dev-only
 
 `RV_RUNNER=local` runs the plugin in-process against a tempdir on the host.
 This is convenient for local iteration but **must never be used for a public

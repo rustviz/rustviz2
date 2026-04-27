@@ -6,6 +6,12 @@ import { EditorView } from "@codemirror/view";
 import axios from 'axios';
 import ErrorCard from './ErrorCard';
 
+// API origin. Empty (relative URL) for the default same-origin Fly deploy;
+// set to https://rustviz-playground.fly.dev for the GitHub Pages build via
+// .env.pages so the SPA hosted on rustviz.github.io can hit the API on Fly.
+// rv-serve's CORS allowlist must include the SPA's origin in the latter case.
+const API_BASE: string = import.meta.env.VITE_API_BASE ?? '';
+
 declare function helpers(param: string): void;
 
 const defaultExample: string = `
@@ -67,7 +73,7 @@ const App = () => {
     const code = editor.getCurrentCode();
 
     try {
-      const response = await axios.post('/submit-code', { code });
+      const response = await axios.post(`${API_BASE}/submit-code`, { code });
 
       if (response.status === 200) {
         setCodeSvg(response.data.code_panel);

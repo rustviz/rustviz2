@@ -16,19 +16,12 @@ rustup show active-toolchain >/dev/null
 # 2. Build & install the rustc plugin (provides `cargo rv-plugin`).
 cargo install --path rustviz2-plugin --locked
 
-# 3. Build the Vite frontend that the playground serves.
+# 3. Build the Vite frontend that the playground serves. The build copies
+#    frontend/public/ex-assets/ (helpers.js + visualization.css) into dist/
+#    so they ride along with the SPA whether served by rv-serve or a CDN.
 ( cd rv-serve/frontend && npm install && npm run build )
 
-# 4. ex-assets/ holds the SVG hover/highlight layer. helpers.js is checked in
-#    (patched for inline-SVG embedding); visualization.css is copied from the
-#    mdbook test fixture as-is. Only seed missing files — never clobber edits.
-mkdir -p rv-serve/ex-assets
-[ -f rv-serve/ex-assets/visualization.css ] || \
-    cp test-book/mdbook_plugin/visualization.css rv-serve/ex-assets/
-[ -f rv-serve/ex-assets/helpers.js ] || \
-    cp test-book/mdbook_plugin/helpers.js rv-serve/ex-assets/
-
-# 5. Build the rest of the workspace.
+# 4. Build the rest of the workspace.
 cargo build --workspace --release
 
 # 6. Build the sandboxed runner image if Docker is available locally. This

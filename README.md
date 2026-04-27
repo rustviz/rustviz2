@@ -14,8 +14,8 @@ program rather than a hand-curated approximation.
 RustViz is a project of the [Future of Programming Lab](http://fplab.mplse.org/)
 at the University of Michigan.
 
-> *Live playground: TBD — replace with the public URL once the Fly app is
-> launched.*
+> **Try it live:** <https://rustviz.github.io/playground/>
+> (compile API at <https://rustviz-playground.fly.dev/>)
 
 ![screenshot placeholder](rustviz2-plugin/src/svg_generator/rv2_example.png)
 
@@ -24,22 +24,40 @@ at the University of Michigan.
 ## Architecture at a glance
 
 ```
-                ┌────────────────────────┐
-   browser ──▶  │  rv-serve (Actix-web)  │  static files + POST /submit-code
-                └──────────┬─────────────┘
-                           │ docker run --network=none --read-only …
-                           ▼
-                ┌────────────────────────┐
-                │  rustviz-runner image  │  ephemeral container per request
-                │  (nightly + plugin)    │  tmpfs /work, capped CPU/RAM/PIDs
-                └──────────┬─────────────┘
-                           │ cargo rv-plugin
-                           ▼
-                ┌────────────────────────┐
-                │   rustviz2-plugin      │  rustc plugin: walks HIR/MIR,
-                │   (rustc_private)      │  emits two SVGs on stdout
-                └────────────────────────┘
+              GET /  (CDN, instant)
+   browser ─────────────────────▶  GitHub Pages
+                                   rustviz.github.io/playground/
+                                   (Vite SPA, ex-assets)
+
+              POST /submit-code (cold start ~10s
+                                  after Fly auto-stop,
+                                  cached afterward)
+   browser ─────────────────────▶  rv-serve (Actix-web on Fly)
+                                          │
+                                          │ docker run --network=none --read-only …
+                                          ▼
+                                   ┌────────────────────────┐
+                                   │  rustviz-runner image  │  ephemeral container per request
+                                   │  (nightly + plugin)    │  tmpfs /work, capped CPU/RAM/PIDs
+                                   └──────────┬─────────────┘
+                                              │ cargo rv-plugin
+                                              ▼
+                                   ┌────────────────────────┐
+                                   │   rustviz2-plugin      │  rustc plugin: walks HIR/MIR,
+                                   │   (rustc_private)      │  emits two SVGs on stdout
+                                   └────────────────────────┘
 ```
+
+The frontend is a static Vite bundle, hosted on GitHub Pages, so the page
+loads instantly even when no one has visited recently. The compile API on
+Fly is allowed to auto-stop and cold-start; that latency only shows up
+after the user clicks "Generate Visualization", where a couple-second
+delay is expected. CORS in `rv-serve/src/main.rs` allows the Pages origin
+to call `/submit-code`.
+
+The same `rv-serve` binary still serves the SPA + API from a single origin
+in the all-in-one Fly deploy (and in local development), so neither
+hosting mode is special-cased in the application code.
 
 Workspace members:
 
@@ -82,13 +100,22 @@ set `RV_RUNNER=local`. **Never** do this on a public deployment — see
 
 ## Deploy
 
-The repo ships a top-level `Dockerfile` and a `fly.toml` for a one-Machine
-deploy on [Fly.io](https://fly.io). The deploy image runs Docker-in-Docker
-inside a Fly Machine; rv-serve shells out to `docker run` per request, so
-the same per-request sandbox documented in `SECURITY.md` is in force in
-production.
+Production runs in two pieces:
 
-### First-time setup
+- **Static SPA on GitHub Pages**, at <https://rustviz.github.io/playground/>.
+  Built from `rv-serve/frontend/` by `.github/workflows/pages.yml` and
+  pushed to the `rustviz/playground` repo on every change. Loads instantly
+  even when no one has visited recently.
+- **Compile API on Fly.io**, at <https://rustviz-playground.fly.dev/>.
+  Auto-stops when idle to keep costs at ~$2–3/mo; cold starts cost ~10 s
+  on first request after idle. Allowed origins are listed in
+  `rv-serve/src/main.rs::cors`.
+
+The same `rv-serve` binary also still works as an all-in-one server (SPA
++ API on a single origin); the GitHub Pages split is just a latency
+optimization for the static page-load.
+
+### First-time setup (Fly compile API)
 
 ```sh
 fly auth login                                                 # browser OAuth
@@ -111,6 +138,44 @@ starts take ~10 s.
 Or push a `vX.Y.Z` tag and the `.github/workflows/deploy.yml` workflow runs
 `flyctl deploy --remote-only` for you (requires a `FLY_API_TOKEN` repo
 secret).
+
+### First-time setup (GitHub Pages SPA)
+
+```sh
+# 1. Create the receiving repo
+gh repo create rustviz/playground --public \
+  --description "Static front-end for the RustViz playground"
+
+# 2. Enable Pages on rustviz/playground via Settings → Pages →
+#    Source: Deploy from a branch → main / root.
+
+# 3. Generate a deploy keypair
+ssh-keygen -t ed25519 -f /tmp/playground_deploy_key -N "" -C playground-deploy
+
+# 4. Add the *public* key as a write-enabled deploy key on rustviz/playground
+gh api -X POST repos/rustviz/playground/keys \
+  -f title=playground-deploy -F read_only=false \
+  -f key="$(cat /tmp/playground_deploy_key.pub)"
+
+# 5. Add the *private* key as a secret on rustviz/rustviz2
+gh secret set PAGES_DEPLOY_KEY --repo rustviz/rustviz2 < /tmp/playground_deploy_key
+
+# 6. Clean up
+rm /tmp/playground_deploy_key /tmp/playground_deploy_key.pub
+```
+
+After that, every push to `main` (when the change touches
+`rv-serve/frontend/**`) triggers `.github/workflows/pages.yml`, which
+builds the SPA in `pages` mode and pushes the `dist/` tree to
+`rustviz/playground` for serving at
+<https://rustviz.github.io/playground/>.
+
+### Adding a new SPA origin
+
+If you ever stand up the SPA at another URL (custom domain, mirror), add
+that origin to the CORS allowlist in `rv-serve/src/main.rs` and redeploy
+the API. The allowlist is the gate — without it the new origin's browsers
+will refuse to call `/submit-code`.
 
 ### Why a script instead of `fly deploy` directly
 
