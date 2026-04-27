@@ -267,37 +267,62 @@ say "==> Phase 2: flipping each Machine's auto_stop from 'off' to 'stop' (no red
 # new config, and starts again). What makes it cheap here is that
 # fly.toml has `persist_rootfs = 'always'` set on the [[vm]] block, so
 # the bounce preserves /var/lib/docker — dockerd comes back up to find
-# the runner image already cached on rootfs, no re-pull, ~30 s end to
-# end. Without persist_rootfs='always' (Fly's default is 'never'), this
-# update would wipe rootfs and trigger a 5-15 min cold pull on every
-# Machine, with the just-applied auto_stop='stop' setting active during
-# the no-traffic re-pull window — i.e. the autoscaler would kill the
-# Machines before they came back. That's the deadlock persist_rootfs is
-# protecting us from.
+# the runner image already cached on rootfs, no re-pull. Without
+# persist_rootfs='always' (Fly's default is 'never'), this update
+# would wipe rootfs and trigger a 5-15 min cold pull on every Machine,
+# with the just-applied auto_stop='stop' setting active during the
+# no-traffic re-pull window — i.e. the autoscaler would kill the
+# Machines before they came back. persist_rootfs protects us from
+# that deadlock.
 #
-# We background the xargs so we can show our own ticking status line
-# instead of fly machine update's ~10 lines/sec "Waiting for X to
-# become healthy (started, 0/1)" noise. fly's stdout/stderr go to
-# /dev/null; xargs blocks until every fly machine update returns
-# (which itself only returns once the Machine is back to passing
-# checks), so when the wait is done the fleet is fully updated.
+# Pass --skip-health-checks so the per-Machine fly machine update
+# returns as soon as the Machines API accepts the config change,
+# instead of polling for a passing health check internally and
+# (per observation in CI) sometimes timing out around the default
+# 5-min --wait-timeout. We then drive our own wait_for_fleet_healthy
+# poll across the whole fleet, same pattern as Phase 1's wait —
+# centralizes the timeout into RV_DEPLOY_TIMEOUT_SECS instead of
+# living separately inside fly machine update.
+#
+# Stdout + stderr of the parallel xargs go to a tmpfile rather than
+# /dev/null so a real failure produces a useful error message
+# (previously we just got "exit code 123" with no idea which Machine
+# or why).
 mapfile -t IDS < <("$FLY" machines list --app "$APP_NAME" --json | jq -r '.[].id' | sort -u)
 say "    Updating ${#IDS[@]} Machines (auto_stop → stop)"
+
+UPDATE_LOG=$(mktemp -t fly-machine-update.XXXXXX) || exit 1
+trap 'rm -f "$UPDATE_LOG"' EXIT
 
 printf '%s\n' "${IDS[@]}" \
     | xargs -P 10 -I {} "$FLY" machine update {} \
         --app "$APP_NAME" \
         --autostop=stop \
         --autostart=true \
-        --yes >/dev/null 2>&1 &
+        --skip-health-checks \
+        --yes >"$UPDATE_LOG" 2>&1 &
 UPDATE_PID=$!
 
 while kill -0 "$UPDATE_PID" 2>/dev/null; do
     status "    Updating ${#IDS[@]} Machines (auto_stop → stop)…"
     sleep 1
 done
-wait "$UPDATE_PID"
-say "    ${#IDS[@]}/${#IDS[@]} Machines updated"
+if ! wait "$UPDATE_PID"; then
+    printf '\n' >&2
+    echo "ERROR: fly machine update failed for at least one Machine. Last 60 lines of combined output:" >&2
+    tail -n 60 "$UPDATE_LOG" >&2
+    exit 1
+fi
+say "    ${#IDS[@]}/${#IDS[@]} Machine config updates accepted"
+
+# Now wait for the fleet to come back to passing after the bounce.
+# Reuses Phase 1's helper. With persist_rootfs='always' this should
+# be quick (~1-2 min), but we honor RV_DEPLOY_TIMEOUT_SECS in case
+# something is unhappy.
+if ! wait_for_fleet_healthy "$TIMEOUT_SECS"; then
+    echo "ERROR: Phase 2 fleet did not return to healthy within $((TIMEOUT_SECS / 60)) minutes." >&2
+    exit 1
+fi
 
 say "==> Done. Machines match fly.toml's canonical config; they'll auto-stop when idle."
 say "    Cold starts after idle take ~10 s (runner image stays on each Machine's rootfs)."
