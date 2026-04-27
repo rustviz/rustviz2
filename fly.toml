@@ -62,6 +62,20 @@ primary_region = 'ord'
     soft_limit = 3
     hard_limit = 5
 
+  # HTTP check: only route requests to a Machine once GET / returns 200.
+  # rv-serve binds 8080 only at the very end of entrypoint.sh — after dockerd
+  # has come up and the runner image is pulled — so a passing check means
+  # the Machine is genuinely ready to serve, not just half-bootstrapped.
+  # grace_period is generous because fuse-overlayfs's per-layer extraction
+  # of the ~1 GiB runner image can take 20-30 min on a fresh Machine; a
+  # tighter window would have Fly mark the Machine unhealthy mid-bootstrap.
+  [[http_service.checks]]
+    interval = '10s'
+    grace_period = '30m'
+    method = 'GET'
+    path = '/'
+    timeout = '5s'
+
 [[vm]]
   size = 'shared-cpu-2x'
   memory = '2gb'

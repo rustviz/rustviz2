@@ -120,17 +120,60 @@ fly deploy --strategy immediate
 # min on cold pulls. Routine redeploys (image already on the rootfs)
 # complete in a couple minutes. Override with RV_DEPLOY_TIMEOUT_SECS.
 TIMEOUT_SECS="${RV_DEPLOY_TIMEOUT_SECS:-1800}"
-echo "==> Waiting for ${URL} to respond (up to $((TIMEOUT_SECS / 60)) min for fresh-Machine bootstraps)..."
+echo "==> Waiting for every Machine to pass its HTTP health check..."
+echo "    (up to $((TIMEOUT_SECS / 60)) min — fuse-overlayfs's per-layer extraction"
+echo "     of the ~1 GiB runner image takes 20-30 min on a fresh Machine)"
 deadline=$(( $(date +%s) + TIMEOUT_SECS ))
-while ! curl --max-time 10 -fsS "$URL" -o /dev/null 2>/dev/null; do
+
+# We poll `fly status --json` for per-Machine health-check status rather
+# than just polling the public URL. Reason: with N Machines, the URL
+# starts responding as soon as ANY single Machine passes its check, but
+# Fly's edge will still route some fraction of traffic to Machines whose
+# check is failing — those return connection-refused / 503, and a browser
+# user sees mysterious errors.
+#
+# fly.toml's [[http_service.checks]] block makes Fly's edge skip Machines
+# whose GET / fails, but the script still benefits from knowing when the
+# whole fleet is ready: that's when we can confidently move to phase 2
+# (re-enable auto-stop) and tell the operator the deploy is done.
+#
+# Requires jq; tell the user clearly if it's missing rather than silently
+# misbehaving.
+command -v jq >/dev/null 2>&1 || {
+    echo "ERROR: jq is required for the health-check polling loop." >&2
+    echo "       brew install jq" >&2
+    RESTORE=
+    exit 1
+}
+
+while true; do
+    # `fly status --json` returns an object with a Machines array; each
+    # Machine has a Checks array. We want every Machine in the app
+    # process group to have all its checks passing.
+    json=$(fly status --json 2>/dev/null) || json='{}'
+    summary=$(printf '%s' "$json" | jq -r '
+        .Machines // []
+        | map(select(.config.metadata.fly_process_group == "app" or
+                     (.config.metadata.fly_process_group // "app") == "app"))
+        | "\(map(select(.checks // [] | all(.status == "passing"))) | length)/\(length)"
+    ' 2>/dev/null) || summary='?/?'
+
+    passing=${summary%/*}
+    total=${summary#*/}
+
+    if [ "$total" != "0" ] && [ "$total" != "?" ] && [ "$passing" = "$total" ]; then
+        echo "==> All ${total} Machines passing health check"
+        break
+    fi
+
     if [ "$(date +%s)" -gt "$deadline" ]; then
         cat >&2 <<EOF
-ERROR: ${URL} did not respond within $((TIMEOUT_SECS / 60)) minutes.
+ERROR: not all Machines passed health checks within $((TIMEOUT_SECS / 60)) minutes.
 fly.toml has been left at auto_stop_machines = 'off' / min_machines_running = 1
-so the Machine won't auto-stop while you investigate. Useful next steps:
+so Machines won't auto-stop while you investigate. Useful next steps:
 
   fly logs                        # see what entrypoint is doing
-  fly status --all                # check Machine state
+  fly status --all                # check Machine state + per-check status
   fly ssh console                 # poke around inside
 
 Re-run this script when you've fixed the underlying issue.
@@ -139,9 +182,10 @@ EOF
         RESTORE=
         exit 1
     fi
-    sleep 10
+
+    echo "    ${summary} Machines healthy; waiting…"
+    sleep 15
 done
-echo "==> ${URL} is live"
 
 # --- ensure fleet size --------------------------------------------------
 # Machine count is server-side state on Fly, not in fly.toml. We set it on
