@@ -107,7 +107,7 @@ Production runs in two pieces:
   pushed to the `rustviz/playground` repo on every change. Loads instantly
   even when no one has visited recently.
 - **Compile API on Fly.io**, at <https://rustviz-playground.fly.dev/>.
-  Five Machines provisioned, all auto-stopping when idle; the edge proxy
+  Ten Machines provisioned, all auto-stopping when idle; the edge proxy
   routes traffic to whichever ones are awake and starts more from stopped
   state when concurrency thresholds (`fly.toml::http_service.concurrency`)
   are crossed. Idle cost ~$2–3/mo total; an HN-spike day adds ~$5–10 of
@@ -135,7 +135,7 @@ The first boot of each Fly Machine pulls the `rustviz/rustviz-runner`
 image from GHCR (~30 s for ~600 MB). It's then cached on the Machine's
 local filesystem; subsequent cold starts after auto-stop take ~10 s.
 
-`./deploy/deploy.sh` also ensures the fleet stays at 5 Machines (override
+`./deploy/deploy.sh` also ensures the fleet stays at 10 Machines (override
 with `RV_FLY_MACHINES=N`). With auto-stop on, idle Machines are free; the
 extra capacity exists so the edge proxy has somewhere to spill load when
 one Machine gets saturated. No need to manually scale up before posting

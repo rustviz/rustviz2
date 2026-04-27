@@ -27,18 +27,20 @@
 # *per always-running Machine* — the fleet still has count = $RV_FLY_MACHINES
 # total, but only $RV_FLY_MACHINES of them stay running).
 #
-# The script also ensures the fleet is at $RV_FLY_MACHINES (default 5)
+# The script also ensures the fleet is at $RV_FLY_MACHINES (default 10)
 # Machines on every deploy. Idle Machines auto-stop, so the extra capacity
 # costs nothing in steady state — it's there so the edge proxy can spill
 # concurrent load to additional Machines when one gets saturated, e.g. when
-# someone posts the URL on Hacker News.
+# someone posts the URL on Hacker News. With hard_limit = 5 per Machine in
+# fly.toml::http_service.concurrency, ten Machines = ~50 concurrent compile
+# capacity at peak, which covers a meaningful HN-frontpage spike.
 #
 # Usage:
 #   deploy/deploy.sh             # cheap mode, two-phase
 #   deploy/deploy.sh --keep-warm # always-warm mode, skips phase 2
 #
 # Env:
-#   RV_FLY_MACHINES   fleet size; default 5
+#   RV_FLY_MACHINES   fleet size; default 10
 #
 # Prerequisites:
 #   * `fly` (flyctl) installed and authenticated (`fly auth login`).
@@ -130,8 +132,8 @@ echo "==> ${URL} is live"
 # (e.g. someone ran `fly scale count 1` ad-hoc to debug). With auto_stop on,
 # the extra Machines stay stopped when idle and cost essentially nothing;
 # they exist purely so the edge proxy has somewhere to spill load when one
-# Machine gets saturated. Default 5; override with RV_FLY_MACHINES.
-DESIRED_COUNT="${RV_FLY_MACHINES:-5}"
+# Machine gets saturated. Default 10; override with RV_FLY_MACHINES.
+DESIRED_COUNT="${RV_FLY_MACHINES:-10}"
 echo "==> Ensuring fleet size of ${DESIRED_COUNT} Machines (idle ones auto-stop)"
 fly scale count "$DESIRED_COUNT" --yes
 
