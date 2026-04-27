@@ -263,31 +263,32 @@ if [ "$KEEP_WARM" -eq 1 ]; then
 fi
 
 say "==> Phase 2: flipping each Machine's auto_stop from 'off' to 'stop' (no redeploy)"
-# `fly machine update` does bounce the Machine (it stops, applies the
-# new config, and starts again). What makes it cheap here is that
-# fly.toml has `persist_rootfs = 'always'` set on the [[vm]] block, so
-# the bounce preserves /var/lib/docker — dockerd comes back up to find
-# the runner image already cached on rootfs, no re-pull. Without
-# persist_rootfs='always' (Fly's default is 'never'), this update
-# would wipe rootfs and trigger a 5-15 min cold pull on every Machine,
-# with the just-applied auto_stop='stop' setting active during the
-# no-traffic re-pull window — i.e. the autoscaler would kill the
-# Machines before they came back. persist_rootfs protects us from
-# that deadlock.
+# Phase 2 changes a single per-Machine knob (auto_stop=off → stop) via
+# the Machines API. `fly machine update` bounces the Machine to apply
+# the new config; persist_rootfs='always' on the [[vm]] block in
+# fly.toml keeps /var/lib/docker across the bounce, so dockerd comes
+# back to a cached runner image with no re-pull. fly's default is
+# 'never', under which this update would wipe rootfs and trigger a
+# 5-15 min cold pull while auto_stop='stop' is already in force —
+# the autoscaler would then kill the Machine mid-bootstrap. That's
+# the deadlock persist_rootfs protects us from.
 #
-# Pass --skip-health-checks so the per-Machine fly machine update
-# returns as soon as the Machines API accepts the config change,
-# instead of polling for a passing health check internally and
-# (per observation in CI) sometimes timing out around the default
-# 5-min --wait-timeout. We then drive our own wait_for_fleet_healthy
-# poll across the whole fleet, same pattern as Phase 1's wait —
-# centralizes the timeout into RV_DEPLOY_TIMEOUT_SECS instead of
-# living separately inside fly machine update.
+# We pass --skip-health-checks so each fly machine update returns as
+# soon as the Machines API accepts the config change. We then DON'T
+# poll for fleet health afterwards — the moment auto_stop='stop' is
+# applied, the autoscaler starts watching each Machine for traffic,
+# and health-check probes don't count as traffic (they take a
+# separate network path). After ~40s of "no incoming traffic" the
+# autoscaler stops a freshly-bounced Machine. So a poll-for-all-
+# healthy loop is unwinnable here: Machines auto-stop faster than
+# they become healthy. The fly machine update return code IS the
+# success signal — once it's nonzero-free, the config is applied and
+# we're in the desired steady state (Machines stopped or running per
+# real traffic, not per our deploy harness).
 #
 # Stdout + stderr of the parallel xargs go to a tmpfile rather than
 # /dev/null so a real failure produces a useful error message
-# (previously we just got "exit code 123" with no idea which Machine
-# or why).
+# (previously: "exit code 123" with no idea which Machine or why).
 mapfile -t IDS < <("$FLY" machines list --app "$APP_NAME" --json | jq -r '.[].id' | sort -u)
 say "    Updating ${#IDS[@]} Machines (auto_stop → stop)"
 
@@ -315,14 +316,21 @@ if ! wait "$UPDATE_PID"; then
 fi
 say "    ${#IDS[@]}/${#IDS[@]} Machine config updates accepted"
 
-# Now wait for the fleet to come back to passing after the bounce.
-# Reuses Phase 1's helper. With persist_rootfs='always' this should
-# be quick (~1-2 min), but we honor RV_DEPLOY_TIMEOUT_SECS in case
-# something is unhappy.
-if ! wait_for_fleet_healthy "$TIMEOUT_SECS"; then
-    echo "ERROR: Phase 2 fleet did not return to healthy within $((TIMEOUT_SECS / 60)) minutes." >&2
+# Quick sanity check: verify every Machine's services-config really
+# does report auto_stop='stop' now. If fly machine update silently
+# succeeded but didn't actually apply the change for some Machine,
+# we want to know — better than discovering it weeks later when an
+# always-running Machine starts costing $24/mo.
+say "    Verifying per-Machine auto_stop config"
+NON_STOP=$("$FLY" machines list --app "$APP_NAME" --json \
+    | jq -r '[.[] | .config.services[]? | .auto_stop_machines]
+             | map(select(. != "stop")) | length')
+if [ "$NON_STOP" != "0" ]; then
+    echo "ERROR: ${NON_STOP} Machine service entries do not report auto_stop='stop' after update" >&2
+    "$FLY" machines list --app "$APP_NAME" --json \
+        | jq '[.[] | {id, services: [.config.services[]? | .auto_stop_machines]}]' >&2
     exit 1
 fi
 
 say "==> Done. Machines match fly.toml's canonical config; they'll auto-stop when idle."
-say "    Cold starts after idle take ~10 s (runner image stays on each Machine's rootfs)."
+say "    Cold starts after auto-stop take ~10 s (runner image stays on each Machine's rootfs)."
