@@ -23,11 +23,22 @@
 # filesystem, so future cold starts after auto-stop take ~10 s. Cost in
 # steady state: ~$2-3 / mo for the IP and Machine baseline.
 #
-# Pass --keep-warm to skip step 3 (Machine never auto-stops; ~$24 / mo).
+# Pass --keep-warm to skip step 3 (Machine never auto-stops; ~$24 / mo
+# *per always-running Machine* — the fleet still has count = $RV_FLY_MACHINES
+# total, but only $RV_FLY_MACHINES of them stay running).
+#
+# The script also ensures the fleet is at $RV_FLY_MACHINES (default 5)
+# Machines on every deploy. Idle Machines auto-stop, so the extra capacity
+# costs nothing in steady state — it's there so the edge proxy can spill
+# concurrent load to additional Machines when one gets saturated, e.g. when
+# someone posts the URL on Hacker News.
 #
 # Usage:
 #   deploy/deploy.sh             # cheap mode, two-phase
 #   deploy/deploy.sh --keep-warm # always-warm mode, skips phase 2
+#
+# Env:
+#   RV_FLY_MACHINES   fleet size; default 5
 #
 # Prerequisites:
 #   * `fly` (flyctl) installed and authenticated (`fly auth login`).
@@ -112,6 +123,17 @@ EOF
     sleep 10
 done
 echo "==> ${URL} is live"
+
+# --- ensure fleet size --------------------------------------------------
+# Machine count is server-side state on Fly, not in fly.toml. We set it on
+# every deploy so the fleet stays at the desired size if it ever drifts
+# (e.g. someone ran `fly scale count 1` ad-hoc to debug). With auto_stop on,
+# the extra Machines stay stopped when idle and cost essentially nothing;
+# they exist purely so the edge proxy has somewhere to spill load when one
+# Machine gets saturated. Default 5; override with RV_FLY_MACHINES.
+DESIRED_COUNT="${RV_FLY_MACHINES:-5}"
+echo "==> Ensuring fleet size of ${DESIRED_COUNT} Machines (idle ones auto-stop)"
+fly scale count "$DESIRED_COUNT" --yes
 
 # --- phase 2 ------------------------------------------------------------
 if [ "$KEEP_WARM" -eq 1 ]; then

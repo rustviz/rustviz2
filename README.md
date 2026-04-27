@@ -107,8 +107,11 @@ Production runs in two pieces:
   pushed to the `rustviz/playground` repo on every change. Loads instantly
   even when no one has visited recently.
 - **Compile API on Fly.io**, at <https://rustviz-playground.fly.dev/>.
-  Auto-stops when idle to keep costs at ~$2–3/mo; cold starts cost ~10 s
-  on first request after idle. Allowed origins are listed in
+  Five Machines provisioned, all auto-stopping when idle; the edge proxy
+  routes traffic to whichever ones are awake and starts more from stopped
+  state when concurrency thresholds (`fly.toml::http_service.concurrency`)
+  are crossed. Idle cost ~$2–3/mo total; an HN-spike day adds ~$5–10 of
+  Machine compute. Allowed origins for cross-origin requests are listed in
   `rv-serve/src/main.rs::cors`.
 
 The same `rv-serve` binary also still works as an all-in-one server (SPA
@@ -132,6 +135,12 @@ The first boot of each Fly Machine pulls the `rustviz/rustviz-runner`
 image from GHCR (~30 s for ~600 MB). It's then cached on the Machine's
 local filesystem; subsequent cold starts after auto-stop take ~10 s.
 
+`./deploy/deploy.sh` also ensures the fleet stays at 5 Machines (override
+with `RV_FLY_MACHINES=N`). With auto-stop on, idle Machines are free; the
+extra capacity exists so the edge proxy has somewhere to spill load when
+one Machine gets saturated. No need to manually scale up before posting
+the URL somewhere.
+
 ### Routine deploys
 
 ```sh
@@ -146,25 +155,6 @@ each Machine's first boot.
 Push a `vX.Y.Z` tag and the `.github/workflows/deploy.yml` workflow
 runs `flyctl deploy --remote-only` for you (requires a `FLY_API_TOKEN`
 repo secret).
-
-### Scaling for traffic spikes
-
-`fly.toml` ships a single Fly Machine in cheap-mode (auto-stops when
-idle). To handle a traffic surge — e.g. someone posts the playground
-URL on Hacker News:
-
-```sh
-fly scale count 5                # five Machines, all auto-start/stop
-fly scale memory 4096            # bump each to 4 GB if needed
-```
-
-Each new Machine pulls the runner image from GHCR independently on
-first boot, then auto-stops when the surge settles. Idle cost stays at
-~$2–3/mo regardless of fleet size; surge cost is ~$5–10 for an HN
-front-page-day's worth of running.
-
-After the surge, scale back down with `fly scale count 1` to free the
-extra Machine slots.
 
 ### First-time setup (GitHub Pages SPA)
 

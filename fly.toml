@@ -42,6 +42,19 @@ primary_region = 'ord'
   # flips it back.
   min_machines_running = 0
 
+  # Concurrency thresholds the edge proxy uses to decide when to spill load
+  # to a second Machine in the fleet. Defaults are tuned for cheap web apps
+  # (~hundreds of concurrent connections per Machine) — way too high for our
+  # workload, where each Machine maxes out at ~4 concurrent compile
+  # containers. With these values, Fly starts spilling to a second Machine
+  # the moment a fourth concurrent /submit-code lands, and avoids piling
+  # an HN-class spike onto a single Machine until OOM. Fleet size itself is
+  # set server-side via `fly scale count N` and maintained by deploy.sh.
+  [http_service.concurrency]
+    type = 'requests'
+    soft_limit = 3
+    hard_limit = 5
+
 [[vm]]
   size = 'shared-cpu-2x'
   memory = '2gb'
