@@ -215,6 +215,23 @@ say "==> Ensuring fleet size of ${DESIRED_COUNT} Machines before the deploy roll
 # obviously bad for a high-availability service.
 "$FLY" deploy --strategy immediate
 
+# fly deploy --strategy immediate updates every Machine's release in
+# parallel, but it does NOT auto-start Machines that were already
+# `stopped` going in (e.g. ones that auto-stopped during the idle
+# period after the previous deploy). Those Machines now have the new
+# release applied to their config but are still in stopped state, and
+# wait_for_fleet_healthy below polls for "all checks passing" — which
+# a stopped Machine can never satisfy, so the wait would hang until
+# RV_DEPLOY_TIMEOUT_SECS expires. Start any stopped Machine
+# explicitly so the entire fleet comes up to passing within one
+# bootstrap window.
+mapfile -t STOPPED_IDS < <("$FLY" machines list --app "$APP_NAME" --json | jq -r '.[] | select(.state == "stopped") | .id' | sort -u)
+if [ "${#STOPPED_IDS[@]}" -gt 0 ]; then
+    say "==> Starting ${#STOPPED_IDS[@]} previously-stopped Machine(s)"
+    printf '%s\n' "${STOPPED_IDS[@]}" \
+        | xargs -P 10 -I {} "$FLY" machine start {} --app "$APP_NAME" >/dev/null 2>&1
+fi
+
 # 30-minute timeout. fuse-overlayfs's per-layer extraction is significantly
 # slower than kernel overlay2 — a fresh-Machine pull of the ~1 GiB runner
 # image extracts each layer through userspace FUSE, and the Rust toolchain
