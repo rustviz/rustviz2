@@ -4,9 +4,14 @@
 # Every deploy starts from a clean fleet:
 #
 #   1. Destroy every existing Machine (parallel).
-#   2. fly scale count + fly deploy --strategy immediate to create
-#      $RV_FLY_MACHINES fresh Machines on the new release.
-#   3. Poll `fly status --json` until every Machine's health check passes.
+#   2. fly deploy --strategy immediate against the empty fleet (creates
+#      Fly's HA-default 1-2 Machines in the "app" process group with
+#      the new release), then fly scale count to fill out to
+#      $RV_FLY_MACHINES. Order matters: scale-count-before-deploy puts
+#      Machines in the wrong process group, which fly deploy then
+#      ignores while creating its own fleet alongside.
+#   3. Poll `fly status --json` until every Machine's health check passes,
+#      retrying on stuck-Machine timeout (see RV_DEPLOY_RETRIES below).
 #   4. Run `fly machine update --autostop=stop` against every Machine
 #      to flip the per-Machine service config from the bootstrap-friendly
 #      'off' (set in fly.toml) to the cost-saving 'stop' for steady state.
@@ -240,21 +245,25 @@ if [ "${#EXISTING_IDS[@]}" -gt 0 ]; then
         | xargs -P 10 -I {} "$FLY" machine destroy {} --app "$APP_NAME" --force >/dev/null 2>&1
 fi
 
-# Scale up from zero. With no existing Machines, fly scale count
-# creates $DESIRED_COUNT brand-new ones using the most recently
-# released image; the subsequent fly deploy then rolls them to the
-# image we're about to publish. (`fly deploy` alone, against an empty
-# fleet, would fall back to Fly's HA default of 2 — so we still need
-# the explicit scale step.)
+# fly deploy FIRST, then fly scale count. Order matters: against an
+# empty fleet, `fly scale count` creates Machines in some default
+# process group, while `fly deploy` afterwards sees "no Machines in
+# group app" and creates its HA-default fleet (typically 2) in the
+# "app" group — leaving the scaled Machines orphaned and the total
+# count at $DESIRED_COUNT + 2. Running fly deploy first establishes
+# the "app" group with HA default; the subsequent fly scale count
+# scales that group up to $DESIRED_COUNT.
 DESIRED_COUNT="${RV_FLY_MACHINES:-10}"
-say "==> Scaling fleet to ${DESIRED_COUNT} Machine(s)"
-"$FLY" scale count "$DESIRED_COUNT" --yes
 
-# --strategy immediate: roll all Machines in parallel, not one-at-a-
-# time. Each fresh Machine has to extract the ~1 GiB runner image
-# through fuse-overlayfs (5-15 min); rolling sequentially would be
-# >2 h, in parallel it's ~15 min wallclock.
+say "==> fly deploy (creates HA-default initial Machines in the 'app' group)"
+# --strategy immediate: with no existing Machines this just means
+# "apply the new release as fast as possible to whatever fly creates".
 "$FLY" deploy --strategy immediate
+
+if [ "$DESIRED_COUNT" -gt 1 ]; then
+    say "==> Scaling fleet up to ${DESIRED_COUNT} Machine(s)"
+    "$FLY" scale count "$DESIRED_COUNT" --yes
+fi
 
 # Per-attempt timeout: how long we'll wait for *every* Machine to pass
 # its HTTP check before giving up on this attempt. Default 30 min,
