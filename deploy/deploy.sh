@@ -26,6 +26,13 @@
 # pays one fuse-overlayfs cold pull per Machine in parallel
 # (~10-15 min wallclock total).
 #
+# Resilience: cold pulls occasionally stall on a single Machine
+# (transient fuse-overlayfs / GHCR flakiness). The wait below is
+# wrapped in a retry loop: on timeout, identify Machines whose checks
+# aren't passing, destroy them, re-scale, retry the wait.
+# RV_DEPLOY_RETRIES controls the number of retries after the first
+# attempt (default 1, so 2 total attempts).
+#
 # In steady state between deploys, the auto-stop / auto-start cycle
 # still benefits from `persist_rootfs = 'always'` on the [[vm]] block
 # in fly.toml: an auto-stopped Machine that gets traffic comes back
@@ -48,9 +55,11 @@
 #   deploy/deploy.sh --keep-warm # always-warm mode, skips phase 2
 #
 # Env:
-#   RV_FLY_MACHINES         fleet size; default 10
-#   RV_DEPLOY_TIMEOUT_SECS   how long to wait for the URL to come back
-#                            up after a deploy; default 1800 (30 min)
+#   RV_FLY_MACHINES          fleet size; default 10
+#   RV_DEPLOY_TIMEOUT_SECS   per-attempt timeout for the health-check
+#                            wait, in seconds; default 1800 (30 min)
+#   RV_DEPLOY_RETRIES        retries after the first wait timeout;
+#                            default 1 (so up to 2 total attempts)
 #
 # Prerequisites:
 #   * `fly` (flyctl) installed and authenticated (`fly auth login`).
@@ -247,20 +256,34 @@ say "==> Scaling fleet to ${DESIRED_COUNT} Machine(s)"
 # >2 h, in parallel it's ~15 min wallclock.
 "$FLY" deploy --strategy immediate
 
-# 30-minute timeout. fuse-overlayfs's per-layer extraction is significantly
-# slower than kernel overlay2 — a fresh-Machine pull of the ~1 GiB runner
-# image extracts each layer through userspace FUSE, and the Rust toolchain
-# layers (hundreds of MiB each) extract one at a time. We've measured ~20+
-# min on cold pulls. Routine redeploys (image already on the rootfs)
-# complete in a couple minutes. Override with RV_DEPLOY_TIMEOUT_SECS.
+# Per-attempt timeout: how long we'll wait for *every* Machine to pass
+# its HTTP check before giving up on this attempt. Default 30 min,
+# enough for fuse-overlayfs cold pulls on the slow-but-not-stuck end
+# of the distribution. Override with RV_DEPLOY_TIMEOUT_SECS.
 TIMEOUT_SECS="${RV_DEPLOY_TIMEOUT_SECS:-1800}"
 
-if ! wait_for_fleet_healthy "$TIMEOUT_SECS"; then
-    cat >&2 <<EOF
-ERROR: not all Machines passed health checks within $((TIMEOUT_SECS / 60)) minutes.
-The fleet is currently running with auto_stop_machines = 'off' (bootstrap
-config), so Machines won't auto-stop while you investigate. Useful next
-steps:
+# Retries on stuck-Machine timeout: cold pulls are fast for most
+# Machines but occasionally one gets stuck mid-extract (transient
+# fuse-overlayfs / GHCR / FUSE-kernel flakiness) and never recovers.
+# When that happens, identify the unhealthy Machines, destroy them,
+# and re-scale + re-wait. RV_DEPLOY_RETRIES counts retries *after*
+# the first attempt — default 1 means up to 2 total attempts and a
+# worst-case wallclock of 2 × $TIMEOUT_SECS.
+MAX_RETRIES="${RV_DEPLOY_RETRIES:-1}"
+
+attempt=0
+while true; do
+    attempt=$((attempt + 1))
+    if wait_for_fleet_healthy "$TIMEOUT_SECS"; then
+        break
+    fi
+
+    if [ "$attempt" -gt "$MAX_RETRIES" ]; then
+        cat >&2 <<EOF
+ERROR: not all Machines passed health checks within $((TIMEOUT_SECS / 60)) minutes
+across $((MAX_RETRIES + 1)) attempt(s). Override RV_DEPLOY_RETRIES if you
+want more retries. The fleet is currently running with auto_stop_machines
+= 'off' (bootstrap config), so Machines won't auto-stop while you investigate.
 
   fly logs                        # see what entrypoint is doing
   fly status --all                # check Machine state + per-check status
@@ -268,8 +291,33 @@ steps:
 
 Re-run this script when you've fixed the underlying issue.
 EOF
-    exit 1
-fi
+        exit 1
+    fi
+
+    # Identify Machines whose checks are not yet all passing — likely
+    # ones stuck mid cold-pull. Destroy them and re-scale to recreate
+    # so the next wait attempt operates on fresh Machines.
+    say "==> Attempt $attempt timed out; identifying stuck Machine(s)"
+    UNHEALTHY_RAW=$("$FLY" machines list --app "$APP_NAME" --json | jq -r '
+        .[]
+        | select(.config.metadata.fly_process_group == "app" or
+                 (.config.metadata.fly_process_group // "app") == "app")
+        | select((.checks // [] | length == 0) or
+                 (.checks // [] | all(.status == "passing") | not))
+        | .id
+    ' | sort -u)
+    if [ -z "$UNHEALTHY_RAW" ]; then
+        # Wait timed out but no Machines are reported unhealthy — likely
+        # an `fly status --json` blip. Try again with the full timeout.
+        say "==> No Machines reported unhealthy; retrying wait"
+        continue
+    fi
+    mapfile -t UNHEALTHY_IDS <<< "$UNHEALTHY_RAW"
+    say "==> Destroying ${#UNHEALTHY_IDS[@]} stuck Machine(s) and re-scaling to ${DESIRED_COUNT}"
+    printf '%s\n' "${UNHEALTHY_IDS[@]}" \
+        | xargs -P 10 -I {} "$FLY" machine destroy {} --app "$APP_NAME" --force >/dev/null 2>&1
+    "$FLY" scale count "$DESIRED_COUNT" --yes
+done
 
 # --- phase 2 ------------------------------------------------------------
 if [ "$KEEP_WARM" -eq 1 ]; then
