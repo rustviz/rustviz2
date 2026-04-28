@@ -4,16 +4,22 @@
 # Every deploy starts from a clean fleet:
 #
 #   1. Destroy every existing Machine (parallel).
-#   2. fly scale count + fly deploy --strategy immediate to create
-#      $RV_FLY_MACHINES fresh Machines on the new release.
-#   3. Poll `fly status --json` until every Machine's health check passes.
-#   4. Run `fly machine update --autostop=stop` against every Machine
+#   2. Bring up a SINGLE source Machine via `fly scale count 1` +
+#      `fly deploy --strategy immediate`, and wait for it to pass its
+#      HTTP check. This Machine pays the one and only fuse-overlayfs
+#      cold pull of the runner image (~5-15 min) for the whole deploy.
+#   3. Clone the source Machine $RV_FLY_MACHINES-1 times in parallel
+#      via `fly machine clone --detach`. Each clone inherits a copy of
+#      the source's rootfs — including dockerd's cached runner image —
+#      so they boot in ~30 s without their own cold pull.
+#   4. Wait for every clone to pass its HTTP check.
+#   5. Run `fly machine update --autostop=stop` against every Machine
 #      to flip the per-Machine service config from the bootstrap-friendly
-#      'off' (set in fly.toml) to the cost-saving 'stop' for steady state.
-#      Verify the config landed; do NOT poll for health afterwards
-#      (the autoscaler immediately starts auto-stopping idle Machines
-#      under the new setting, and Consul health probes don't count as
-#      traffic, so a poll-for-all-healthy loop is unwinnable).
+#      'off' (set in fly.toml) to the cost-saving 'stop' for steady
+#      state. Don't poll for health afterwards — the autoscaler
+#      immediately starts auto-stopping idle Machines under the new
+#      setting, and Consul health probes don't count as traffic, so a
+#      poll-for-all-healthy loop is unwinnable.
 #
 # Why destroy-and-recreate instead of in-place updates: every previous
 # attempt to incrementally update an existing fleet hit a different
@@ -22,9 +28,13 @@
 # autoscaler that just took effect, drift between Machines created
 # under different fly.toml settings, etc. Nuking the fleet sidesteps
 # all of it for the cost of a few minutes of downtime per deploy
-# (acceptable for a research tool with sparse traffic). Each deploy
-# pays one fuse-overlayfs cold pull per Machine in parallel
-# (~10-15 min wallclock total).
+# (acceptable for a research tool with sparse traffic).
+#
+# Why source-and-clone instead of N parallel cold pulls: one Machine
+# pulling once + N-1 fast clones is dramatically cheaper than N
+# Machines pulling in parallel (which is bandwidth-capped by GHCR and
+# per-Machine fuse-overlayfs throughput, plus susceptible to one
+# Machine of N getting stuck mid-pull and timing out the whole deploy).
 #
 # In steady state between deploys, the auto-stop / auto-start cycle
 # still benefits from `persist_rootfs = 'always'` on the [[vm]] block
@@ -231,36 +241,30 @@ if [ "${#EXISTING_IDS[@]}" -gt 0 ]; then
         | xargs -P 10 -I {} "$FLY" machine destroy {} --app "$APP_NAME" --force >/dev/null 2>&1
 fi
 
-# Scale up from zero. With no existing Machines, fly scale count
-# creates $DESIRED_COUNT brand-new ones using the most recently
-# released image; the subsequent fly deploy then rolls them to the
-# image we're about to publish. (`fly deploy` alone, against an empty
-# fleet, would fall back to Fly's HA default of 2 — so we still need
-# the explicit scale step.)
+# Build out the fleet in two stages: bring up ONE fresh Machine, let
+# it pay the fuse-overlayfs cold pull (~5-15 min), then `fly machine
+# clone` it $DESIRED_COUNT-1 times. Each clone inherits a copy of the
+# source's rootfs — including dockerd's already-extracted runner image
+# at /var/lib/docker — so clones boot in ~30 s instead of running
+# their own cold pull. Total wallclock: ~10-15 min for the source,
+# plus ~1-2 min to clone the rest in parallel, vs the previous
+# ~10-15 min × 10 Machines (parallelized but still capped by GHCR
+# bandwidth and per-Machine fuse-overlayfs throughput).
 DESIRED_COUNT="${RV_FLY_MACHINES:-10}"
-say "==> Scaling fleet to ${DESIRED_COUNT} Machine(s)"
-"$FLY" scale count "$DESIRED_COUNT" --yes
-
-# --strategy immediate: roll all Machines in parallel, not one-at-a-
-# time. Each fresh Machine has to extract the ~1 GiB runner image
-# through fuse-overlayfs (5-15 min); rolling sequentially would be
-# >2 h, in parallel it's ~15 min wallclock.
-"$FLY" deploy --strategy immediate
-
-# 30-minute timeout. fuse-overlayfs's per-layer extraction is significantly
-# slower than kernel overlay2 — a fresh-Machine pull of the ~1 GiB runner
-# image extracts each layer through userspace FUSE, and the Rust toolchain
-# layers (hundreds of MiB each) extract one at a time. We've measured ~20+
-# min on cold pulls. Routine redeploys (image already on the rootfs)
-# complete in a couple minutes. Override with RV_DEPLOY_TIMEOUT_SECS.
 TIMEOUT_SECS="${RV_DEPLOY_TIMEOUT_SECS:-1800}"
+
+say "==> Scaling to 1 source Machine + fly deploy (this Machine pays the cold pull)"
+"$FLY" scale count 1 --yes
+# --strategy immediate so fly deploy doesn't try to roll a non-existent
+# fleet one-at-a-time; with 1 Machine in play, "immediate" just means
+# "apply the new release to that Machine right away".
+"$FLY" deploy --strategy immediate
 
 if ! wait_for_fleet_healthy "$TIMEOUT_SECS"; then
     cat >&2 <<EOF
-ERROR: not all Machines passed health checks within $((TIMEOUT_SECS / 60)) minutes.
+ERROR: source Machine did not pass health checks within $((TIMEOUT_SECS / 60)) minutes.
 The fleet is currently running with auto_stop_machines = 'off' (bootstrap
-config), so Machines won't auto-stop while you investigate. Useful next
-steps:
+config), so it won't auto-stop while you investigate. Useful next steps:
 
   fly logs                        # see what entrypoint is doing
   fly status --all                # check Machine state + per-check status
@@ -269,6 +273,53 @@ steps:
 Re-run this script when you've fixed the underlying issue.
 EOF
     exit 1
+fi
+
+# Source Machine is healthy and has the runner image cached on its
+# rootfs. Clone it $DESIRED_COUNT-1 times so the rest of the fleet
+# inherits the cache.
+if [ "$DESIRED_COUNT" -gt 1 ]; then
+    SOURCE_ID=$("$FLY" machines list --app "$APP_NAME" --json | jq -r '.[].id' | head -n 1)
+    if [ -z "$SOURCE_ID" ]; then
+        echo "ERROR: couldn't find a source Machine to clone from" >&2
+        exit 1
+    fi
+    CLONE_COUNT=$(( DESIRED_COUNT - 1 ))
+    say "==> Cloning Machine ${SOURCE_ID} ${CLONE_COUNT} time(s) — clones inherit cached runner image"
+
+    # --detach so each fly machine clone returns once the API has
+    # accepted the create request, instead of blocking on the new
+    # Machine's health check. We poll the fleet ourselves below
+    # (same pattern as the source-Machine wait above).
+    CLONE_LOG=$(mktemp -t fly-machine-clone.XXXXXX) || exit 1
+    seq "$CLONE_COUNT" \
+        | xargs -P 10 -I {} "$FLY" machine clone "$SOURCE_ID" \
+            --app "$APP_NAME" \
+            --detach >"$CLONE_LOG" 2>&1 &
+    CLONE_PID=$!
+
+    while kill -0 "$CLONE_PID" 2>/dev/null; do
+        status "    Cloning ${CLONE_COUNT} Machine(s)…"
+        sleep 1
+    done
+    if ! wait "$CLONE_PID"; then
+        printf '\n' >&2
+        echo "ERROR: at least one fly machine clone failed. Last 60 lines of combined output:" >&2
+        tail -n 60 "$CLONE_LOG" >&2
+        rm -f "$CLONE_LOG"
+        exit 1
+    fi
+    rm -f "$CLONE_LOG"
+    say "    ${CLONE_COUNT}/${CLONE_COUNT} Machine clones created"
+
+    if ! wait_for_fleet_healthy "$TIMEOUT_SECS"; then
+        cat >&2 <<EOF
+ERROR: clones did not pass health checks within $((TIMEOUT_SECS / 60)) minutes.
+The fleet is at auto_stop_machines = 'off' so nothing will auto-stop while
+you investigate. fly logs / fly status --all / fly ssh console as usual.
+EOF
+        exit 1
+    fi
 fi
 
 # --- phase 2 ------------------------------------------------------------

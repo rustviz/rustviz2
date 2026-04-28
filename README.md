@@ -222,17 +222,25 @@ deploy time, every fresh Machine would be killed mid-bootstrap before
 is the only value that lets a fresh deploy actually finish.
 
 The cost-saving auto-stop behavior is applied per-Machine after
-deploy. `deploy/deploy.sh` does a destroy-and-recreate every time:
+deploy. `deploy/deploy.sh` does a destroy-and-recreate every time,
+using a source-then-clone pattern so only one Machine pays the
+expensive runner-image cold pull:
 
 1. Destroys every existing Machine (parallel `fly machine destroy --force`).
-2. Runs `fly scale count` and `fly deploy --strategy immediate`, then
-   polls `fly status --json` until every freshly-created Machine's
-   HTTP check passes.
-3. Runs `fly machine update --autostop=stop --skip-health-checks`
+2. Brings up a *single* source Machine via `fly scale count 1` +
+   `fly deploy --strategy immediate`, and waits for it to pass its
+   HTTP check. This Machine pays the one and only ~5–15 min
+   fuse-overlayfs cold pull for the whole deploy.
+3. Clones the source `RV_FLY_MACHINES-1` times in parallel via
+   `fly machine clone --detach`. Each clone inherits a copy of the
+   source's rootfs — including the cached runner image at
+   `/var/lib/docker` — so clones boot in ~30 s, no per-clone
+   cold pull.
+4. Runs `fly machine update --autostop=stop --skip-health-checks`
    against every Machine in parallel, flipping the per-Machine
-   service config via the Machines API. Verifies the config landed;
-   doesn't poll for health afterwards (auto-stop kicks in immediately,
-   so a poll-for-all-healthy loop is unwinnable).
+   service config via the Machines API. Doesn't poll for health
+   afterwards (auto-stop kicks in immediately, so a poll-for-all-
+   healthy loop is unwinnable).
 
 We destroy and recreate rather than incrementally updating the
 existing fleet because every iteration of the in-place approach hit
@@ -241,14 +249,18 @@ auto-start during deploy, drift between Machines created under
 different fly.toml settings, autoscaler racing the post-update
 bounce, etc.). Nuking the fleet sidesteps all of it for the cost
 of a few minutes of downtime per deploy — acceptable for a research
-tool with sparse traffic. End state: every Machine on the new
-release with `auto_stop = 'stop'`, fleet idles cheaply (~$2–3/mo
-for the IP and Machine baseline). In steady state between deploys
-the auto-stop / auto-start cycle is fast (~10 s cold start) thanks
-to `persist_rootfs = 'always'` keeping the runner image cached on
-each Machine's rootfs.
+tool with sparse traffic. The source-then-clone pattern keeps the
+deploy bounded to one cold pull instead of `RV_FLY_MACHINES` of them
+in parallel, which is bandwidth-capped by GHCR and historically
+susceptible to one Machine of N stalling mid-pull.
 
-Pass `--keep-warm` to skip step 3 if you want Machines to never
+End state: every Machine on the new release with `auto_stop = 'stop'`,
+fleet idles cheaply (~$2–3/mo for the IP and Machine baseline). In
+steady state between deploys the auto-stop / auto-start cycle is fast
+(~10 s cold start) thanks to `persist_rootfs = 'always'` keeping the
+runner image cached on each Machine's rootfs.
+
+Pass `--keep-warm` to skip step 4 if you want Machines to never
 auto-stop (~$24/mo per always-running Machine).
 
 ### Security
