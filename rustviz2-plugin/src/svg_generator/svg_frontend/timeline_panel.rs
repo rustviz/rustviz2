@@ -76,6 +76,12 @@ struct FunctionDotData {
 struct ArrowData {
     coordinates: Vec<(f64, f64)>,
     coordinates_hbs: String,
+    // Pre-rendered "x1,y1 x2,y2 x3,y3" for the arrow head triangle,
+    // drawn inline as a sibling polygon of the polyline so that the
+    // head shares the same hover region as the shaft. Replaces the
+    // marker-end approach (markers live in a separate <defs> scope
+    // and don't inherit hover events from the referencing element).
+    head_points: String,
     title: String
 }
 
@@ -232,8 +238,14 @@ fn prepare_registry(registry: &mut Handlebars) {
         "        <use xlink:href=\"#functionDot\" data-hash=\"{{hash}}\" x=\"{{x}}\" y=\"{{y}}\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\"/>\n";
     let function_logo_template =
         "        <text x=\"{{x}}\" y=\"{{y}}\" data-hash=\"{{hash}}\" class=\"functionLogo tooltip-trigger fn-trigger\" data-tooltip-text=\"{{title}}\">f</text>\n";
+    // Arrow = shaft (polyline) + head (polygon), each carrying the
+    // same tooltip-trigger class and data-tooltip-text. Hovering
+    // either triggers the same tooltip; the head was previously
+    // drawn via `marker-end="url(#arrowHead)"` which lives in a
+    // separate <defs>/<marker> scope and didn't receive hover events
+    // from the polyline.
     let arrow_template =
-        "        <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{{coordinates_hbs}}\" marker-end=\"url(#arrowHead)\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\" style=\"fill: none;\"/> \n";
+        "        <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{{coordinates_hbs}}\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\" style=\"fill: none;\"/>\n        <polygon points=\"{{head_points}}\" fill=\"gray\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\"/> \n";
     let vertical_line_template =
         "        <line data-hash=\"{{hash}}\" class=\"{{line_class}} tooltip-trigger\" x1=\"{{x1}}\" x2=\"{{x2}}\" y1=\"{{y1}}\" y2=\"{{y2}}\" data-tooltip-text=\"{{title}}\" style=\"opacity: {{opacity}};\"/>\n";
     let hollow_line_template =
@@ -816,6 +828,7 @@ fn render_arrow (
             let mut data = ArrowData {
                 coordinates: Vec::new(),
                 coordinates_hbs: String::new(),
+                head_points: String::new(),
                 title: title
             };
 
@@ -1024,6 +1037,38 @@ fn render_arrow (
                         data.coordinates[0].0 -= cos_ratio * head_offset;
                         data.coordinates[0].1 += sin_ratio * head_offset;
                     }
+                }
+
+                // Compute the inline arrow-head triangle, sized to
+                // match the previous SVG marker (viewBox 0 0 10 10,
+                // markerWidth=3 × strokeWidth=5, path M 0 0 L 8.5 4
+                // L 0 8 z). In user coordinates the marker is 15px
+                // square; the path's tip at viewBox (8.5, 4) maps
+                // to 12.75 user units forward of the reference, and
+                // the base half-height is 6 user units. Reference
+                // point sits at the polyline endpoint coord[0].
+                //
+                // Direction at the endpoint = vector from coord[1]
+                // (the segment immediately preceding the endpoint
+                // in the polyline traversal, both for 2-point lines
+                // and for the kinked trapezoid form) to coord[0].
+                {
+                    let ex = data.coordinates[0].0;
+                    let ey = data.coordinates[0].1;
+                    let dx = ex - data.coordinates[1].0;
+                    let dy = ey - data.coordinates[1].1;
+                    let len = (dx * dx + dy * dy).sqrt();
+                    let (cos, sin) = if len > 0.0 { (dx / len, dy / len) } else { (1.0, 0.0) };
+                    // V1 / V3 are the two base corners (perpendicular
+                    // ±6 from the endpoint), V2 is the tip 12.75 along
+                    // the line direction beyond the endpoint.
+                    let v1 = (ex + 6.0 * sin, ey - 6.0 * cos);
+                    let v2 = (ex + 12.75 * cos, ey + 12.75 * sin);
+                    let v3 = (ex - 6.0 * sin, ey + 6.0 * cos);
+                    data.head_points = format!(
+                        "{},{} {},{} {},{}",
+                        v1.0, v1.1, v2.0, v2.1, v3.0, v3.1
+                    );
                 }
 
                 while !data.coordinates.is_empty() {
