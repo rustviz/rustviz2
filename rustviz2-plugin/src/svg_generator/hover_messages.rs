@@ -49,11 +49,17 @@ pub fn event_dot_owner_go_out_out_scope(my_name: &String) -> String {
     )                             //was moved from the variable earlier.
 }
 
-// Reassignment drops the previous resource (owned, non-Copy).
-// `y = x` or `*p = x` runs Drop on what y / *p used to hold.
+// Reassignment drops the previous resource (owned, non-Copy) AND
+// acquires a new one — both happen on the same line. The drop dot
+// is drawn on top of the regular Acquire dot at the same position,
+// so this tooltip is the only one a user can hover; it has to
+// communicate both events.
 pub fn event_dot_owner_drop_at_reassign(my_name: &String) -> String {
     let my_name_fmt = fmt_style(my_name);
-    format!("{0}'s previous resource is dropped", my_name_fmt)
+    format!(
+        "{0} acquires ownership of a new resource; its previous resource is dropped",
+        my_name_fmt
+    )
 }
 
 //     0
