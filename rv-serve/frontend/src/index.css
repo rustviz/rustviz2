@@ -121,6 +121,22 @@ p {
   font-size: 13px;
 }
 
+/* Preloaded-example dropdown above the editor. Aligned with the
+   editor's left margin (50px) so it visually anchors to the same
+   column as the code box and the rest of the prose. */
+.example-picker {
+  margin: 0 0 8px 50px;
+  font-size: 14px;
+}
+.example-picker label {
+  margin-right: 8px;
+}
+.example-picker select {
+  font-size: 14px;
+  padding: 4px 8px;
+  max-width: 360px;
+}
+
 
 /* 
 .flex-container {

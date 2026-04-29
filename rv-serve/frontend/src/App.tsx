@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import './index.css';
 import { extensions } from './setup';
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import axios from 'axios';
 import ErrorCard from './ErrorCard';
+import { exampleGroups } from './examples';
 
 // API origin. Empty (relative URL) for the default same-origin Fly deploy;
 // set to https://rustviz-playground.fly.dev for the GitHub Pages build via
@@ -48,7 +50,59 @@ class Editor {
   public getCurrentCode(): string {
     return this.view.state.doc.toString();
   }
+
+  // Replace the entire editor contents in one transaction. Used by the
+  // example-picker dropdown when the user selects a preloaded snippet.
+  public setCurrentCode(code: string): void {
+    this.view.dispatch({
+      changes: {
+        from: 0,
+        to: this.view.state.doc.length,
+        insert: code,
+      },
+    });
+  }
 }
+
+// Dropdown above the editor that loads a preloaded example into the
+// editor when selected. Examples come from `examples.ts`, vendored
+// from the rustviz-tutorial repo. We render this via createPortal
+// from inside App so the picker has access to the editor instance,
+// even though it visually lives in #example-picker (which sits above
+// the editor in DOM order, while the rest of the React app mounts
+// into #root below the editor).
+type ExamplePickerProps = {
+  onSelect: (code: string) => void;
+};
+
+const ExamplePicker = ({ onSelect }: ExamplePickerProps) => {
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (!value) return;
+    // value encodes "<chapterIndex>:<exampleIndex>" so we don't have
+    // to escape the example name into the option's value attribute.
+    const [chapterIdx, exampleIdx] = value.split(':').map(Number);
+    onSelect(exampleGroups[chapterIdx].examples[exampleIdx].code);
+  };
+
+  return (
+    <div className="example-picker">
+      <label htmlFor="example-select">Examples:</label>
+      <select id="example-select" defaultValue="" onChange={handleChange}>
+        <option value="">— pick a preloaded example —</option>
+        {exampleGroups.map((group, gIdx) => (
+          <optgroup key={group.chapter} label={group.chapter}>
+            {group.examples.map((ex, eIdx) => (
+              <option key={ex.name} value={`${gIdx}:${eIdx}`}>
+                {ex.name}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 const App = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -103,8 +157,27 @@ const App = () => {
   }, [editor]);
 
 
+  const handleExampleSelect = (code: string) => {
+    if (editor) {
+      editor.setCurrentCode(code);
+    }
+  };
+
+  // The picker has to mount above the editor in DOM order, but the
+  // editor itself lives in vanilla index.html (not inside React). Use
+  // createPortal to render the picker into the #example-picker
+  // placeholder while keeping it part of App's component tree (so it
+  // can call into the editor via state).
+  const pickerHost = typeof document !== 'undefined'
+    ? document.getElementById('example-picker')
+    : null;
+
   return (
     <div id="page-wrapper" className="page-wrapper">
+      {pickerHost && createPortal(
+        <ExamplePicker onSelect={handleExampleSelect} />,
+        pickerHost
+      )}
       <button className="cm-button large-button" id="gen-button" onClick={handleClick} disabled={isLoading}>
         {isLoading ? <>Generating<span className="ellipsis"></span></> : 'Generate Visualization'}
       </button>
