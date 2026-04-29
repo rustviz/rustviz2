@@ -936,12 +936,18 @@ fn render_arrow (
             let cy = get_y_axis_pos(*line_number) as f64;
 
             let leg: f64 = 20.0;
+            let head_offset: f64 = 18.0;
             let arrow_tip_protrusion: f64 = 12.75;
-            // Source sits 0.25 past the dot's right edge (5px
-            // radius), bend sits `leg` further right, head end
-            // sits `leg` above the bend.
+            // Bend at the same x as the InitRefParam L's bend
+            // (cx + head_offset + leg), so caller-in and caller-
+            // out arrows have their vertical legs at the same
+            // column. The output L has no horizontal arrowhead
+            // eating up space, so its horizontal stroke spans
+            // the full bend-to-(dot edge + 0.25) distance —
+            // longer than the input L's stroke, but the visible
+            // horizontal widths match.
             let source_x = cx + 5.25;
-            let bend_x = source_x + leg;
+            let bend_x = cx + head_offset + leg;
             let head_end_y = cy - leg;
 
             let polyline_pts = format!(
