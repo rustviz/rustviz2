@@ -845,20 +845,18 @@ fn render_arrow (
             let cx = timeline.x_val as f64;
             let cy = get_y_axis_pos(*line_number) as f64;
 
-            // Symmetric L: each visible leg spans `leg` px from
-            // the bend to where the arrow's outermost pixel lies.
-            //   - Vertical: bend_y - top_y = leg.
-            //   - Horizontal: bend_x − tip_x = leg, where the tip
-            //     sits at cx + (head_offset − 12.75) = cx + 5.25
-            //     (12.75 is the marker triangle's protrusion past
-            //     the polyline endpoint at cx + head_offset).
-            // So bend_x = cx + (head_offset − 12.75) + leg, i.e.
-            // `head_offset − 12.75` of clearance past the dot edge,
-            // then a `leg`-long horizontal run to the bend.
+            // Both legs are `leg`-px stroke segments measured
+            // bend → polyline endpoint, so the *line* portion of
+            // each leg has the same length. The arrowhead on the
+            // horizontal sits beyond the polyline endpoint as an
+            // extra cap (its 12.75-px protrusion isn't counted
+            // against the leg's line length, otherwise the
+            // arrowhead-leg ends up with a tiny stub of stroke
+            // and looks visually amputated next to the all-stroke
+            // vertical).
             let leg: f64 = 20.0;
             let head_offset: f64 = 18.0;
-            let arrow_tip_protrusion: f64 = 12.75;
-            let bend_x = cx + (head_offset - arrow_tip_protrusion) + leg;
+            let bend_x = cx + head_offset + leg;
             let top_y = cy - leg;
             // Horizontal head end after pullback: the leg of the
             // polyline runs from (bend_x, cy) leftward; pulling
@@ -911,19 +909,22 @@ fn render_arrow (
             }
         }
         // Move/Copy out to the caller (function tail expression):
-        // mirror of the InitRefParam L on the dot's *left* side —
-        // the polyline starts just past the dot's left edge, runs
-        // left to a bend, then up, with an arrowhead at the top
-        // pointing UP into mid-air. Same leg dimensions and gap
-        // conventions, mirrored across the dot.
+        // L on the dot's *right* side, matching the InitRefParam
+        // L's positioning so callers and returns occupy the same
+        // visual lane. The polyline starts just past the dot's
+        // right edge, runs right to a bend, then up, with an
+        // arrowhead at the top pointing UP into mid-air.
         //
-        //   ┌
-        //   │
-        //   │   ← vertical ascent, head pointing UP at tip
-        //   │
-        //   └──────────●   ← bend; horizontal stub touches the
-        //              return value dot at its left edge.
+        //                    ┌   ← arrowhead pointing UP
+        //                    │
+        //                    │   ← vertical ascent (line `leg`)
+        //                    │
+        //   ●────────────────┘   ← horizontal stub (line `leg`)
+        //   return value dot       touches the dot's right edge.
         //
+        // Each leg's stroke is `leg`-px long; the arrowhead on
+        // the vertical sits beyond that as an extra cap so neither
+        // leg is visually amputated by the head's body.
         ExternalEvent::Move { from, to: ResourceTy::Caller, id, .. }
         | ExternalEvent::Copy { from, to: ResourceTy::Caller, id, .. } => {
             let rap = match from.extract_rap() {
@@ -936,22 +937,18 @@ fn render_arrow (
 
             let leg: f64 = 20.0;
             let arrow_tip_protrusion: f64 = 12.75;
-            // Mirror of the input L: bend sits `leg` left of the
-            // dot edge (with a 0.25 hairline gap), top is `leg`
-            // above the bend, and the arrow head's tip lands at
-            // the conceptual top.
-            let bend_x = cx - 5.25 - leg;
-            let source_x = cx - 5.25;
-            // The polyline endpoint is `leg − 12.75 = 7.25` above
-            // the bend; the arrow head's tip then extends another
-            // 12.75 above that, landing at cy − leg.
-            let head_end_y = cy - leg + arrow_tip_protrusion;
+            // Source sits 0.25 past the dot's right edge (5px
+            // radius), bend sits `leg` further right, head end
+            // sits `leg` above the bend.
+            let source_x = cx + 5.25;
+            let bend_x = source_x + leg;
+            let head_end_y = cy - leg;
 
             let polyline_pts = format!(
                 "{} {} {} {} {} {}",
-                source_x, cy,        // source = dot's left edge (open end)
+                source_x, cy,        // source = dot's right edge (open end)
                 bend_x, cy,          // bend
-                bend_x, head_end_y,  // head end (pulled-back below the tip)
+                bend_x, head_end_y,  // head end (top of vertical line)
             );
 
             // Arrowhead at the top of the vertical, pointing UP.
