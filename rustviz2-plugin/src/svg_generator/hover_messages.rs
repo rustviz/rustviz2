@@ -42,11 +42,18 @@ pub fn event_dot_ref_go_out_out_scope(my_name: &String) -> String {
 pub fn event_dot_owner_go_out_out_scope(my_name: &String) -> String {
     // update styling
     let my_name_fmt = fmt_style(my_name);
-    
+
     format!(
         "{0} goes out of scope", //we shouldn't say "the resource is dropped"
         my_name_fmt              //because we don't distinguish if the resource
     )                             //was moved from the variable earlier.
+}
+
+// Reassignment drops the previous resource (owned, non-Copy).
+// `y = x` or `*p = x` runs Drop on what y / *p used to hold.
+pub fn event_dot_owner_drop_at_reassign(my_name: &String) -> String {
+    let my_name_fmt = fmt_style(my_name);
+    format!("{0}'s previous resource is dropped", my_name_fmt)
 }
 
 //     0

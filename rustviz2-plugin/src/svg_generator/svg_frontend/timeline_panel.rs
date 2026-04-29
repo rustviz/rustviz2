@@ -626,6 +626,26 @@ fn render_dot(
                         continue;
                     }
                 },
+                // Reassignment-drop renders the same down-arrow dot as
+                // OwnerGoOutOfScope (resource is dropped at this line),
+                // but the owner stays in scope — there's always a
+                // resource to drop here, so no `if !resource_hold` branch.
+                Event::OwnerDropAtReassign => {
+                    let cx = timeline_data.x_val;
+                    let cy = get_y_axis_pos(*line_number);
+                    let title = event.print_message_with_name(&mut name);
+                    let drop_data = DropDotData {
+                        hash: *hash as u64,
+                        dot_x: cx,
+                        dot_y: cy,
+                        title,
+                        p1x: cx - 3, p1y: cy - 1,
+                        p2x: cx + 3, p2y: cy - 1,
+                        p3x: cx,     p3y: cy + 3,
+                    };
+                    append_drop_dot(&drop_data, output, timeline_data, registry);
+                    continue;
+                },
                 _ => {
                     data.title = event.print_message_with_name(& mut name);
                 }
