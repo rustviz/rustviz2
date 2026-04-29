@@ -50,6 +50,15 @@ pub fn annotate_src(&mut self, name: String, s: Span, is_func: bool, hash: u64) 
 }
 
 pub fn annotate_expr(& mut self, expr: &'tcx Expr) {
+  // Mirror the visitor's macro-expansion skip: macro-generated nodes
+  // refer to synthetic items (e.g. `core::panicking::panic`) that the
+  // visitor never registers in `self.raps`, so attempting to annotate
+  // them here unwraps None on the RAP lookup. The user's source code
+  // doesn't include these names anyway, so there's nothing to
+  // highlight in the rendered code panel.
+  if expr.span.from_expansion() {
+    return;
+  }
   match expr.kind {
     ExprKind::Path(QPath::Resolved(_, p)) => {
       let (name, is_func) = match p.res {

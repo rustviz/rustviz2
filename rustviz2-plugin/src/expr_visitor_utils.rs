@@ -133,6 +133,17 @@ pub fn get_name_of_pat(pat: &Pat, tcx: &TyCtxt) -> String {
     PatKind::Expr(rustc_hir::PatExpr { kind: rustc_hir::PatExprKind::Path(QPath::Resolved(_, p)), .. }) => {
       string_of_path(&p, tcx)
     }
+    // Literal-pattern arms like `true =>` / `0 =>` show up in
+    // macro-expanded code we have no source-text view of (chiefly
+    // `assert!(cond)`, which expands to a match with `true` and `_`
+    // arms). Render the literal's Debug form as the arm label rather
+    // than panicking; the value is used purely as a label, not for
+    // semantic analysis, so a "Bool(true)" / "Int(0, …)" label is
+    // sufficient. Avoids needing to import rustc_ast for a typed
+    // match on LitKind.
+    PatKind::Expr(rustc_hir::PatExpr { kind: rustc_hir::PatExprKind::Lit { lit, .. }, .. }) => {
+      format!("{:?}", lit.node)
+    }
     PatKind::Wild => {
       String::from("Wild")
     }
@@ -495,7 +506,17 @@ pub fn get_rap(expr: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>) -> Re
   match expr.kind {
     ExprKind::Path(QPath::Resolved(_,p)) => {
       let name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
-      ResourceTy::Value(raps.get(&name).unwrap().rap.to_owned())
+      // Fall back to Anonymous when the path resolves to a name we
+      // didn't register as a RAP. The most common cause is a path
+      // expression inside a macro expansion that references a
+      // synthetic local (e.g. modern `println!` expands to refs to
+      // an `args` binding that visit_local declines to register).
+      // Anonymous is the existing return for "unknown resource";
+      // downstream code already handles it.
+      match raps.get(&name) {
+        Some(rd) => ResourceTy::Value(rd.rap.to_owned()),
+        None => ResourceTy::Anonymous,
+      }
     }
     // In a deref expression 
     ExprKind::Unary(UnOp::Deref, expr) => {
