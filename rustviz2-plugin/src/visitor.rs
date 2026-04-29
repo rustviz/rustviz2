@@ -395,8 +395,23 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         self.visit_expr(exp);
       }
 
-      // if <expr> { } Option<else> 
+      // if <expr> { } Option<else>
       ExprKind::If(guard_expr, if_expr, else_expr) => {
+        // Macro-expanded `if`s — `assert!(cond)` becomes
+        // `match cond { true => {}, _ => panic!(...) }` (which the
+        // HIR represents as an If after match-desugaring); the `?`
+        // operator and several other macros do similar things.
+        // Visualizing these as a control-flow Branch on the user's
+        // timeline pollutes the diagram with branches the user
+        // didn't write. Walk the guard so any user-side variable
+        // accesses inside it (e.g. function arguments) are recorded
+        // as ordinary events on their owners' timelines, then skip
+        // the body/else and the Branch event entirely.
+        if expr.span.from_expansion() {
+          self.visit_expr(&guard_expr);
+          return;
+        }
+
         self.visit_expr(&guard_expr);
         self.inside_branch = true; // need this flag to correctly handle variables that are declared inside blocks
         self.visit_expr(&if_expr);
@@ -509,6 +524,20 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       // <pat> => <expr>
       // }
       ExprKind::Match(guard_expr, arms, source) => {
+        // Macro-expanded `match`s — `assert!(cond)` expands to
+        // `match cond { true => {}, _ => panic!(...) }`, and several
+        // other macros (notably `?`) also desugar through Match. Walk
+        // the guard so user-written variable accesses inside it (e.g.
+        // function arguments) are recorded, then skip the arms and
+        // the Branch event entirely. Same rationale as the
+        // from_expansion check on ExprKind::If above: macro-added
+        // control flow shouldn't be rendered as branches the user
+        // didn't write.
+        if expr.span.from_expansion() {
+          self.visit_expr(guard_expr);
+          return;
+        }
+
         // first visit the guard expression, annotate any events that happen there
         self.visit_expr(guard_expr);
         let typeck_res = self.tcx.typeck(expr.hir_id.owner);
