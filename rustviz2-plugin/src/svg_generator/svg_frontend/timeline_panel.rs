@@ -46,6 +46,24 @@ struct EventDotData {
     title: String,
 }
 
+// Variant of EventDotData carrying the inner-triangle vertices for the
+// drop-dot visual (rendered when an owner goes out of scope while still
+// holding its resource). Computed at render time from the dot's center
+// so the triangle fits cleanly inside the 5px-radius circle.
+#[derive(Serialize)]
+struct DropDotData {
+    hash: u64,
+    dot_x: i64,
+    dot_y: i64,
+    title: String,
+    p1x: i64,
+    p1y: i64,
+    p2x: i64,
+    p2y: i64,
+    p3x: i64,
+    p3y: i64,
+}
+
 #[derive(Serialize)]
 struct FunctionDotData {
     hash: u64,
@@ -200,6 +218,16 @@ fn prepare_registry(registry: &mut Handlebars) {
         "        <text x=\"{{x_val}}\" y=\"70\" style=\"text-anchor:middle\" data-hash=\"{{hash}}\" class=\"label tooltip-trigger\" data-tooltip-text=\"{{title}}\">{{name}}</text>\n";
     let dot_template =
         "        <circle cx=\"{{dot_x}}\" cy=\"{{dot_y}}\" r=\"5\" data-hash=\"{{hash}}\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\"/>\n";
+    // Used for Owner end-of-scope dots when the owner is still
+    // holding the resource at that point — i.e. the resource is
+    // dropped here. The visual is a normal dot with a small white
+    // down-pointing triangle inside, so users can see that a drop
+    // happened without having to hover for the tooltip. The
+    // surrounding <g> carries the same hash + tooltip metadata as a
+    // regular dot so existing UI behavior (highlighting on hash
+    // hover, tooltip text) is unchanged.
+    let drop_dot_template =
+        "        <g data-hash=\"{{hash}}\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\">\n            <circle cx=\"{{dot_x}}\" cy=\"{{dot_y}}\" r=\"5\"/>\n            <polygon points=\"{{p1x}},{{p1y}} {{p2x}},{{p2y}} {{p3x}},{{p3y}}\" style=\"fill: white; stroke: none; pointer-events: none;\"/>\n        </g>\n";
     let function_dot_template =    
         "        <use xlink:href=\"#functionDot\" data-hash=\"{{hash}}\" x=\"{{x}}\" y=\"{{y}}\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\"/>\n";
     let function_logo_template =
@@ -237,6 +265,9 @@ fn prepare_registry(registry: &mut Handlebars) {
     );
     assert!(
         registry.register_template_string("dot_template", dot_template).is_ok()
+    );
+    assert!(
+        registry.register_template_string("drop_dot_template", drop_dot_template).is_ok()
     );
     assert!(
         registry.register_template_string("arrow_template", arrow_template).is_ok()
@@ -573,9 +604,26 @@ fn render_dot(
                         data.title = event.print_message_with_name(& mut name);
                         data.title.push_str(resource_info);
                     } else {
-                        let resource_info: &str = ". Its resource is dropped.";
-                        data.title = event.print_message_with_name(& mut name);
-                        data.title.push_str(resource_info);
+                        // Render with a down-arrow triangle inside the
+                        // dot to make the drop visible at a glance.
+                        // Triangle is inscribed in the 5px-radius
+                        // circle: base 1px above center (~6px wide),
+                        // apex 3px below center.
+                        let cx = timeline_data.x_val;
+                        let cy = get_y_axis_pos(*line_number);
+                        let mut title = event.print_message_with_name(&mut name);
+                        title.push_str(". Its resource is dropped.");
+                        let drop_data = DropDotData {
+                            hash: *hash as u64,
+                            dot_x: cx,
+                            dot_y: cy,
+                            title,
+                            p1x: cx - 3, p1y: cy - 1,
+                            p2x: cx + 3, p2y: cy - 1,
+                            p3x: cx,     p3y: cy + 3,
+                        };
+                        append_drop_dot(&drop_data, output, timeline_data, registry);
+                        continue;
                     }
                 },
                 _ => {
@@ -585,6 +633,28 @@ fn render_dot(
         }
         // push to individual timelines
         append_dot(&data, output, timeline_data, registry);
+    }
+}
+
+// Same routing logic as `append_dot` (struct-grouped vs flat
+// timelines), but emits the drop-dot SVG (circle + inner triangle)
+// instead of the plain circle.
+fn append_drop_dot(
+    drop_data: &DropDotData,
+    output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
+    timeline_data: &TimelineColumnData,
+    registry: &Handlebars,
+) {
+    let column = timeline_data;
+    let rendered = registry.render("drop_dot_template", drop_data).unwrap();
+    if column.is_struct_group {
+        if column.is_member {
+            output.get_mut(&(column.owner.to_owned() as i64)).unwrap().1.dots.push_str(&rendered);
+        } else {
+            output.get_mut(&(column.owner.to_owned() as i64)).unwrap().0.dots.push_str(&rendered);
+        }
+    } else {
+        output.get_mut(&-1).unwrap().0.dots.push_str(&rendered);
     }
 }
 

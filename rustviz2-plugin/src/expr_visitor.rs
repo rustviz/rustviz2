@@ -669,22 +669,35 @@ pub fn print_out_of_scope(&mut self){
     let lender_to_refs = get_non_anon_lenders(&self.borrow_map);
     info!("lender to refs {:#?}", lender_to_refs);
 
-    // loop through each lender's 'active' references and get the ultimate reference (the one with the longest lifetime)
+    // Loop through each lender's active references and pick out the
+    // "ultimate" refs in each region — the ones that emit visible
+    // return arrows back to the lender at end-of-lifetime. Previously
+    // this picked exactly one ref per region (the one with the
+    // longest lifetime) and any other ref tied with it became a
+    // RefDie (which the renderer drops on the floor). For parallel
+    // borrows that die at the same line — e.g. `let r1 = &s; let
+    // r2 = &s; assert!(compare_strings(r1, r2));` where r1 and r2
+    // both last-use at the assert line — the book's RV1 rendered an
+    // arrow for both. Pick *all* refs whose lifetime equals the
+    // region's max so they each emit a StaticDie/MutableDie. Refs
+    // that die strictly earlier than the region's max stay
+    // non-ultimate and remain RefDie (correct: they don't
+    // visually represent the lender's borrow being given back).
     for (_, refs) in lender_to_refs.iter() {
-      let mut max_lifetime = 0;
-      let mut ultimate_ref: &str = &String::from("");
-      // need to seperate borrows into regions for each lender
       let regions = get_regions(refs, &self.borrow_map);
-      // append an ultimate reference for each region
       for region in regions.iter() {
+        let mut max_lifetime: usize = 0;
         for r in region {
           let lifetime = self.borrow_map.get(r).unwrap().lifetime;
           if lifetime > max_lifetime {
             max_lifetime = lifetime;
-            ultimate_ref = r;
           }
         }
-        ultimate_refs.insert(ultimate_ref.to_owned());
+        for r in region {
+          if self.borrow_map.get(r).unwrap().lifetime == max_lifetime {
+            ultimate_refs.insert(r.to_owned());
+          }
+        }
       }
     }
 

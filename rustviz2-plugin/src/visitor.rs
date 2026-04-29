@@ -385,6 +385,18 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           _ => ()
         }
         let name = self.tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
+        // Skip path-expression references whose span is from a macro
+        // expansion. Modern `println!`, `format_args!`, etc. expand
+        // to a chain of synthetic references to internal locals (a
+        // synthetic `args` binding, calls to `::core::fmt::*`, etc.)
+        // — visit_local already declines to register synthetic
+        // locals as RAPs, so a lookup here would unwrap None. The
+        // path expressions to user-written variables (e.g. `s`
+        // inside `println!("{}", s)`) keep their user source spans
+        // intact, so this skip doesn't drop them.
+        if expr.span.from_expansion() {
+          return;
+        }
         let r = &self.raps.get(&name).unwrap().rap.clone();
         let line_num = span_to_line(&p.span, &self.tcx);
         self.update_rap(r, line_num);
@@ -395,8 +407,23 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         self.visit_expr(exp);
       }
 
-      // if <expr> { } Option<else> 
+      // if <expr> { } Option<else>
       ExprKind::If(guard_expr, if_expr, else_expr) => {
+        // Macro-expanded `if`s — `assert!(cond)` becomes
+        // `match cond { true => {}, _ => panic!(...) }` (which the
+        // HIR represents as an If after match-desugaring); the `?`
+        // operator and several other macros do similar things.
+        // Visualizing these as a control-flow Branch on the user's
+        // timeline pollutes the diagram with branches the user
+        // didn't write. Walk the guard so any user-side variable
+        // accesses inside it (e.g. function arguments) are recorded
+        // as ordinary events on their owners' timelines, then skip
+        // the body/else and the Branch event entirely.
+        if expr.span.from_expansion() {
+          self.visit_expr(&guard_expr);
+          return;
+        }
+
         self.visit_expr(&guard_expr);
         self.inside_branch = true; // need this flag to correctly handle variables that are declared inside blocks
         self.visit_expr(&if_expr);
@@ -409,13 +436,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         };
         self.inside_branch = false;
 
-        // compute liveness
-        // live variables are defined as variables that are defined outside the conditional but 
-        // are used inside of it (the ones whose timelines will have a branch in the visualization)
-        let if_live = get_live_of_expr(if_expr, &self.tcx, &self.raps);
-        let if_decl = get_decl_of_expr(if_expr, &self.tcx, &self.raps);
-        let liveness:HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
-
         // compute split and merge points
         let line_num = expr_to_line(&guard_expr, &self.tcx);
         let split = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.lo()).line;
@@ -424,6 +444,33 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           Some(e) => self.tcx.sess.source_map().lookup_char_pos(e.span.hi()).line,
           None => self.tcx.sess.source_map().lookup_char_pos(if_expr.span.hi()).line
         };
+
+        // compute liveness
+        // live variables are defined as variables that are defined outside the conditional but
+        // are used inside of it (the ones whose timelines will have a branch in the visualization)
+        let if_live = get_live_of_expr(if_expr, &self.tcx, &self.raps);
+        let if_decl = get_decl_of_expr(if_expr, &self.tcx, &self.raps);
+        let mut liveness: HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
+
+        // If the guard sits on a line within the filter range below
+        // (i.e. when the source-level guard and body collapse onto the
+        // same line — the most common cause of this is a macro-expanded
+        // `assert!(cond)` becoming `if !cond { panic!(...) }`, but it
+        // also happens for hand-written one-liners like
+        // `if foo() { bar(); }`), the events emitted while visiting
+        // the guard get filtered into the branch's `e_data` alongside
+        // body events. Without adding the guard's live vars to
+        // `liveness`, the affected variables don't get a Branch entry
+        // on their timelines, and the renderer's fetch_timeline lookup
+        // panics when it tries to find a guard-side event id in the
+        // variable's history. In the normal multi-line case the guard
+        // line is strictly less than `split`, so this conditional is
+        // false and we don't add empty-Branch placeholders to
+        // unrelated timelines.
+        if line_num >= split && line_num <= merge {
+          let guard_live = get_live_of_expr(&guard_expr, &self.tcx, &self.raps);
+          liveness.extend(guard_live);
+        }
 
         // filter events that happened in the if/else block
         let mut if_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| filter_ev(i, split, if_end)).cloned().collect();
@@ -489,6 +536,20 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       // <pat> => <expr>
       // }
       ExprKind::Match(guard_expr, arms, source) => {
+        // Macro-expanded `match`s — `assert!(cond)` expands to
+        // `match cond { true => {}, _ => panic!(...) }`, and several
+        // other macros (notably `?`) also desugar through Match. Walk
+        // the guard so user-written variable accesses inside it (e.g.
+        // function arguments) are recorded, then skip the arms and
+        // the Branch event entirely. Same rationale as the
+        // from_expansion check on ExprKind::If above: macro-added
+        // control flow shouldn't be rendered as branches the user
+        // didn't write.
+        if expr.span.from_expansion() {
+          self.visit_expr(guard_expr);
+          return;
+        }
+
         // first visit the guard expression, annotate any events that happen there
         self.visit_expr(guard_expr);
         let typeck_res = self.tcx.typeck(expr.hir_id.owner);
@@ -672,6 +733,17 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
 
   // locals are let statements: let <pat>:<ty> = <expr>
   fn visit_local(&mut self, local: &'tcx LetStmt<'tcx>) {
+    // Skip macro-expanded `let` bindings. Modern `println!`,
+    // `format_args!`, and friends expand to something like
+    // `let args = ::core::fmt::Arguments::new(...)` followed by a
+    // call to write to stdout — the synthetic `args` local isn't in
+    // the user's source but the plugin would otherwise register it
+    // as a RAP and give it its own timeline column. Same rationale
+    // as the from_expansion check on ExprKind::If/Match: macro
+    // internals shouldn't appear as user-visible variables.
+    if local.span.from_expansion() {
+      return;
+    }
     match local.pat.kind {
       PatKind::Binding(binding_annotation, ann_hirid, ident, _op_pat) => {
         let lhs_var:String = ident.to_string();

@@ -117,7 +117,23 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
           }
         }
       }
-      ItemKind::Fn { sig: fn_sig, body: body_id, .. } => {
+      ItemKind::Fn { sig: fn_sig, body: body_id, ident, .. } => {
+        // Only visualize `main` at file scope. Helper functions
+        // (e.g. `compare_strings` / `clear_string` in the Hands-on
+        // tutorial example, or any user-defined helper a snippet
+        // includes for compile-only purposes) make sense as call
+        // targets — the call site in main records the borrow events
+        // we want to render — but visiting their bodies introduces
+        // separate timeline columns for their parameters
+        // (`_a`, `_b`, `_s`, …) that pollute the visualization with
+        // scope the user isn't trying to inspect. The book's RV1
+        // tutorial only ever rendered `main`'s scope; this matches
+        // that. Tutorials wanting to visualize something other than
+        // main are out of scope for now; they can rename the target
+        // to `main` or we can add a config knob later.
+        if ident.as_str() != "main" {
+          continue;
+        }
         let hir_body = tcx.hir_body(*body_id);
         let def_id = tcx.hir_body_owner_def_id(*body_id);
         let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, def_id);
@@ -129,11 +145,11 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
           _ => false
         };
 
-        let mut visitor = ExprVisitor { 
-          tcx, 
+        let mut visitor = ExprVisitor {
+          tcx,
           mir_body: body,
           hir_body: hir_body,
-          bwf: bwf, 
+          bwf: bwf,
           current_scope: 0,
           borrow_map: HashMap::new(),
           raps: &mut rap_map,

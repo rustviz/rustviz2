@@ -1229,9 +1229,32 @@ impl Visualizable for VisualizationData {
               *p.clone()
             }
 
-            (State::FullPrivilege{..}, Event::StaticDie { .. }) | 
+            (State::FullPrivilege{..}, Event::StaticDie { .. }) |
             (State::FullPrivilege{..}, Event::StaticBorrow { .. }) => {
               State::FullPrivilege{s: LineState::Full}
+            }
+
+            // Multiple parallel borrows all returning at the same
+            // line: the first reacquire transitions PartialPrivilege
+            // → FullPrivilege (the lender now holds the resource
+            // again), and any further reacquires at the same line
+            // (one per parallel borrower — see the matching change
+            // in expr_visitor.rs's ultimate-ref selection) need to
+            // be no-ops on the lender's state. Without this, the
+            // second reacquire fell through to the (_, _) catch-all
+            // and made the state Invalid, blanking out the lender's
+            // vertical timeline line for the rest of its scope.
+            (State::FullPrivilege{..}, Event::StaticReacquire { .. }) => {
+              State::FullPrivilege { s: LineState::Full }
+            }
+            // Symmetric handling for MutableReacquire on a
+            // FullPrivilege lender. We don't currently emit multiple
+            // mutable reacquires at the same line (Rust forbids
+            // simultaneous mut borrows), but a no-op transition is
+            // the right semantics regardless and protects against
+            // future events landing in this state.
+            (State::FullPrivilege{..}, Event::MutableReacquire { .. }) => {
+              State::FullPrivilege { s: LineState::Full }
             }
             (_, Event::Duplicate { to: ResourceTy::Caller,..}) => State::OutOfScope,
             (_, Event::Duplicate { .. }) => (*previous_state).clone(),
