@@ -91,36 +91,28 @@ fn clear_string(_s: &mut String) {
 }`,
       },
       {
-        name: "Move on assignment",
-        code: `fn main() {
-  let x = String::from("hello");
-  let mut y = String::from("test");
-  y = x;
-}`,
-      },
-      {
         name: "Move across scope",
+        // Note: the source.rs in rustviz-tutorial has `println(...)`
+        // (no !) on line 5 — that's a typo in the book that doesn't
+        // affect RV1 (annotation-based, doesn't actually compile the
+        // snippet). RV2's plugin runs through rustc, so we need the
+        // macro form to compile.
         code: `fn main() {
     let x = String::from("hello");
     let z = {
         let y = x;
-        println("{}", y);
+        println!("{}", y);
         // ...
     };
     println!("Hello, world!");
 }`,
       },
       {
-        name: "Move on function return",
-        code: `fn f() {
-    let x = String::from("hello");
-    // ...
-    x
-} 
-  
-fn main() {
-    let s = f();
-    println!("{}", s);
+        name: "Move on assignment",
+        code: `fn main() {
+  let x = String::from("hello");
+  let mut y = String::from("test");
+  y = x;
 }`,
       },
       {
@@ -135,21 +127,56 @@ fn takes_ownership(some_string: String) {
     println!("{}", some_string);
 }`,
       },
+      {
+        name: "Move on function return",
+        code: `fn f() {
+    let x = String::from("hello");
+    // ...
+    x
+}
+
+fn main() {
+    let s = f();
+    println!("{}", s);
+}`,
+      },
     ],
   },
   {
     chapter: 'Borrowing',
     examples: [
       {
+        name: "Function takes and returns ownership",
+        code: `fn take_and_return_ownership(some_string : String) -> String {
+    println!("{}", some_string);
+    some_string
+}
+
+fn main() {
+    let mut s = String::from("hello");
+    s = take_and_return_ownership(s);
+    println!("{}", s);   // OK
+}`,
+      },
+      {
         name: "Immutable borrow",
         code: `fn main() {
     let x = String::from("hello");
-    f(&x); 
+    f(&x);
     println!("{}", x);
 }
 
 fn f(s : &String) {
     println!("{}", *s);
+}`,
+      },
+      {
+        name: "Immutable borrow (method call)",
+        code: `fn main() {
+    let s = String::from("hello");
+    let len1 = String::len(&s);
+    let len2 = s.len(); // shorthand for the above
+    println!("len1 = {} = len2 = {}", len1, len2);
 }`,
       },
       {
@@ -166,35 +193,13 @@ fn f(s1 : &String, s2 : &String) {
 }`,
       },
       {
-        name: "Immutable borrow (method call)",
-        code: `fn main() {
-    let s = String::from("hello");
-    let len1 = String::len(&s);
-    let len2 = s.len(); // shorthand for the above
-    println!("len1 = {} = len2 = {}", len1, len2);
-}`,
-      },
-      {
         name: "Mutable borrow (method call)",
-        code: `fn main() { 
+        code: `fn main() {
     let mut s1 = String::from("Hello");
     let s2 = String::from(", world");
-    String::push_str(&mut s1, &s2); 
+    String::push_str(&mut s1, &s2);
     s1.push_str(&s2); // shorthand for the above
     println!("{}", s1); // prints "Hello, world, world"
-}`,
-      },
-      {
-        name: "Function takes and returns ownership",
-        code: `fn take_and_return_ownership(some_string : String) -> String {
-    println!("{}", some_string);
-    some_string
-}
-  
-fn main() {
-    let mut s = String::from("hello");
-    s = take_and_return_ownership(s);
-    println!("{}", s);   // OK
 }`,
       },
       {
@@ -219,20 +224,6 @@ fn world(s : &mut String) {
     chapter: 'Structs',
     examples: [
       {
-        name: "Struct with String",
-        code: `struct Foo {
-    x: i32,
-    y: String,
-}
-
-fn main() {
-    let _y = String :: from("bar");
-    let f = Foo { x: 5, y: _y };
-    println!("{}", f.x);
-    println!("{}", f.y);
-}`,
-      },
-      {
         name: "Struct: Rectangle",
         code: `struct Rect {
     w: u32,
@@ -249,7 +240,7 @@ fn main() {
         "The area of the rectangle is {} square pixels.",
         area(&r)
     );
-    
+
     println!("The height of that is {}.", r.h);
 }
 
@@ -284,6 +275,20 @@ fn main() {
     };
 
     print_area(&r);
+}`,
+      },
+      {
+        name: "Struct with String",
+        code: `struct Foo {
+    x: i32,
+    y: String,
+}
+
+fn main() {
+    let _y = String :: from("bar");
+    let f = Foo { x: 5, y: _y };
+    println!("{}", f.x);
+    println!("{}", f.y);
 }`,
       },
       {
