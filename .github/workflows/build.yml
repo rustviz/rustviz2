@@ -110,10 +110,14 @@ jobs:
     runs-on: ubuntu-latest
     # deploy.sh's phase 1 cold-pulls the runner image on every fresh
     # Machine through fuse-overlayfs (5-15 min/Machine, parallelized
-    # via --strategy immediate). Phase 2's per-Machine fly machine
-    # update adds a few more minutes. Total wallclock ~15-25 min in
-    # practice; bump if you see CI timing out.
-    timeout-minutes: 45
+    # via --strategy immediate). When a Machine gets stuck mid-pull
+    # (transient FUSE / GHCR flakiness), deploy.sh's retry path
+    # destroys + recreates and waits again — RV_DEPLOY_TIMEOUT_SECS
+    # × (RV_DEPLOY_RETRIES + 1) is the Phase 1 wait budget, default
+    # 30 min × 2 = 60 min. Plus Phase 2 (~few min) and fly deploy
+    # orchestration (~5 min). Worst-case observed: ~55 min. 90 leaves
+    # comfortable headroom; bump if you see CI hitting the cap.
+    timeout-minutes: 90
     # Serialize deploys so a second push to main during a deploy doesn't
     # double-pump the fleet. cancel-in-progress=false because aborting
     # mid-deploy can leave the fleet in a half-rolled state.
