@@ -816,18 +816,15 @@ fn render_arrow (
                 }
             }
         }
-        // Owned function-parameter init: draw a symmetric L-shaped
-        // arrow on the right side of the param dot. The vertical
-        // leg descends from above with an inward-pointing
-        // arrowhead at its top (signaling "ownership coming in
-        // from the caller"), bends at the dot's row, and a
-        // horizontal stub lands on the dot's right edge with a
-        // second arrowhead pointing left into the dot.
+        // Owned function-parameter init: draw an L-shaped arrow
+        // on the right side of the param dot. The vertical leg
+        // descends from above, bends at the dot's row, and a
+        // horizontal stub lands on the dot's right edge with the
+        // arrow head pointing left into the dot.
         //
-        //              ▼   ← top arrowhead, tip at line's start,
-        //              │     base above (inward-facing — the body
-        //              │     of the arrow lies below the tip).
-        //              │   ← vertical descent
+        //              │   ← top of vertical (no arrowhead — the
+        //              │     stroke ending in mid-air reads as
+        //              │     "from outside this scope" by itself)
         //              │
         //   ●──────────┘   ← bend; horizontal stub ends at the
         //   param dot       dot's right edge (head pointing left).
@@ -876,38 +873,26 @@ fn render_arrow (
                 head_x, head_y,  // head end (pulled-back)
             );
 
-            // Bottom arrowhead: at the polyline endpoint, line
-            // direction at endpoint = leftward (-1, 0), so the
-            // tip extends 12.75 leftward from the endpoint; base
-            // is 6 above and below. Same geometry the other arrow
-            // arms produce.
+            // Arrowhead at the polyline endpoint, tip extends
+            // 12.75 leftward into the dot's right edge; base is 6
+            // above and below. Same geometry the other arrow arms
+            // produce.
             let bot_v1 = (head_x, head_y + 6.0);
             let bot_v2 = (head_x - 12.75, head_y);
             let bot_v3 = (head_x, head_y - 6.0);
 
-            // Top arrowhead (inward facing): tip AT the polyline
-            // start (bend_x, top_y) pointing DOWN, base 12.75
-            // above with half-width 6 — same triangle dimensions,
-            // mirrored so the body of the head sits ABOVE the
-            // line and only the tip touches it. Visually the head
-            // is a downward chevron capping the vertical leg.
-            let top_v1 = (bend_x - 6.0, top_y - 12.75);
-            let top_v2 = (bend_x, top_y);
-            let top_v3 = (bend_x + 6.0, top_y - 12.75);
-
             let title = hover_messages::event_dot_owner_init_from_caller(&param.name().to_string());
 
-            // Custom inline emit (template can't express two
-            // polygons). Same outer <g> shape as arrow_template
-            // so hover/glow/tooltip behavior is identical.
+            // Reuses the regular arrow_template shape (one polygon
+            // for the head) but emitted inline because we already
+            // have ArrowData populated and assembling the template
+            // is overkill for one site.
             let rendered = format!(
                 "        <g class=\"tooltip-trigger\" data-tooltip-text=\"{title}\">\n\
                     \x20           <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{polyline_pts}\" style=\"fill: none;\"/>\n\
                     \x20           <polygon points=\"{},{} {},{} {},{}\" fill=\"gray\"/>\n\
-                    \x20           <polygon points=\"{},{} {},{} {},{}\" fill=\"gray\"/>\n\
                     \x20       </g>\n",
                 bot_v1.0, bot_v1.1, bot_v2.0, bot_v2.1, bot_v3.0, bot_v3.1,
-                top_v1.0, top_v1.1, top_v2.0, top_v2.1, top_v3.0, top_v3.1,
                 title = title,
                 polyline_pts = polyline_pts,
             );
