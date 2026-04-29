@@ -46,6 +46,12 @@
       </p>
     </div>
 
+    <!-- React mounts the example-picker dropdown here via createPortal
+         (see src/App.tsx). It needs to live above the editor in DOM
+         order, but our React app's main root is below the editor for
+         legacy reasons, so the portal lets us keep one App component
+         and still place the picker above. -->
+    <div id="example-picker"></div>
     <div id="editor"></div>
     <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>

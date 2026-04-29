@@ -100,6 +100,18 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
   }
 
   fn visit_expr(&mut self, expr: &'tcx Expr<'tcx>) {
+    // Skip everything synthesized by macro expansion. The user's source
+    // doesn't show e.g. `format_argument::new_display(&s)` from inside
+    // `println!("{}", s)` — surfacing those calls in the timeline (a
+    // spurious `args` column, a "reads from s" arrow into a synthetic
+    // formatter) is more confusing than informative. References to user
+    // variables that happen to live inside a macro argument are reached
+    // only through this outer macro Call, so skipping it also drops the
+    // inner reads — which matches the requested behavior of treating
+    // macro invocations as opaque.
+    if expr.span.from_expansion() {
+      return;
+    }
     match expr.kind {
       // fn call <expr>[<expr>]
       ExprKind::Call(fn_expr, args) => {

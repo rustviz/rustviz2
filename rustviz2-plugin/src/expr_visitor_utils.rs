@@ -31,10 +31,25 @@ pub fn hirid_to_var_name(id: HirId, tcx: &TyCtxt) -> Option<String> {
     let segs: Vec<String> = p.segments.iter().map(|s| s.ident.as_str().to_owned()).collect();
     segs.join("::")
   }
+  // For `T::method`, recover the qself's type name so the returned string
+  // covers the same source range that the path's span does (e.g. "String::from"
+  // rather than just "from").
+  fn name_of_ty(ty: &rustc_hir::Ty<'_>) -> Option<String> {
+    match ty.kind {
+      rustc_hir::TyKind::Path(QPath::Resolved(_, path)) => Some(name_of_path(path)),
+      rustc_hir::TyKind::Path(QPath::TypeRelative(_, segment)) => Some(segment.ident.as_str().to_owned()),
+      _ => None,
+    }
+  }
   let raw = match tcx.hir_node(id) {
     rustc_hir::Node::Expr(e) => match e.kind {
       ExprKind::Path(QPath::Resolved(_, path)) => name_of_path(path),
-      ExprKind::Path(QPath::TypeRelative(_, segment)) => segment.ident.as_str().to_owned(),
+      ExprKind::Path(QPath::TypeRelative(qself, segment)) => {
+        match name_of_ty(qself) {
+          Some(qname) => format!("{}::{}", qname, segment.ident.as_str()),
+          None => segment.ident.as_str().to_owned(),
+        }
+      }
       _ => return None,
     },
     n => n.ident().map(|i| i.as_str().to_owned())?,
