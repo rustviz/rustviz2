@@ -491,7 +491,17 @@ pub fn get_rap(expr: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>) -> Re
   match expr.kind {
     ExprKind::Path(QPath::Resolved(_,p)) => {
       let name = tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
-      ResourceTy::Value(raps.get(&name).unwrap().rap.to_owned())
+      // Fall back to Anonymous when the path resolves to a name we
+      // didn't register as a RAP. The most common cause is a path
+      // expression inside a macro expansion that references a
+      // synthetic local (e.g. modern `println!` expands to refs to
+      // an `args` binding that visit_local declines to register).
+      // Anonymous is the existing return for "unknown resource";
+      // downstream code already handles it.
+      match raps.get(&name) {
+        Some(rd) => ResourceTy::Value(rd.rap.to_owned()),
+        None => ResourceTy::Anonymous,
+      }
     }
     // In a deref expression 
     ExprKind::Unary(UnOp::Deref, expr) => {

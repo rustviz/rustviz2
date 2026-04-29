@@ -385,6 +385,18 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           _ => ()
         }
         let name = self.tcx.hir_name(p.segments[0].hir_id).as_str().to_owned();
+        // Skip path-expression references whose span is from a macro
+        // expansion. Modern `println!`, `format_args!`, etc. expand
+        // to a chain of synthetic references to internal locals (a
+        // synthetic `args` binding, calls to `::core::fmt::*`, etc.)
+        // — visit_local already declines to register synthetic
+        // locals as RAPs, so a lookup here would unwrap None. The
+        // path expressions to user-written variables (e.g. `s`
+        // inside `println!("{}", s)`) keep their user source spans
+        // intact, so this skip doesn't drop them.
+        if expr.span.from_expansion() {
+          return;
+        }
         let r = &self.raps.get(&name).unwrap().rap.clone();
         let line_num = span_to_line(&p.span, &self.tcx);
         self.update_rap(r, line_num);
@@ -721,6 +733,17 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
 
   // locals are let statements: let <pat>:<ty> = <expr>
   fn visit_local(&mut self, local: &'tcx LetStmt<'tcx>) {
+    // Skip macro-expanded `let` bindings. Modern `println!`,
+    // `format_args!`, and friends expand to something like
+    // `let args = ::core::fmt::Arguments::new(...)` followed by a
+    // call to write to stdout — the synthetic `args` local isn't in
+    // the user's source but the plugin would otherwise register it
+    // as a RAP and give it its own timeline column. Same rationale
+    // as the from_expansion check on ExprKind::If/Match: macro
+    // internals shouldn't appear as user-visible variables.
+    if local.span.from_expansion() {
+      return;
+    }
     match local.pat.kind {
       PatKind::Binding(binding_annotation, ann_hirid, ident, _op_pat) => {
         let lhs_var:String = ident.to_string();
