@@ -118,6 +118,17 @@ pub fn get_name_of_pat(pat: &Pat, tcx: &TyCtxt) -> String {
     PatKind::Expr(rustc_hir::PatExpr { kind: rustc_hir::PatExprKind::Path(QPath::Resolved(_, p)), .. }) => {
       string_of_path(&p, tcx)
     }
+    // Literal-pattern arms like `true =>` / `0 =>` show up in
+    // macro-expanded code we have no source-text view of (chiefly
+    // `assert!(cond)`, which expands to a match with `true` and `_`
+    // arms). Render the literal's Debug form as the arm label rather
+    // than panicking; the value is used purely as a label, not for
+    // semantic analysis, so a "Bool(true)" / "Int(0, …)" label is
+    // sufficient. Avoids needing to import rustc_ast for a typed
+    // match on LitKind.
+    PatKind::Expr(rustc_hir::PatExpr { kind: rustc_hir::PatExprKind::Lit { lit, .. }, .. }) => {
+      format!("{:?}", lit.node)
+    }
     PatKind::Wild => {
       String::from("Wild")
     }

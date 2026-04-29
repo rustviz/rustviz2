@@ -409,13 +409,6 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
         };
         self.inside_branch = false;
 
-        // compute liveness
-        // live variables are defined as variables that are defined outside the conditional but 
-        // are used inside of it (the ones whose timelines will have a branch in the visualization)
-        let if_live = get_live_of_expr(if_expr, &self.tcx, &self.raps);
-        let if_decl = get_decl_of_expr(if_expr, &self.tcx, &self.raps);
-        let liveness:HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
-
         // compute split and merge points
         let line_num = expr_to_line(&guard_expr, &self.tcx);
         let split = self.tcx.sess.source_map().lookup_char_pos(if_expr.span.lo()).line;
@@ -424,6 +417,33 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           Some(e) => self.tcx.sess.source_map().lookup_char_pos(e.span.hi()).line,
           None => self.tcx.sess.source_map().lookup_char_pos(if_expr.span.hi()).line
         };
+
+        // compute liveness
+        // live variables are defined as variables that are defined outside the conditional but
+        // are used inside of it (the ones whose timelines will have a branch in the visualization)
+        let if_live = get_live_of_expr(if_expr, &self.tcx, &self.raps);
+        let if_decl = get_decl_of_expr(if_expr, &self.tcx, &self.raps);
+        let mut liveness: HashSet<ResourceAccessPoint> = if_live.union(&else_live).cloned().collect();
+
+        // If the guard sits on a line within the filter range below
+        // (i.e. when the source-level guard and body collapse onto the
+        // same line — the most common cause of this is a macro-expanded
+        // `assert!(cond)` becoming `if !cond { panic!(...) }`, but it
+        // also happens for hand-written one-liners like
+        // `if foo() { bar(); }`), the events emitted while visiting
+        // the guard get filtered into the branch's `e_data` alongside
+        // body events. Without adding the guard's live vars to
+        // `liveness`, the affected variables don't get a Branch entry
+        // on their timelines, and the renderer's fetch_timeline lookup
+        // panics when it tries to find a guard-side event id in the
+        // variable's history. In the normal multi-line case the guard
+        // line is strictly less than `split`, so this conditional is
+        // false and we don't add empty-Branch placeholders to
+        // unrelated timelines.
+        if line_num >= split && line_num <= merge {
+          let guard_live = get_live_of_expr(&guard_expr, &self.tcx, &self.raps);
+          liveness.extend(guard_live);
+        }
 
         // filter events that happened in the if/else block
         let mut if_ev: Vec<(usize, ExternalEvent)> = self.preprocessed_events.iter().filter(|i| filter_ev(i, split, if_end)).cloned().collect();
