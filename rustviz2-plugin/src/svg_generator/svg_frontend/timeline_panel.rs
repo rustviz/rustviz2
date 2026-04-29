@@ -238,14 +238,20 @@ fn prepare_registry(registry: &mut Handlebars) {
         "        <use xlink:href=\"#functionDot\" data-hash=\"{{hash}}\" x=\"{{x}}\" y=\"{{y}}\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\"/>\n";
     let function_logo_template =
         "        <text x=\"{{x}}\" y=\"{{y}}\" data-hash=\"{{hash}}\" class=\"functionLogo tooltip-trigger fn-trigger\" data-tooltip-text=\"{{title}}\">f</text>\n";
-    // Arrow = shaft (polyline) + head (polygon), each carrying the
-    // same tooltip-trigger class and data-tooltip-text. Hovering
-    // either triggers the same tooltip; the head was previously
-    // drawn via `marker-end="url(#arrowHead)"` which lives in a
-    // separate <defs>/<marker> scope and didn't receive hover events
-    // from the polyline.
+    // Arrow = shaft (polyline) + head (polygon) wrapped in a single
+    // <g class="tooltip-trigger"> so the pair is treated as one
+    // hover target: hovering either child triggers `:hover` on the
+    // group, which runs the glow filter over the whole arrow and
+    // bubbles the mousemove event up to the listener on the group.
+    // Previously each child carried its own tooltip-trigger and
+    // glowed independently, which made the shaft and head feel like
+    // two separate things.
+    //
+    // Replaces the older marker-end="url(#arrowHead)" approach —
+    // markers live in <defs> scope and don't receive hover events
+    // from the polylines that reference them.
     let arrow_template =
-        "        <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{{coordinates_hbs}}\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\" style=\"fill: none;\"/>\n        <polygon points=\"{{head_points}}\" fill=\"gray\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\"/> \n";
+        "        <g class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\">\n            <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{{coordinates_hbs}}\" style=\"fill: none;\"/>\n            <polygon points=\"{{head_points}}\" fill=\"gray\"/>\n        </g>\n";
     let vertical_line_template =
         "        <line data-hash=\"{{hash}}\" class=\"{{line_class}} tooltip-trigger\" x1=\"{{x1}}\" x2=\"{{x2}}\" y1=\"{{y1}}\" y2=\"{{y2}}\" data-tooltip-text=\"{{title}}\" style=\"opacity: {{opacity}};\"/>\n";
     let hollow_line_template =
