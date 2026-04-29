@@ -45,6 +45,15 @@ WORKDIR /src
 COPY rv-serve/frontend/package.json rv-serve/frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY rv-serve/frontend/ ./
+# vite.config.ts reads rust-toolchain.toml at build time to inject the
+# pinned rustc channel into the SPA bundle (`Compiles with rustc …`
+# under the Generate button). It uses
+#   resolve(__dirname, '../../rust-toolchain.toml')
+# which lands at /rust-toolchain.toml inside this stage (vite.config.ts
+# is at /src, so two levels up is /). Locally the same relative path
+# walks up from rv-serve/frontend/ to the workspace root, so the same
+# expression works in both contexts as long as we copy the file here.
+COPY rust-toolchain.toml /rust-toolchain.toml
 RUN npm run build
 
 # ---------- 3. final (docker:dind) ----------
