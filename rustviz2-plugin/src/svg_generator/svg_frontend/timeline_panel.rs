@@ -845,17 +845,20 @@ fn render_arrow (
             let cx = timeline.x_val as f64;
             let cy = get_y_axis_pos(*line_number) as f64;
 
-            // Symmetric L: each visible leg is `leg` px from the
-            // bend out to where the arrow head tip sits. The
-            // horizontal leg's polyline must reach `leg + offset`
-            // out from the dot so that after the head pullback
-            // (offset) eats 18 of those, the remaining 22 plus the
-            // 12.75 head tip equals the vertical's 40-line + 12.75
-            // head-cap → both visuals span the same 52.75 px from
-            // bend to tip.
+            // Symmetric L: each visible leg spans `leg` px from
+            // the bend to where the arrow's outermost pixel lies.
+            //   - Vertical: bend_y - top_y = leg.
+            //   - Horizontal: bend_x − tip_x = leg, where the tip
+            //     sits at cx + (head_offset − 12.75) = cx + 5.25
+            //     (12.75 is the marker triangle's protrusion past
+            //     the polyline endpoint at cx + head_offset).
+            // So bend_x = cx + (head_offset − 12.75) + leg, i.e.
+            // `head_offset − 12.75` of clearance past the dot edge,
+            // then a `leg`-long horizontal run to the bend.
             let leg: f64 = 20.0;
             let head_offset: f64 = 18.0;
-            let bend_x = cx + leg + head_offset;
+            let arrow_tip_protrusion: f64 = 12.75;
+            let bend_x = cx + (head_offset - arrow_tip_protrusion) + leg;
             let top_y = cy - leg;
             // Horizontal head end after pullback: the leg of the
             // polyline runs from (bend_x, cy) leftward; pulling
