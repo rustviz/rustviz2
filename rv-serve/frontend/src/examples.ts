@@ -129,7 +129,12 @@ fn takes_ownership(some_string: String) {
       },
       {
         name: "Move on function return",
-        code: `fn f() {
+        // Note: the source.rs in rustviz-tutorial omits the `-> String`
+        // return type. RV1's plugin didn't actually compile the snippet
+        // so the error was invisible there; RV2 runs through rustc and
+        // refuses a `()`-returning fn that yields a String, so we add
+        // the return type to make the snippet typecheck.
+        code: `fn f() -> String {
     let x = String::from("hello");
     // ...
     x

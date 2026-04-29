@@ -117,23 +117,14 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
           }
         }
       }
-      ItemKind::Fn { sig: fn_sig, body: body_id, ident, .. } => {
-        // Only visualize `main` at file scope. Helper functions
-        // (e.g. `compare_strings` / `clear_string` in the Hands-on
-        // tutorial example, or any user-defined helper a snippet
-        // includes for compile-only purposes) make sense as call
-        // targets — the call site in main records the borrow events
-        // we want to render — but visiting their bodies introduces
-        // separate timeline columns for their parameters
-        // (`_a`, `_b`, `_s`, …) that pollute the visualization with
-        // scope the user isn't trying to inspect. The book's RV1
-        // tutorial only ever rendered `main`'s scope; this matches
-        // that. Tutorials wanting to visualize something other than
-        // main are out of scope for now; they can rename the target
-        // to `main` or we can add a config knob later.
-        if ident.as_str() != "main" {
-          continue;
-        }
+      ItemKind::Fn { sig: fn_sig, body: body_id, ident: _, .. } => {
+        // Visualize every fn at file scope. Each fn body becomes its
+        // own set of timelines for its locals and parameters; the
+        // shared `raps` map is keyed by name, so two fns that happen
+        // to use the same parameter / local name will share a column
+        // (and therefore a single timeline). That's a known
+        // limitation — fix when it bites; for the canonical tutorial
+        // examples names don't collide.
         let hir_body = tcx.hir_body(*body_id);
         let def_id = tcx.hir_body_owner_def_id(*body_id);
         let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, def_id);
