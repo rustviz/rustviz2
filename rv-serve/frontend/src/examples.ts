@@ -1,19 +1,28 @@
-// Pre-canned examples for the playground dropdown. Each `code` value is
-// the literal `source.rs` from rustviz/rustviz-tutorial @ master under
-// src/assets/code_examples/<name>/, vendored verbatim. The tutorial
-// itself is RV1-era (uses the SVG-template approach), but its example
-// snippets are clean Rust with no RV1 annotations, so they drop directly
-// into the RV2 playground editor.
+// Pre-canned examples for the playground dropdown. Curated set: only
+// includes the example snippets that the rustviz-tutorial mdBook
+// actually references from its chapter prose (i.e., examples that
+// appear as visualizations in the rendered tutorial). The tutorial
+// repo also contains a number of draft / abandoned snippets in
+// src/assets/code_examples/ that aren't referenced by any chapter
+// markdown — those are intentionally left out.
+//
+// Source: rustviz/rustviz-tutorial @ master.
+//   src/assets/code_examples/<name>/source.rs is the literal Rust
+//   snippet; we vendor it verbatim. The tutorial itself is RV1-era
+//   (uses the SVG-template approach), but its source.rs files are
+//   plain Rust with no RV1 annotations, so they drop directly into
+//   the RV2 playground editor.
 //
 // A handful of these will fail to visualize today because the RV2
 // plugin doesn't yet support every feature the tutorial covers
-// (lifetimes, struct-member borrows, chained method calls, etc.). That
-// surfaces the current plugin gaps to curious users — see
+// (lifetimes, struct-member borrows, chained method calls, etc.).
+// That surfaces the current plugin gaps to curious users — see
 // rustviz2-plugin/README.md for the up-to-date support matrix.
 //
-// To refresh from the tutorial repo, re-run the one-shot fetch
-// pipeline in deploy/deploy.sh's PR description (gh api +
-// jq -r .content | base64 -d) and rebuild this file.
+// To refresh: re-run the one-shot fetch pipeline used to seed this
+// file (gh api repos/rustviz/rustviz-tutorial/contents/src/assets/
+// code_examples/<name>/source.rs --jq '.content' | base64 -d) for
+// each name in the list below, then rebuild.
 
 export type Example = {
   /** Human-readable label for the dropdown option. */
@@ -33,35 +42,7 @@ export const exampleGroups: ExampleGroup[] = [
     chapter: 'Motivation',
     examples: [
       {
-        name: "Hands-on tutorial 1",
-        code: `fn main() {
-    let s = String::from("hello");
-    takes_ownership(s);
-    let mut x = 5;
-    let y = x;
-    x = 6;
-}
-
-fn takes_ownership(some_string: String) {
-    println!("{}", some_string);
-}`,
-      },
-      {
-        name: "Hands-on tutorial 1 (test)",
-        code: `fn main() {
-    let s = String::from("hello");
-    takes_ownership(s);
-    let mut x = 5;
-    let y = x;
-    x = 6;
-}
-
-fn takes_ownership(some_string: String) {
-    println!("{}", some_string);
-}`,
-      },
-      {
-        name: "Hands-on tutorial 2",
+        name: "Hands-on tutorial",
         code: `fn main(){
     let mut s = String::from("hello");
 
@@ -121,12 +102,6 @@ fn plus_one(x: i32) -> i32 {
   {
     chapter: 'Ownership',
     examples: [
-      {
-        name: "String::from",
-        code: `fn main() {
-    let s = String::from("hello");
-}`,
-      },
       {
         name: "Print a String",
         code: `fn main() {
@@ -215,18 +190,6 @@ fn f(s : &String) {
 
 fn f(s1 : &String, s2 : &String) {
     println!("{} and {}", s1, s2);
-}`,
-      },
-      {
-        name: "Mutable borrow",
-        code: `fn main() {
-    let mut x = String::from("Hello");
-    world(&mut x);
-    println!("{}", x);
-}
-
-fn world(s : &mut String) {
-    s.push_str(", world");
 }`,
       },
       {
@@ -368,32 +331,6 @@ fn some_function() {
 
 fn main() {
     some_function();
-}`,
-      },
-    ],
-  },
-  {
-    chapter: 'Extras',
-    examples: [
-      {
-        name: "Extra credit",
-        code: `fn f(s1: &String) {
-    s1.push_str(" 490!");
-}
-
-fn main() {
-    let mut num = 490;
-    let mut x = String::from("EECS");
-    {
-        let y = &mut x;
-        f(y);
-        let mut s2 = x;
-        s2.push_str(" Woo!");
-        println!("{}", s2);
-
-        let n1 = num;
-        println!("{}", n1);
-    }
 }`,
       },
     ],
