@@ -817,14 +817,13 @@ fn render_arrow (
             }
         }
         // Owned function-parameter init: draw an L-shaped arrow
-        // suggesting the resource came from outside this scope. The
-        // L is below the param dot — a short horizontal stub
-        // extending leftward from a bend point, then a vertical
-        // segment going up to the dot's bottom edge with the
-        // arrowhead pointing up. Skipped for ref-typed params
-        // (they're borrows, not ownership transfers); falls through
-        // to the generic logic below for those, which sees an
-        // (Anonymous, Anonymous) extraction and early-returns.
+        // suggesting the resource came from outside this scope —
+        // the head descends from above-right, kinks left at the
+        // dot's row, and lands on the dot's right edge pointing
+        // left. Skipped for ref-typed params (they're borrows, not
+        // ownership transfers); falls through to the generic logic
+        // below for those, which sees an (Anonymous, Anonymous)
+        // extraction and early-returns.
         ExternalEvent::InitRefParam { param, id } => {
             let is_owned = matches!(
                 param,
@@ -836,39 +835,45 @@ fn render_arrow (
             let timeline = fetch_timeline(param.hash(), visualization_data, resource_owners_layout, *id);
             let cx = timeline.x_val as f64;
             let cy = get_y_axis_pos(*line_number) as f64;
-            // Geometry: head end starts at the dot center; the
-            // post-offset pullback (head_offset = 18) shifts it 18
-            // along the line direction toward the bend, putting the
-            // marker tip just past the dot's bottom edge with a
-            // hairline gap, matching the dot-clearing geometry used
-            // by other arrow arms.
+            // L geometry, oriented so the arrowhead comes down from
+            // above and kinks left into the dot:
             //
-            // L dimensions: 40px tall vertical (≈22px visible after
-            // offset) and a 20px horizontal stub. Big enough to
-            // read "from outside this scope" at a glance, small
-            // enough to fit between adjacent timeline lines.
+            //          (stub_top)             ← source, above the bend
+            //              │
+            //              │                  ← vertical descent
+            //              │
+            //  ●──────────(bend)              ← horizontal stub, head pointing
+            //  param dot                        left at the dot's right edge
+            //
+            // Head end starts at the dot center; the pullback (18)
+            // shifts coord[0] along the line direction toward the
+            // bend, putting the marker tip just past the dot's
+            // right edge with a hairline gap (same dot-clearing
+            // geometry the other arrow arms use).
+            //
+            // Dimensions: 30px vertical descent, 20px horizontal
+            // stub. Big enough to read at a glance, small enough
+            // to fit in the blank above the fn header without
+            // overlapping the previous line's content.
             let head_offset: f64 = 18.0;
-            let bend_y = cy + 40.0;
-            let stub_x = cx - 20.0;
-            // Pre-offset coordinates: [head end, bend, source].
-            // After the post-loop offset, coord[0] moves down by 18
-            // (line direction at the endpoint is up → pulling back
-            // shifts toward coord[1] = down).
+            let bend_x = cx + 20.0;
+            let stub_top_y = cy - 30.0;
             let mut data = ArrowData {
                 coordinates: vec![
-                    (cx, cy),         // head end (will be pulled back to (cx, cy + 18))
-                    (cx, bend_y),     // bend (bottom-right of L)
-                    (stub_x, bend_y), // source (bottom-left of L)
+                    (cx, cy),             // head end (pulled to (cx + 18, cy))
+                    (bend_x, cy),         // bend (right of dot, same y)
+                    (bend_x, stub_top_y), // source (above-right)
                 ],
                 coordinates_hbs: String::new(),
                 head_points: String::new(),
                 title: hover_messages::event_dot_owner_init_from_caller(&param.name().to_string()),
             };
 
-            // Apply the same head-pullback the other arms get from
-            // the post-match offset block. Inlined here because we
-            // bypass the (from, to) match below.
-            data.coordinates[0].1 += head_offset;
+            // Apply head-pullback inline (we bypass the post-match
+            // offset block). Direction at endpoint runs from coord[1]
+            // (bend, to the right) toward coord[0] (head end at dot)
+            // → leftward, so the pullback adds 18 in +x.
+            data.coordinates[0].0 += head_offset;
 
             // Compute head triangle (matches the marker geometry the
             // post-match block produces — viewBox 0 0 10 10,
