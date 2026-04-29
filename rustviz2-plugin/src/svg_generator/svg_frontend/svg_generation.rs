@@ -280,13 +280,21 @@ pub fn render_svg(
     // data for tl panel
     let (timeline_panel_string, max_width) = timeline_panel::render_timeline_panel(visualization_data);
     
+    // Code-panel width: scale with the longest source line so long
+    // function signatures (e.g. `fn compare_strings(_a: &String,
+    // _b: &String) -> bool {`) aren't clipped at the SVG's right
+    // edge. ~9 px per char at the rendered code font is a reasonable
+    // approximation; +40 px padding accounts for the line-number
+    // gutter and a little right-side margin. Cap to a 400 px floor so
+    // tiny snippets keep the historical visual proportions.
+    let code_panel_width = std::cmp::max(400, (max_x_space as i32) * 9 + 40);
     let mut svg_data = SvgData {
         visualization_name: "vis".to_owned(),
         css: css_string.to_owned(),
         code: code_panel_string,
         diagram: timeline_panel_string,
         tl_id: "tl_".to_owned() + "vis",
-        tl_width: 400,
+        tl_width: code_panel_width,
         height: (num_lines * LINE_SPACE as i32 + 80) + 50,
     };
 
