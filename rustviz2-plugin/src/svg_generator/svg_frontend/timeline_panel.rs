@@ -856,7 +856,7 @@ fn render_arrow (
             // 12.75 head tip equals the vertical's 40-line + 12.75
             // head-cap → both visuals span the same 52.75 px from
             // bend to tip.
-            let leg: f64 = 40.0;
+            let leg: f64 = 20.0;
             let head_offset: f64 = 18.0;
             let bend_x = cx + leg + head_offset;
             let top_y = cy - leg;
