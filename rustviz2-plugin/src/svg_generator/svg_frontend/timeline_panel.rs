@@ -821,6 +821,25 @@ fn render_arrow (
 
             let arrow_length = 20;
 
+            // How far to pull the polyline endpoint back along the
+            // arrow's direction before drawing, so the marker-end
+            // arrow head's tip lands on the destination's near edge
+            // rather than over its center.
+            //
+            // arrowHead marker geometry: viewBox 0 0 10 10, refX=0,
+            // markerWidth=3 × strokeWidth=5 = 15 user units, tip at
+            // viewBox x=8.5 → ~12.75px past the polyline endpoint.
+            //
+            //   - For arrows ending on a 5px-radius event dot we want
+            //     12.75 + 5 = ~17.75 of pullback. 18 leaves a hairline
+            //     gap so the head doesn't touch the dot.
+            //   - For arrows ending at a function logo (no dot to
+            //     overlap, the head should sit close to the `f`)
+            //     the long-standing 10px works visually.
+            //
+            // Each arm of the match below sets this based on what its
+            // marker-end actually points at.
+            let mut head_offset: f64 = 18.0;
 
             match (from, to, external_event) {
                 (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _)  => {  // (Some(function), Some(variable), _)
@@ -828,7 +847,12 @@ fn render_arrow (
                     // arrow go from (x2, y2) -> (x1, y1)
                     // get position of to_variable
                     let to_timeline = fetch_timeline(to_variable.hash(), visualization_data, resource_owners_layout, external_event.get_id());
-                    let x1 = to_timeline.x_val + 3; // adjust arrow head pos
+                    // Anchor the polyline endpoint on the dot center;
+                    // the post-match `head_offset` pullback (18px)
+                    // moves it the right distance to land the tip on
+                    // the dot's near edge. The historical `+ 3` was
+                    // a hand-tuned partial fix for the same problem.
+                    let x1 = to_timeline.x_val;
                     let x2 = x1 + arrow_length;
                     let y1 = get_y_axis_pos(*line_number);
                     let y2 = get_y_axis_pos(*line_number);
@@ -890,6 +914,10 @@ fn render_arrow (
                     let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
                     //  ro1 (to_function) <- ro2 (from_variable)
                     let from_timeline = fetch_timeline(from_variable.hash(), visualization_data, resource_owners_layout, external_event.get_id());
+                    // Marker-end terminates near the function logo
+                    // (no dot to clear) so the gentler 10px pullback
+                    // looks better than the dot-clearing 18px.
+                    head_offset = 10.0;
                     let x2 = from_timeline.x_val - 5;
                     let x1 = x2 - arrow_length;
                     let y1 = get_y_axis_pos(*line_number);
@@ -973,12 +1001,12 @@ fn render_arrow (
                     // <-------------------
                     if data.coordinates[0].0 < data.coordinates[last_index].0 {
 
-                        data.coordinates[0].0 += 10 as f64;
+                        data.coordinates[0].0 += head_offset;
                     }
                     // [last index]     [0]
                     // ------------------->
                     else {
-                        data.coordinates[0].0 -= 10 as f64;
+                        data.coordinates[0].0 -= head_offset;
                     }
                 } else {
 
@@ -986,15 +1014,15 @@ fn render_arrow (
                         let hypotenuse = (((data.coordinates[1].0 - data.coordinates[0].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
                         let cos_ratio = ((data.coordinates[1].0 - data.coordinates[0].0) as f64) / hypotenuse;
                         let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
-                        data.coordinates[0].0 += cos_ratio*10 as f64;
-                        data.coordinates[0].1 += sin_ratio*10 as f64;
+                        data.coordinates[0].0 += cos_ratio * head_offset;
+                        data.coordinates[0].1 += sin_ratio * head_offset;
                     }
                     else {
                         let hypotenuse = (((data.coordinates[0].0 - data.coordinates[1].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
                         let cos_ratio = ((data.coordinates[0].0 - data.coordinates[1].0) as f64) / hypotenuse;
                         let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
-                        data.coordinates[0].0 -= cos_ratio*10 as f64;
-                        data.coordinates[0].1 += sin_ratio*10 as f64;
+                        data.coordinates[0].0 -= cos_ratio * head_offset;
+                        data.coordinates[0].1 += sin_ratio * head_offset;
                     }
                 }
 
