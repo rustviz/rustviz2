@@ -15,10 +15,23 @@ p {
 }
 
 
-/* Set editor dimensions */
+/* Sized to fit ~120 monospace characters of code + the line-number
+   gutter + the 5px border on each side, using a fixed pixel width
+   instead of `width: 50%`. With the percentage-based width the box
+   resized whenever the viewport did, so the right edge floated
+   relative to the prose; users now get a predictable column the
+   same way real code editors do. The `max-width` is a guard for
+   narrow windows: it lets the box shrink below 1060 px when the
+   viewport gets too small to fit, instead of overflowing past the
+   right edge.
+   The 1060 px figure is approximate — derived from a 14 px monospace
+   font where '0' is ~8.4 px wide, so 120 chars ≈ 1008 px, plus ~40 px
+   for a 4-digit line-number gutter, plus 10 px of border. Tweak if a
+   future font change throws the alignment off. */
 #editor {
     height: 300px;
-    width: 50%;
+    width: 1060px;
+    max-width: calc(100% - 100px);
     margin-left: 50px;
 }
 
@@ -29,6 +42,11 @@ p {
     border-style: solid;
     border-width: 5px;
     border-radius: 5px;
+    /* Pin the font-size so the column width above (1060 px) remains a
+       reasonable approximation of "120 chars". Without this the box
+       would render at the user-agent default (often 16 px), which
+       would make 120 chars overflow the box. */
+    font-size: 14px;
 }
 
 /* Button styles */
