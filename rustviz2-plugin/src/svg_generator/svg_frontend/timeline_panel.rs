@@ -816,14 +816,26 @@ fn render_arrow (
                 }
             }
         }
-        // Owned function-parameter init: draw an L-shaped arrow
-        // suggesting the resource came from outside this scope —
-        // the head descends from above-right, kinks left at the
-        // dot's row, and lands on the dot's right edge pointing
-        // left. Skipped for ref-typed params (they're borrows, not
-        // ownership transfers); falls through to the generic logic
-        // below for those, which sees an (Anonymous, Anonymous)
-        // extraction and early-returns.
+        // Owned function-parameter init: draw a symmetric L-shaped
+        // arrow on the right side of the param dot. The vertical
+        // leg descends from above with an inward-pointing
+        // arrowhead at its top (signaling "ownership coming in
+        // from the caller"), bends at the dot's row, and a
+        // horizontal stub lands on the dot's right edge with a
+        // second arrowhead pointing left into the dot.
+        //
+        //              ▼   ← top arrowhead, tip at line's start,
+        //              │     base above (inward-facing — the body
+        //              │     of the arrow lies below the tip).
+        //              │   ← vertical descent
+        //              │
+        //   ●──────────┘   ← bend; horizontal stub ends at the
+        //   param dot       dot's right edge (head pointing left).
+        //
+        // Skipped for ref-typed params (they're borrows, not
+        // ownership transfers); falls through to the generic
+        // logic below for those, which sees an (Anonymous,
+        // Anonymous) extraction and early-returns.
         ExternalEvent::InitRefParam { param, id } => {
             let is_owned = matches!(
                 param,
@@ -835,73 +847,71 @@ fn render_arrow (
             let timeline = fetch_timeline(param.hash(), visualization_data, resource_owners_layout, *id);
             let cx = timeline.x_val as f64;
             let cy = get_y_axis_pos(*line_number) as f64;
-            // L geometry, oriented so the arrowhead comes down from
-            // above and kinks left into the dot:
-            //
-            //          (stub_top)             ← source, above the bend
-            //              │
-            //              │                  ← vertical descent
-            //              │
-            //  ●──────────(bend)              ← horizontal stub, head pointing
-            //  param dot                        left at the dot's right edge
-            //
-            // Head end starts at the dot center; the pullback (18)
-            // shifts coord[0] along the line direction toward the
-            // bend, putting the marker tip just past the dot's
-            // right edge with a hairline gap (same dot-clearing
-            // geometry the other arrow arms use).
-            //
-            // Dimensions: 30px vertical descent, 20px horizontal
-            // stub. Big enough to read at a glance, small enough
-            // to fit in the blank above the fn header without
-            // overlapping the previous line's content.
+
+            // Symmetric L: each visible leg is `leg` px from the
+            // bend out to where the arrow head tip sits. The
+            // horizontal leg's polyline must reach `leg + offset`
+            // out from the dot so that after the head pullback
+            // (offset) eats 18 of those, the remaining 22 plus the
+            // 12.75 head tip equals the vertical's 40-line + 12.75
+            // head-cap → both visuals span the same 52.75 px from
+            // bend to tip.
+            let leg: f64 = 40.0;
             let head_offset: f64 = 18.0;
-            let bend_x = cx + 20.0;
-            let stub_top_y = cy - 30.0;
-            let mut data = ArrowData {
-                coordinates: vec![
-                    (cx, cy),             // head end (pulled to (cx + 18, cy))
-                    (bend_x, cy),         // bend (right of dot, same y)
-                    (bend_x, stub_top_y), // source (above-right)
-                ],
-                coordinates_hbs: String::new(),
-                head_points: String::new(),
-                title: hover_messages::event_dot_owner_init_from_caller(&param.name().to_string()),
-            };
+            let bend_x = cx + leg + head_offset;
+            let top_y = cy - leg;
+            // Horizontal head end after pullback: the leg of the
+            // polyline runs from (bend_x, cy) leftward; pulling
+            // back by 18 puts the polyline endpoint at cx + 18.
+            // The arrow head's tip then extends 12.75 further
+            // leftward, landing 0.25px past the dot's right edge.
+            let head_x = cx + head_offset;
+            let head_y = cy;
 
-            // Apply head-pullback inline (we bypass the post-match
-            // offset block). Direction at endpoint runs from coord[1]
-            // (bend, to the right) toward coord[0] (head end at dot)
-            // → leftward, so the pullback adds 18 in +x.
-            data.coordinates[0].0 += head_offset;
-
-            // Compute head triangle (matches the marker geometry the
-            // post-match block produces — viewBox 0 0 10 10,
-            // markerWidth=3 × strokeWidth=5 in user units, tip 12.75
-            // along line direction, base half-height 6).
-            let ex = data.coordinates[0].0;
-            let ey = data.coordinates[0].1;
-            let dx = ex - data.coordinates[1].0;
-            let dy = ey - data.coordinates[1].1;
-            let len = (dx * dx + dy * dy).sqrt();
-            let (cos, sin) = if len > 0.0 { (dx / len, dy / len) } else { (0.0, -1.0) };
-            let v1 = (ex + 6.0 * sin, ey - 6.0 * cos);
-            let v2 = (ex + 12.75 * cos, ey + 12.75 * sin);
-            let v3 = (ex - 6.0 * sin, ey + 6.0 * cos);
-            data.head_points = format!(
-                "{},{} {},{} {},{}",
-                v1.0, v1.1, v2.0, v2.1, v3.0, v3.1
+            // Polyline string in render order (source → bend → head).
+            let polyline_pts = format!(
+                "{} {} {} {} {} {}",
+                bend_x, top_y,   // source = top of vertical leg
+                bend_x, cy,      // bend
+                head_x, head_y,  // head end (pulled-back)
             );
 
-            // Polyline string is the coordinate list popped in
-            // reverse (source first, head last) to match the rest
-            // of the renderer.
-            while !data.coordinates.is_empty() {
-                let recent = data.coordinates.pop().unwrap();
-                data.coordinates_hbs.push_str(&format!("{} {} ", recent.0, recent.1));
-            }
+            // Bottom arrowhead: at the polyline endpoint, line
+            // direction at endpoint = leftward (-1, 0), so the
+            // tip extends 12.75 leftward from the endpoint; base
+            // is 6 above and below. Same geometry the other arrow
+            // arms produce.
+            let bot_v1 = (head_x, head_y + 6.0);
+            let bot_v2 = (head_x - 12.75, head_y);
+            let bot_v3 = (head_x, head_y - 6.0);
 
-            let rendered = registry.render("arrow_template", &data).unwrap();
+            // Top arrowhead (inward facing): tip AT the polyline
+            // start (bend_x, top_y) pointing DOWN, base 12.75
+            // above with half-width 6 — same triangle dimensions,
+            // mirrored so the body of the head sits ABOVE the
+            // line and only the tip touches it. Visually the head
+            // is a downward chevron capping the vertical leg.
+            let top_v1 = (bend_x - 6.0, top_y - 12.75);
+            let top_v2 = (bend_x, top_y);
+            let top_v3 = (bend_x + 6.0, top_y - 12.75);
+
+            let title = hover_messages::event_dot_owner_init_from_caller(&param.name().to_string());
+
+            // Custom inline emit (template can't express two
+            // polygons). Same outer <g> shape as arrow_template
+            // so hover/glow/tooltip behavior is identical.
+            let rendered = format!(
+                "        <g class=\"tooltip-trigger\" data-tooltip-text=\"{title}\">\n\
+                    \x20           <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{polyline_pts}\" style=\"fill: none;\"/>\n\
+                    \x20           <polygon points=\"{},{} {},{} {},{}\" fill=\"gray\"/>\n\
+                    \x20           <polygon points=\"{},{} {},{} {},{}\" fill=\"gray\"/>\n\
+                    \x20       </g>\n",
+                bot_v1.0, bot_v1.1, bot_v2.0, bot_v2.1, bot_v3.0, bot_v3.1,
+                top_v1.0, top_v1.1, top_v2.0, top_v2.1, top_v3.0, top_v3.1,
+                title = title,
+                polyline_pts = polyline_pts,
+            );
+
             if timeline.is_struct_group {
                 if timeline.is_member {
                     output.get_mut(&(timeline.owner.to_owned() as i64)).unwrap().1.arrows.push_str(&rendered);
