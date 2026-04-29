@@ -845,19 +845,18 @@ fn render_arrow (
             let cx = timeline.x_val as f64;
             let cy = get_y_axis_pos(*line_number) as f64;
 
-            // Both legs are `leg`-px stroke segments measured
-            // bend → polyline endpoint, so the *line* portion of
-            // each leg has the same length. The arrowhead on the
-            // horizontal sits beyond the polyline endpoint as an
-            // extra cap (its 12.75-px protrusion isn't counted
-            // against the leg's line length, otherwise the
-            // arrowhead-leg ends up with a tiny stub of stroke
-            // and looks visually amputated next to the all-stroke
-            // vertical).
-            let leg: f64 = 20.0;
+            // L sized so each visible leg spans the same total
+            // distance from the bend (`target_visible`), making
+            // the L a square. The arrowhead-leg's stroke is `leg`
+            // long; the arrowhead body adds the remaining 12.75
+            // protrusion. The arrowless leg's stroke fills the
+            // full `target_visible` distance directly.
+            let leg: f64 = 10.0;
             let head_offset: f64 = 18.0;
+            let arrow_tip_protrusion: f64 = 12.75;
+            let target_visible: f64 = leg + arrow_tip_protrusion;
             let bend_x = cx + head_offset + leg;
-            let top_y = cy - leg;
+            let top_y = cy - target_visible;
             // Horizontal head end after pullback: the leg of the
             // polyline runs from (bend_x, cy) leftward; pulling
             // back by 18 puts the polyline endpoint at cx + 18.
@@ -935,17 +934,15 @@ fn render_arrow (
             let cx = timeline.x_val as f64;
             let cy = get_y_axis_pos(*line_number) as f64;
 
-            let leg: f64 = 20.0;
+            let leg: f64 = 10.0;
             let head_offset: f64 = 18.0;
             let arrow_tip_protrusion: f64 = 12.75;
             // Bend at the same x as the InitRefParam L's bend
             // (cx + head_offset + leg), so caller-in and caller-
             // out arrows have their vertical legs at the same
-            // column. The output L has no horizontal arrowhead
-            // eating up space, so its horizontal stroke spans
-            // the full bend-to-(dot edge + 0.25) distance —
-            // longer than the input L's stroke, but the visible
-            // horizontal widths match.
+            // column. Arrow-bearing leg's stroke is `leg`; the
+            // arrowless horizontal stroke spans the full
+            // bend-to-source distance so the L is a square.
             let source_x = cx + 5.25;
             let bend_x = cx + head_offset + leg;
             let head_end_y = cy - leg;
