@@ -49,6 +49,15 @@ pub fn event_dot_owner_go_out_out_scope(my_name: &String) -> String {
     )                             //was moved from the variable earlier.
 }
 
+// An owned (non-ref) function parameter receives its resource from
+// whatever the caller passed. The L-shaped arrow on the param's
+// timeline visually anchors that "from outside this scope" origin;
+// this is its tooltip and the matching dot tooltip.
+pub fn event_dot_owner_init_from_caller(my_name: &String) -> String {
+    let my_name_fmt = fmt_style(my_name);
+    format!("{0} acquires ownership from the caller", my_name_fmt)
+}
+
 // Reassignment drops the previous resource (owned, non-Copy) AND
 // acquires a new one — both happen on the same line. The drop dot
 // is drawn on top of the regular Acquire dot at the same position,

@@ -864,11 +864,11 @@ impl Display for Event {
 impl Event {
     pub fn get_id(&self) -> usize {
         match self {
-            Event::Duplicate {id: x , ..} | Event::Move {id: x, ..} | Event::StaticLend {id : x, ..} | 
-            Event::MutableLend {id: x, ..} | Event::MutableDie {id: x, ..} | Event::StaticDie {id: x, ..} | 
+            Event::Duplicate {id: x , ..} | Event::Move {id: x, ..} | Event::StaticLend {id : x, ..} |
+            Event::MutableLend {id: x, ..} | Event::MutableDie {id: x, ..} | Event::StaticDie {id: x, ..} |
             Event::Acquire { id: x, .. } | Event::Copy { id: x, .. } | Event::MutableBorrow { id: x, .. } |
             Event::StaticBorrow { id: x, .. } | Event::StaticReacquire { id: x, .. } | Event::MutableReacquire {id: x, ..}
-            | Event::Branch { id: x, .. } => {
+            | Event::Branch { id: x, .. } | Event::InitRefParam { id: x, .. } => {
                 *x
             }
             _ => 1000000000
@@ -923,8 +923,17 @@ impl Event {
             Event::OwnerDropAtReassign => {
                 hover_messages::event_dot_owner_drop_at_reassign(my_name)
             }
-            Event::InitRefParam{ param: _, .. } => {
-                hover_messages::event_dot_init_param(my_name)
+            Event::InitRefParam{ param, .. } => {
+                // Owner / Struct params receive ownership from the
+                // caller — call that out by name so the dot's hover
+                // matches the L-arrow's. Ref params are just borrows
+                // and keep the older generic message.
+                match param {
+                    ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) => {
+                        hover_messages::event_dot_owner_init_from_caller(my_name)
+                    }
+                    _ => hover_messages::event_dot_init_param(my_name),
+                }
             }
             // arrow going out
             Event::Duplicate{ to ,..} => {

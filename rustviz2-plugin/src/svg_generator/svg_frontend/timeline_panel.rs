@@ -1,5 +1,6 @@
 extern crate handlebars;
 use crate::svg_generator::data::{convert_back, string_of_branch, string_of_external_event, BranchType, Event, ExternalEvent, LineState, ResourceAccessPoint, ResourceAccessPoint_extract, ResourceTy, State, StructsInfo, Visualizable, VisualizationData, LINE_SPACE};
+use crate::svg_generator::hover_messages;
 use crate::svg_generator::svg_frontend::line_styles::OwnerLine;
 use handlebars::Handlebars;
 use std::collections::{BTreeMap, HashMap};
@@ -815,6 +816,97 @@ fn render_arrow (
                 }
             }
         }
+        // Owned function-parameter init: draw an L-shaped arrow
+        // suggesting the resource came from outside this scope. The
+        // L is below the param dot — a short horizontal stub
+        // extending leftward from a bend point, then a vertical
+        // segment going up to the dot's bottom edge with the
+        // arrowhead pointing up. Skipped for ref-typed params
+        // (they're borrows, not ownership transfers); falls through
+        // to the generic logic below for those, which sees an
+        // (Anonymous, Anonymous) extraction and early-returns.
+        ExternalEvent::InitRefParam { param, id } => {
+            let is_owned = matches!(
+                param,
+                ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_)
+            );
+            if !is_owned {
+                return;
+            }
+            let timeline = fetch_timeline(param.hash(), visualization_data, resource_owners_layout, *id);
+            let cx = timeline.x_val as f64;
+            let cy = get_y_axis_pos(*line_number) as f64;
+            // Geometry: head end starts at the dot center; the
+            // post-offset pullback (head_offset = 18) shifts it 18
+            // along the line direction toward the bend, putting the
+            // marker tip just past the dot's bottom edge with a
+            // hairline gap, matching the dot-clearing geometry used
+            // by other arrow arms.
+            //
+            // L dimensions: 40px tall vertical (≈22px visible after
+            // offset) and a 20px horizontal stub. Big enough to
+            // read "from outside this scope" at a glance, small
+            // enough to fit between adjacent timeline lines.
+            let head_offset: f64 = 18.0;
+            let bend_y = cy + 40.0;
+            let stub_x = cx - 20.0;
+            // Pre-offset coordinates: [head end, bend, source].
+            // After the post-loop offset, coord[0] moves down by 18
+            // (line direction at the endpoint is up → pulling back
+            // shifts toward coord[1] = down).
+            let mut data = ArrowData {
+                coordinates: vec![
+                    (cx, cy),         // head end (will be pulled back to (cx, cy + 18))
+                    (cx, bend_y),     // bend (bottom-right of L)
+                    (stub_x, bend_y), // source (bottom-left of L)
+                ],
+                coordinates_hbs: String::new(),
+                head_points: String::new(),
+                title: hover_messages::event_dot_owner_init_from_caller(&param.name().to_string()),
+            };
+
+            // Apply the same head-pullback the other arms get from
+            // the post-match offset block. Inlined here because we
+            // bypass the (from, to) match below.
+            data.coordinates[0].1 += head_offset;
+
+            // Compute head triangle (matches the marker geometry the
+            // post-match block produces — viewBox 0 0 10 10,
+            // markerWidth=3 × strokeWidth=5 in user units, tip 12.75
+            // along line direction, base half-height 6).
+            let ex = data.coordinates[0].0;
+            let ey = data.coordinates[0].1;
+            let dx = ex - data.coordinates[1].0;
+            let dy = ey - data.coordinates[1].1;
+            let len = (dx * dx + dy * dy).sqrt();
+            let (cos, sin) = if len > 0.0 { (dx / len, dy / len) } else { (0.0, -1.0) };
+            let v1 = (ex + 6.0 * sin, ey - 6.0 * cos);
+            let v2 = (ex + 12.75 * cos, ey + 12.75 * sin);
+            let v3 = (ex - 6.0 * sin, ey + 6.0 * cos);
+            data.head_points = format!(
+                "{},{} {},{} {},{}",
+                v1.0, v1.1, v2.0, v2.1, v3.0, v3.1
+            );
+
+            // Polyline string is the coordinate list popped in
+            // reverse (source first, head last) to match the rest
+            // of the renderer.
+            while !data.coordinates.is_empty() {
+                let recent = data.coordinates.pop().unwrap();
+                data.coordinates_hbs.push_str(&format!("{} {} ", recent.0, recent.1));
+            }
+
+            let rendered = registry.render("arrow_template", &data).unwrap();
+            if timeline.is_struct_group {
+                if timeline.is_member {
+                    output.get_mut(&(timeline.owner.to_owned() as i64)).unwrap().1.arrows.push_str(&rendered);
+                } else {
+                    output.get_mut(&(timeline.owner.to_owned() as i64)).unwrap().0.arrows.push_str(&rendered);
+                }
+            } else {
+                output.get_mut(&-1).unwrap().0.arrows.push_str(&rendered);
+            }
+        }
         _ => {
             // get the resource owners involved in the event
             let (from, to) = ResourceAccessPoint_extract(external_event);
@@ -1111,13 +1203,18 @@ fn render_arrows_string_external_events_version(
     for (line_number, external_event) in &visualization_data.external_events {
         match external_event {
             // events that should be skipped (we don't render arrows for them)
-            ExternalEvent::Bind {..} | ExternalEvent::GoOutOfScope {..} | ExternalEvent::InitRefParam { .. }
+            ExternalEvent::Bind {..} | ExternalEvent::GoOutOfScope {..}
             | ExternalEvent::RefDie {..} => {}
+            // InitRefParam falls into render_arrow because owned-param
+            // initializations get an L-shaped "ownership from caller"
+            // arrow there. Ref params are filtered out inside
+            // render_arrow itself rather than here, since the
+            // event-vs-arrow split is already a render_arrow concern.
 
             _ => {
 
                 // render external event arrow
-                render_arrow(line_number, 
+                render_arrow(line_number,
                     external_event,
                     output, visualization_data, resource_owners_layout, registry)
             }
