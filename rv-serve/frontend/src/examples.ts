@@ -1,10 +1,17 @@
 // Pre-canned examples for the playground dropdown. Curated set: only
-// includes the example snippets that the rustviz-tutorial mdBook
-// actually references from its chapter prose (i.e., examples that
-// appear as visualizations in the rendered tutorial). The tutorial
-// repo also contains a number of draft / abandoned snippets in
-// src/assets/code_examples/ that aren't referenced by any chapter
-// markdown — those are intentionally left out.
+// includes example snippets that the rustviz-tutorial mdBook actually
+// renders as RustViz visualizations — i.e., chapter prose embeds them
+// via the visualization SVGs (`code_examples/<name>/vis_code.svg` and
+// `vis_timeline.svg`). Snippets that the book embeds only as plain
+// code blocks (the entire Rust basics chapter — copy, function,
+// immutable_variable, mutable_variables, printing) are not part of
+// the visual tutorial experience, so they're left out of the
+// playground's dropdown.
+//
+// Snippets in src/assets/code_examples/ that aren't referenced by
+// any chapter markdown at all (drafts, abandoned variants — hatra1,
+// hatra1_test, mutable_borrow, string_from, extra_credit) are also
+// intentionally left out.
 //
 // Source: rustviz/rustviz-tutorial @ master.
 //   src/assets/code_examples/<name>/source.rs is the literal Rust
@@ -52,49 +59,15 @@ export const exampleGroups: ExampleGroup[] = [
 
     let r3 = &mut s;
     clear_string(r3);
-}`,
-      },
-    ],
-  },
-  {
-    chapter: 'Rust basics',
-    examples: [
-      {
-        name: "Immutable variable",
-        code: `fn main() {
-    let x = 5;
-}`,
-      },
-      {
-        name: "Mutable variables",
-        code: `fn main() {
-    let mut x = 5;
-    x = 6; //OK
-}`,
-      },
-      {
-        name: "Copy types",
-        code: `fn main() {
-    let x = 5;
-    let y = x;
-}`,
-      },
-      {
-        name: "Printing",
-        code: `fn main() {
-    let x = 1;
-    let y = 2;
-    println!("x = {} and y = {}", x, y);
-}`,
-      },
-      {
-        name: "Function",
-        code: `fn main() {
-    let six = plus_one(5);
 }
 
-fn plus_one(x: i32) -> i32 {
-    x + 1
+fn compare_strings(_a: &String, _b: &String) -> bool {
+    // body elided
+    true
+}
+
+fn clear_string(_s: &mut String) {
+    // body elided
 }`,
       },
     ],
