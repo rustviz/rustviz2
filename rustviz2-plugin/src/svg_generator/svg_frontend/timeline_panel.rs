@@ -910,11 +910,87 @@ fn render_arrow (
                 output.get_mut(&-1).unwrap().0.arrows.push_str(&rendered);
             }
         }
+        // Move/Copy out to the caller (function tail expression):
+        // mirror of the InitRefParam L on the dot's *left* side —
+        // the polyline starts just past the dot's left edge, runs
+        // left to a bend, then up, with an arrowhead at the top
+        // pointing UP into mid-air. Same leg dimensions and gap
+        // conventions, mirrored across the dot.
+        //
+        //   ┌
+        //   │
+        //   │   ← vertical ascent, head pointing UP at tip
+        //   │
+        //   └──────────●   ← bend; horizontal stub touches the
+        //              return value dot at its left edge.
+        //
+        ExternalEvent::Move { from, to: ResourceTy::Caller, id, .. }
+        | ExternalEvent::Copy { from, to: ResourceTy::Caller, id, .. } => {
+            let rap = match from.extract_rap() {
+                Some(r) => r,
+                None => return,
+            };
+            let timeline = fetch_timeline(rap.hash(), visualization_data, resource_owners_layout, *id);
+            let cx = timeline.x_val as f64;
+            let cy = get_y_axis_pos(*line_number) as f64;
+
+            let leg: f64 = 20.0;
+            let arrow_tip_protrusion: f64 = 12.75;
+            // Mirror of the input L: bend sits `leg` left of the
+            // dot edge (with a 0.25 hairline gap), top is `leg`
+            // above the bend, and the arrow head's tip lands at
+            // the conceptual top.
+            let bend_x = cx - 5.25 - leg;
+            let source_x = cx - 5.25;
+            // The polyline endpoint is `leg − 12.75 = 7.25` above
+            // the bend; the arrow head's tip then extends another
+            // 12.75 above that, landing at cy − leg.
+            let head_end_y = cy - leg + arrow_tip_protrusion;
+
+            let polyline_pts = format!(
+                "{} {} {} {} {} {}",
+                source_x, cy,        // source = dot's left edge (open end)
+                bend_x, cy,          // bend
+                bend_x, head_end_y,  // head end (pulled-back below the tip)
+            );
+
+            // Arrowhead at the top of the vertical, pointing UP.
+            // Direction at endpoint = (0, -1), tip extends 12.75
+            // upward; base half-width 6 to either side.
+            let head_v1 = (bend_x - 6.0, head_end_y);
+            let head_v2 = (bend_x, head_end_y - arrow_tip_protrusion);
+            let head_v3 = (bend_x + 6.0, head_end_y);
+
+            let title = hover_messages::event_dot_move_to_caller(
+                &rap.name().to_string(),
+                &"the caller".to_string(),
+            );
+
+            let rendered = format!(
+                "        <g class=\"tooltip-trigger\" data-tooltip-text=\"{title}\">\n\
+                    \x20           <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{polyline_pts}\" style=\"fill: none;\"/>\n\
+                    \x20           <polygon points=\"{},{} {},{} {},{}\" fill=\"gray\"/>\n\
+                    \x20       </g>\n",
+                head_v1.0, head_v1.1, head_v2.0, head_v2.1, head_v3.0, head_v3.1,
+                title = title,
+                polyline_pts = polyline_pts,
+            );
+
+            if timeline.is_struct_group {
+                if timeline.is_member {
+                    output.get_mut(&(timeline.owner.to_owned() as i64)).unwrap().1.arrows.push_str(&rendered);
+                } else {
+                    output.get_mut(&(timeline.owner.to_owned() as i64)).unwrap().0.arrows.push_str(&rendered);
+                }
+            } else {
+                output.get_mut(&-1).unwrap().0.arrows.push_str(&rendered);
+            }
+        }
         _ => {
             // get the resource owners involved in the event
             let (from, to) = ResourceAccessPoint_extract(external_event);
             match (from, to) { // don't render arrow for anything to caller or anonymous or fn -> fn
-                (ResourceTy::Anonymous, _) | (_, ResourceTy::Caller) | (_, ResourceTy::Anonymous) 
+                (ResourceTy::Anonymous, _) | (_, ResourceTy::Caller) | (_, ResourceTy::Anonymous)
                 | (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_))) => return,
                 _ => {}
             }
