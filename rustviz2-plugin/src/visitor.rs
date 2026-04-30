@@ -75,10 +75,30 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
       PatKind::Binding(binding_annotation, _ann_hirid, ident, _op_pat) =>{
         let name: String = ident.to_string();
         if ty.is_ref() {
-          self.add_ref(name.clone(), 
+          // A fn parameter of reference type is conceptually a
+          // borrow that came from the caller's frame. Model that
+          // explicitly so the borrow region renders for the full
+          // function body and the matching return-of-borrow
+          // (StaticDie / MutableDie emitted by print_lifetimes)
+          // lands at the fn body's closing brace rather than the
+          // parameter declaration line.
+          //
+          // Without this fix, add_ref left the lender as
+          // Anonymous and the lifetime equal to the param's own
+          // line — print_lifetimes then emitted a phantom
+          // StaticDie at the signature line whose `to` field
+          // resolved to `Deref(s)`, surfacing the nonsensical
+          // tooltip "Return immutably borrowed resource from s
+          // to *s".
+          self.add_ref(name.clone(),
           bool_of_mut(ty.ref_mutability().unwrap()),
-          bool_of_mut(binding_annotation.1), line_num, 
-          ResourceTy::Anonymous, VecDeque::new(), self.current_scope, !self.inside_branch);
+          bool_of_mut(binding_annotation.1), line_num,
+          ResourceTy::Caller, VecDeque::new(), self.current_scope, !self.inside_branch);
+          // Stretch the loan to the closing brace so the dashed
+          // ref-line trapezoid covers the full body.
+          if let Some(rd) = self.borrow_map.get_mut(&name) {
+            rd.lifetime = self.current_scope;
+          }
         }
         else if ty.is_adt() && !is_special{ // kind of weird given we don't have a InitStructParam
           let owner_hash = self.rap_hashes as u64;
