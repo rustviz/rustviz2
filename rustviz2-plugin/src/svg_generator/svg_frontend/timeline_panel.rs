@@ -712,15 +712,30 @@ fn render_dots_string(
             },
             ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) | ResourceAccessPoint::MutRef(_) | ResourceAccessPoint::StaticRef(_) =>
             {
-                let resource_hold = if timeline.resource_access_point.is_owner() {
-                    // we can assume each owner has at least two states (initialization -> gos) 
-                    // technically it can have less if you bind something to the unit value eg: let z = ();
-                    let penultimate_state = timeline.states.get(timeline.states.len() - 2).unwrap_or(&(0, 0, State::Invalid)).2.clone();
-                    match penultimate_state {
-                        State::FullPrivilege { .. } => true,
-                        _ => false
-                    }
-                } else { false }; // need to change this for when structs can be references
+                let resource_hold = if matches!(
+                    timeline.resource_access_point,
+                    ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_)
+                ) {
+                    // Each owner / struct has at least two states (init →
+                    // gos); the penultimate one tells us what state the
+                    // RAP was in *just before* going out of scope. If it
+                    // still held the resource (FullPrivilege /
+                    // PartialPrivilege) the destructor runs and we want
+                    // the down-arrow drop indicator. Includes Struct so
+                    // a `let r = Rect{..}` shows the drop on r at end of
+                    // scope (and on r.w / r.h, which are also Struct
+                    // RAPs in the data model).
+                    let penultimate_state = timeline
+                        .states
+                        .get(timeline.states.len().saturating_sub(2))
+                        .unwrap_or(&(0, 0, State::Invalid))
+                        .2
+                        .clone();
+                    matches!(
+                        penultimate_state,
+                        State::FullPrivilege { .. } | State::PartialPrivilege { .. }
+                    )
+                } else { false };
                 render_dot(hash, &timeline.history, &resource_owners_layout[hash], output, visualization_data, registry, resource_hold);
             },
         }
@@ -1307,20 +1322,22 @@ fn render_arrows_string_external_events_version(
 }
 
 fn determine_owner_line_styles(
-    _rap: &ResourceAccessPoint,
+    rap: &ResourceAccessPoint,
     state: &State
 ) -> OwnerLine {
-    // Hollow / Solid is about whether the resource is currently
-    // *lent out*, not about whether the binding is `let mut`. An
-    // immutable binding (`let x`) without an active borrow still
-    // has full read-and-consume access, so it should render Solid.
-    // Hollow only when an immutable borrow is alive on this owner
-    // (PartialPrivilege). RevokedPrivilege (mut-borrowed away)
-    // and OutOfScope/Invalid fall through to Empty as before.
-    match state {
-        State::FullPrivilege { .. }    => OwnerLine::Solid,
-        State::PartialPrivilege { .. } => OwnerLine::Hollow,
-        _                              => OwnerLine::Empty,
+    // Hollow tracks "read-only" — either because the binding is
+    // immutable (`let x`, can't write) or because an immutable
+    // borrow is currently alive on the owner (PartialPrivilege).
+    // Solid is reserved for the mutable-binding-no-borrow case
+    // where the owner can both read and write right now. The loan
+    // itself is communicated by the borrow-region trapezoid drawn
+    // on the borrower's column, not by varying the lender's
+    // stroke style.
+    match (state, rap.is_mut()) {
+        (State::FullPrivilege{..}, true) => OwnerLine::Solid,
+        (State::FullPrivilege{..}, false) => OwnerLine::Hollow,
+        (State::PartialPrivilege{..}, _) => OwnerLine::Hollow,
+        _ => OwnerLine::Empty,
     }
 }
 

@@ -106,6 +106,35 @@ fn has_hollow_segment_for(timeline: &str, hash: u64) -> bool {
 /// usually hash 2. Adjust per-test if needed.
 const FIRST_VAR_HASH: u64 = 2;
 
+/// Look up the timeline hash assigned to a label (e.g. "r" or "r.w") so
+/// tests don't have to hard-code declaration order. Returns `None` if no
+/// matching `<text … class="label" … data-hash=N>label</text>` is found.
+fn label_hash(timeline: &str, label: &str) -> Option<u64> {
+    for tag in timeline.split("<text ") {
+        if !tag.contains("class=\"label") {
+            continue;
+        }
+        // The label text follows the opening tag's `>`.
+        let after_open = match tag.find('>') {
+            Some(i) => &tag[i + 1..],
+            None => continue,
+        };
+        let text_end = after_open.find('<').unwrap_or(after_open.len());
+        if after_open[..text_end].trim() == label {
+            let hash_marker = match tag.find("data-hash=\"") {
+                Some(i) => i + "data-hash=\"".len(),
+                None => continue,
+            };
+            let rest = &tag[hash_marker..];
+            let end = rest.find('"').unwrap_or(rest.len());
+            if let Ok(h) = rest[..end].parse::<u64>() {
+                return Some(h);
+            }
+        }
+    }
+    None
+}
+
 #[test]
 fn fn_param_ref_loan_spans_body_and_no_phantom_die() {
     // Canonical screenshot example: f(&x) with fn f(s: &String) { *s }.
@@ -149,13 +178,12 @@ fn f(s: &String) {
         lines[0]
     );
 
-    // The lender x has FullPrivilege throughout — the lend and
-    // reacquire fire on the same line for f(&x), so there's no
-    // multi-line PartialPrivilege segment to render. (The loan is
-    // visualized on s's side as the dashed trapezoid above.)
+    // x is `let x` (immutable), so its timeline renders Hollow
+    // throughout — the loan is visualized on s's side via the
+    // dashed trapezoid, not by varying the lender's stroke style.
     assert!(
-        has_solid_segment_for(&timeline, FIRST_VAR_HASH),
-        "x's solid segment missing"
+        has_hollow_segment_for(&timeline, FIRST_VAR_HASH),
+        "x's hollow timeline segment missing"
     );
 }
 
@@ -185,7 +213,6 @@ fn main() {
         lines[0]
     );
 
-    assert!(has_solid_segment_for(&timeline, FIRST_VAR_HASH));
     assert!(has_hollow_segment_for(&timeline, FIRST_VAR_HASH));
 }
 
@@ -219,6 +246,56 @@ fn main() {
             d
         );
     }
+}
+
+#[test]
+fn immutable_struct_renders_hollow_and_drops_at_oos() {
+    // `let r = Rect { .. }` — r is an immutable Struct binding.
+    // Both r and its fields r.w / r.h should render Hollow (not
+    // Solid; they can't be reassigned), and at end of main r's
+    // OOS dot should show "Its resource is dropped" rather than
+    // "No resource is dropped" — the struct value still has a
+    // destructor to run.
+    let src = "\
+struct Rect { w: u32, h: u32 }
+
+fn main() {
+    let r = Rect { w: 30, h: 50 };
+    println!(\"{} {}\", r.w, r.h);
+}
+";
+    let timeline = timeline_of(src);
+
+    // Drop indicator wording on each owner-like RAP.
+    for who in ["r", "r.w", "r.h"] {
+        let needle = format!("{} goes out of scope. Its resource is dropped.", who);
+        assert!(
+            timeline.contains(&needle),
+            "expected drop tooltip for {}: not found in timeline",
+            who
+        );
+        let bad = format!("{} goes out of scope. No resource is dropped.", who);
+        assert!(
+            !timeline.contains(&bad),
+            "expected drop indicator on {} but got the No-resource message",
+            who
+        );
+    }
+
+    // r is immutable → no Solid segment on r's timeline; Hollow
+    // throughout. Hash assignment for the struct case is
+    // implementation-detail-y (struct itself + each field each take
+    // a hash), so look r up by its label rather than hard-coding.
+    let r_hash = label_hash(&timeline, "r")
+        .expect("could not locate hash for label 'r' in timeline");
+    assert!(
+        has_hollow_segment_for(&timeline, r_hash),
+        "r's hollow segment missing — immutable struct should be Hollow"
+    );
+    assert!(
+        !has_solid_segment_for(&timeline, r_hash),
+        "r is immutable; should not render any Solid segment"
+    );
 }
 
 #[test]
