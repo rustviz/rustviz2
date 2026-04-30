@@ -943,12 +943,14 @@ fn render_arrow (
             // Bend at the same x as the InitRefParam L's bend
             // (cx + head_offset + leg), so caller-in and caller-
             // out arrows have their vertical legs at the same
-            // column. Arrow-bearing leg's stroke is `leg`; the
-            // arrowless horizontal stroke spans the full
-            // bend-to-source distance so the L is a square.
+            // column. Vertical stroke is half the input L's leg
+            // length to keep the L compact (matches the spirit
+            // of the input L's shortened vertical, which clears
+            // the label above the param dot).
             let source_x = cx + 5.25;
             let bend_x = cx + head_offset + leg;
-            let head_end_y = cy - leg;
+            let vertical_line: f64 = leg / 2.0;
+            let head_end_y = cy - vertical_line;
 
             let polyline_pts = format!(
                 "{} {} {} {} {} {}",
