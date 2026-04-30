@@ -1307,16 +1307,20 @@ fn render_arrows_string_external_events_version(
 }
 
 fn determine_owner_line_styles(
-    rap: &ResourceAccessPoint,
+    _rap: &ResourceAccessPoint,
     state: &State
 ) -> OwnerLine {
-    match (state, rap.is_mut()) {
-        (State::FullPrivilege{..}, true) => OwnerLine::Solid,
-        (State::FullPrivilege{..}, false) => OwnerLine::Hollow,
-        // cannot assign to to variable because it is borrowed
-        // partialprivilege ~= immutable, otherwise it would be an error
-        (State::PartialPrivilege{..}, _) => OwnerLine::Hollow, // let (mut) a = 5;
-        _ => OwnerLine::Empty, // Otherwise its empty
+    // Hollow / Solid is about whether the resource is currently
+    // *lent out*, not about whether the binding is `let mut`. An
+    // immutable binding (`let x`) without an active borrow still
+    // has full read-and-consume access, so it should render Solid.
+    // Hollow only when an immutable borrow is alive on this owner
+    // (PartialPrivilege). RevokedPrivilege (mut-borrowed away)
+    // and OutOfScope/Invalid fall through to Empty as before.
+    match state {
+        State::FullPrivilege { .. }    => OwnerLine::Solid,
+        State::PartialPrivilege { .. } => OwnerLine::Hollow,
+        _                              => OwnerLine::Empty,
     }
 }
 
