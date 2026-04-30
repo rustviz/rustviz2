@@ -924,13 +924,19 @@ impl Event {
                 hover_messages::event_dot_owner_drop_at_reassign(my_name)
             }
             Event::InitRefParam{ param, .. } => {
-                // Owner / Struct params receive ownership from the
-                // caller — call that out by name so the dot's hover
-                // matches the L-arrow's. Ref params are just borrows
-                // and keep the older generic message.
+                // Owner/Struct params receive ownership from the
+                // caller — call that out so the dot hover matches
+                // the L-arrow's. Ref params receive a borrow from
+                // the caller and get the parallel ref message.
                 match param {
                     ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) => {
                         hover_messages::event_dot_owner_init_from_caller(my_name)
+                    }
+                    ResourceAccessPoint::MutRef(_) => {
+                        hover_messages::event_dot_ref_init_from_caller(my_name, true)
+                    }
+                    ResourceAccessPoint::StaticRef(_) => {
+                        hover_messages::event_dot_ref_init_from_caller(my_name, false)
                     }
                     _ => hover_messages::event_dot_init_param(my_name),
                 }

@@ -58,6 +58,18 @@ pub fn event_dot_owner_init_from_caller(my_name: &String) -> String {
     format!("{0} acquires ownership from the caller", my_name_fmt)
 }
 
+// A reference function parameter receives a borrow from the caller.
+// Mirror message to `event_dot_owner_init_from_caller` for the ref
+// side: makes it clear that the lender lives outside this fn scope.
+pub fn event_dot_ref_init_from_caller(my_name: &String, is_mut: bool) -> String {
+    let my_name_fmt = fmt_style(my_name);
+    if is_mut {
+        format!("{0} is a mutable borrow from the caller", my_name_fmt)
+    } else {
+        format!("{0} is an immutable borrow from the caller", my_name_fmt)
+    }
+}
+
 // Reassignment drops the previous resource (owned, non-Copy) AND
 // acquires a new one — both happen on the same line. The drop dot
 // is drawn on top of the regular Acquire dot at the same position,

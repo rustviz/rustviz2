@@ -1381,15 +1381,15 @@ fn create_owner_line_string(
     match (state, style) {
         (State::FullPrivilege{..}, OwnerLine::Solid) | (State::PartialPrivilege{ .. }, OwnerLine::Solid) => {
             data.line_class = String::from("solid");
-            data.title += ". The binding can be reassigned.";
+            // (The historical "binding can be reassigned" suffix
+            // mixed a binding property into a state message; the
+            // state text alone is enough.)
             registry.render("vertical_line_template", &data).unwrap()
         },
         (State::FullPrivilege{..}, OwnerLine::Hollow) | (State::PartialPrivilege{..}, OwnerLine::Hollow) => {
-            let mut hollow_line_data = data.clone();
-            hollow_line_data.title += ". The binding cannot be reassigned.";
+            let hollow_line_data = data.clone();
             let new_hollow_line_data = compute_hollow_line_data(hollow_line_data, 3.5);
-            let s = registry.render("new_hollow_line_template", &new_hollow_line_data).unwrap();
-            s
+            registry.render("new_hollow_line_template", &new_hollow_line_data).unwrap()
         },
         (State::OutOfScope, _) => "".to_owned(),
         // do nothing when the case is (RevokedPrivilege, false), (OutofScope, _), (ResourceMoved, false)
@@ -1413,38 +1413,15 @@ fn create_reference_line_string(
     match (state, rap.is_mut()) {
         (State::FullPrivilege{..}, true) => {
             data.line_class = String::from("solid");
-            if rap.is_ref() {
-                data.title += "; can read and write data; can point to another piece of data.";
-            } else {
-                data.title += "; can read and write data";
-            }
             registry.render("vertical_line_template", &data).unwrap()
         },
         (State::FullPrivilege{..}, false) => {
-            if rap.is_ref() {
-                data.title += "; can read and write data; cannot point to another piece of data.";
-            } else {
-                data.title += "; can only read data";
-            }
-          
             let hollow_line_data = data.clone();
-            // hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
-            
-            // registry.render("hollow_line_template", &hollow_line_data).unwrap()
             registry.render("new_hollow_line_template", &compute_hollow_line_data(hollow_line_data, 3.5)).unwrap()
         },
-        (State::PartialPrivilege{ .. }, muta) => {
+        (State::PartialPrivilege{ .. }, _muta) => {
             data.line_class = String::from("solid");
-            if muta {
-              data.title += "; can point to another piece of data"
-            }
-            data.title += "; can only read data.";
-            
-            let mut hollow_line_data = data.clone();
-            // hollow_line_data.x1 -= 1.8; // center middle of path to center of event dot
-            hollow_line_data.title = data.title.to_owned();
-            
-            // registry.render("hollow_line_template", &hollow_line_data).unwrap()
+            let hollow_line_data = data.clone();
             registry.render("new_hollow_line_template", &compute_hollow_line_data(hollow_line_data, 3.5)).unwrap()
         },
         (State::ResourceMoved{ .. }, true) => {
@@ -1661,9 +1638,14 @@ fn render_ref_line(
                                 data.x1 = resource_owners_layout[hash].x_val;
                                 data.y1 = get_y_axis_pos(*line_start);
 
-                                data.title = String::from(
-                                    format!("can mutate *{}", visualization_data.get_name_from_hash(hash).unwrap())
-                                );
+                                let styled = SPAN_BEGIN.to_string()
+                                    + &visualization_data.get_name_from_hash(hash).unwrap()
+                                    + SPAN_END;
+                                data.title = match ro {
+                                    ResourceAccessPoint::MutRef(_) =>
+                                        format!("{} holds a mutable reference", styled),
+                                    _ => format!("{} holds a reference", styled),
+                                };
                                 data.line_class = String::from("solid");
                                 alive = true;
                             }
@@ -1675,9 +1657,10 @@ fn render_ref_line(
                                 data.x1 = resource_owners_layout[hash].x_val;
                                 data.y1 = get_y_axis_pos(*line_start);
 
-                                data.title = String::from(
-                                    format!("cannot mutate *{}",visualization_data.get_name_from_hash(hash).unwrap())
-                                );
+                                let styled = SPAN_BEGIN.to_string()
+                                    + &visualization_data.get_name_from_hash(hash).unwrap()
+                                    + SPAN_END;
+                                data.title = format!("{} holds an immutable reference", styled);
                                 data.line_class = String::from("solid");
                                 alive = true;
                             }
