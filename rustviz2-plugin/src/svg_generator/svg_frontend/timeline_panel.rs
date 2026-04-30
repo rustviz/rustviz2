@@ -1,5 +1,6 @@
 extern crate handlebars;
 use crate::svg_generator::data::{convert_back, string_of_branch, string_of_external_event, BranchType, Event, ExternalEvent, LineState, ResourceAccessPoint, ResourceAccessPoint_extract, ResourceTy, State, StructsInfo, Visualizable, VisualizationData, LINE_SPACE};
+use crate::svg_generator::hover_messages;
 use crate::svg_generator::svg_frontend::line_styles::OwnerLine;
 use handlebars::Handlebars;
 use std::collections::{BTreeMap, HashMap};
@@ -76,6 +77,12 @@ struct FunctionDotData {
 struct ArrowData {
     coordinates: Vec<(f64, f64)>,
     coordinates_hbs: String,
+    // Pre-rendered "x1,y1 x2,y2 x3,y3" for the arrow head triangle,
+    // drawn inline as a sibling polygon of the polyline so that the
+    // head shares the same hover region as the shaft. Replaces the
+    // marker-end approach (markers live in a separate <defs> scope
+    // and don't inherit hover events from the referencing element).
+    head_points: String,
     title: String
 }
 
@@ -232,8 +239,20 @@ fn prepare_registry(registry: &mut Handlebars) {
         "        <use xlink:href=\"#functionDot\" data-hash=\"{{hash}}\" x=\"{{x}}\" y=\"{{y}}\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\"/>\n";
     let function_logo_template =
         "        <text x=\"{{x}}\" y=\"{{y}}\" data-hash=\"{{hash}}\" class=\"functionLogo tooltip-trigger fn-trigger\" data-tooltip-text=\"{{title}}\">f</text>\n";
+    // Arrow = shaft (polyline) + head (polygon) wrapped in a single
+    // <g class="tooltip-trigger"> so the pair is treated as one
+    // hover target: hovering either child triggers `:hover` on the
+    // group, which runs the glow filter over the whole arrow and
+    // bubbles the mousemove event up to the listener on the group.
+    // Previously each child carried its own tooltip-trigger and
+    // glowed independently, which made the shaft and head feel like
+    // two separate things.
+    //
+    // Replaces the older marker-end="url(#arrowHead)" approach —
+    // markers live in <defs> scope and don't receive hover events
+    // from the polylines that reference them.
     let arrow_template =
-        "        <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{{coordinates_hbs}}\" marker-end=\"url(#arrowHead)\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\" style=\"fill: none;\"/> \n";
+        "        <g class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\">\n            <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{{coordinates_hbs}}\" style=\"fill: none;\"/>\n            <polygon points=\"{{head_points}}\" fill=\"gray\"/>\n        </g>\n";
     let vertical_line_template =
         "        <line data-hash=\"{{hash}}\" class=\"{{line_class}} tooltip-trigger\" x1=\"{{x1}}\" x2=\"{{x2}}\" y1=\"{{y1}}\" y2=\"{{y2}}\" data-tooltip-text=\"{{title}}\" style=\"opacity: {{opacity}};\"/>\n";
     let hollow_line_template =
@@ -626,6 +645,26 @@ fn render_dot(
                         continue;
                     }
                 },
+                // Reassignment-drop renders the same down-arrow dot as
+                // OwnerGoOutOfScope (resource is dropped at this line),
+                // but the owner stays in scope — there's always a
+                // resource to drop here, so no `if !resource_hold` branch.
+                Event::OwnerDropAtReassign => {
+                    let cx = timeline_data.x_val;
+                    let cy = get_y_axis_pos(*line_number);
+                    let title = event.print_message_with_name(&mut name);
+                    let drop_data = DropDotData {
+                        hash: *hash as u64,
+                        dot_x: cx,
+                        dot_y: cy,
+                        title,
+                        p1x: cx - 3, p1y: cy - 1,
+                        p2x: cx + 3, p2y: cy - 1,
+                        p3x: cx,     p3y: cy + 3,
+                    };
+                    append_drop_dot(&drop_data, output, timeline_data, registry);
+                    continue;
+                },
                 _ => {
                     data.title = event.print_message_with_name(& mut name);
                 }
@@ -777,11 +816,186 @@ fn render_arrow (
                 }
             }
         }
+        // Owned function-parameter init: draw an L-shaped arrow
+        // on the right side of the param dot. The vertical leg
+        // descends from above, bends at the dot's row, and a
+        // horizontal stub lands on the dot's right edge with the
+        // arrow head pointing left into the dot.
+        //
+        //              │   ← top of vertical (no arrowhead — the
+        //              │     stroke ending in mid-air reads as
+        //              │     "from outside this scope" by itself)
+        //              │
+        //   ●──────────┘   ← bend; horizontal stub ends at the
+        //   param dot       dot's right edge (head pointing left).
+        //
+        // Skipped for ref-typed params (they're borrows, not
+        // ownership transfers); falls through to the generic
+        // logic below for those, which sees an (Anonymous,
+        // Anonymous) extraction and early-returns.
+        ExternalEvent::InitRefParam { param, id } => {
+            let is_owned = matches!(
+                param,
+                ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_)
+            );
+            if !is_owned {
+                return;
+            }
+            let timeline = fetch_timeline(param.hash(), visualization_data, resource_owners_layout, *id);
+            let cx = timeline.x_val as f64;
+            let cy = get_y_axis_pos(*line_number) as f64;
+
+            // L sized so the visible horizontal span equals
+            // `target_visible` from the bend out to the arrow
+            // tip. The vertical leg is shortened to a third of
+            // that so it doesn't poke up into the row above —
+            // the param dot sits at the same y as the function-
+            // header line, and the variable's bold name label is
+            // drawn just above the dot. A leg the full
+            // `target_visible` tall would cut across the label.
+            let leg: f64 = 10.0;
+            let head_offset: f64 = 18.0;
+            let arrow_tip_protrusion: f64 = 12.75;
+            let target_visible: f64 = leg + arrow_tip_protrusion;
+            let vertical_line: f64 = target_visible / 3.0;
+            let bend_x = cx + head_offset + leg;
+            let top_y = cy - vertical_line;
+            // Horizontal head end after pullback: the leg of the
+            // polyline runs from (bend_x, cy) leftward; pulling
+            // back by 18 puts the polyline endpoint at cx + 18.
+            // The arrow head's tip then extends 12.75 further
+            // leftward, landing 0.25px past the dot's right edge.
+            let head_x = cx + head_offset;
+            let head_y = cy;
+
+            // Polyline string in render order (source → bend → head).
+            let polyline_pts = format!(
+                "{} {} {} {} {} {}",
+                bend_x, top_y,   // source = top of vertical leg
+                bend_x, cy,      // bend
+                head_x, head_y,  // head end (pulled-back)
+            );
+
+            // Arrowhead at the polyline endpoint, tip extends
+            // 12.75 leftward into the dot's right edge; base is 6
+            // above and below. Same geometry the other arrow arms
+            // produce.
+            let bot_v1 = (head_x, head_y + 6.0);
+            let bot_v2 = (head_x - 12.75, head_y);
+            let bot_v3 = (head_x, head_y - 6.0);
+
+            let title = hover_messages::event_dot_owner_init_from_caller(&param.name().to_string());
+
+            // Reuses the regular arrow_template shape (one polygon
+            // for the head) but emitted inline because we already
+            // have ArrowData populated and assembling the template
+            // is overkill for one site.
+            let rendered = format!(
+                "        <g class=\"tooltip-trigger\" data-tooltip-text=\"{title}\">\n\
+                    \x20           <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{polyline_pts}\" style=\"fill: none;\"/>\n\
+                    \x20           <polygon points=\"{},{} {},{} {},{}\" fill=\"gray\"/>\n\
+                    \x20       </g>\n",
+                bot_v1.0, bot_v1.1, bot_v2.0, bot_v2.1, bot_v3.0, bot_v3.1,
+                title = title,
+                polyline_pts = polyline_pts,
+            );
+
+            if timeline.is_struct_group {
+                if timeline.is_member {
+                    output.get_mut(&(timeline.owner.to_owned() as i64)).unwrap().1.arrows.push_str(&rendered);
+                } else {
+                    output.get_mut(&(timeline.owner.to_owned() as i64)).unwrap().0.arrows.push_str(&rendered);
+                }
+            } else {
+                output.get_mut(&-1).unwrap().0.arrows.push_str(&rendered);
+            }
+        }
+        // Move/Copy out to the caller (function tail expression):
+        // L on the dot's *right* side, matching the InitRefParam
+        // L's positioning so callers and returns occupy the same
+        // visual lane. The polyline starts just past the dot's
+        // right edge, runs right to a bend, then up, with an
+        // arrowhead at the top pointing UP into mid-air.
+        //
+        //                    ┌   ← arrowhead pointing UP
+        //                    │
+        //                    │   ← vertical ascent (line `leg`)
+        //                    │
+        //   ●────────────────┘   ← horizontal stub (line `leg`)
+        //   return value dot       touches the dot's right edge.
+        //
+        // Each leg's stroke is `leg`-px long; the arrowhead on
+        // the vertical sits beyond that as an extra cap so neither
+        // leg is visually amputated by the head's body.
+        ExternalEvent::Move { from, to: ResourceTy::Caller, id, .. }
+        | ExternalEvent::Copy { from, to: ResourceTy::Caller, id, .. } => {
+            let rap = match from.extract_rap() {
+                Some(r) => r,
+                None => return,
+            };
+            let timeline = fetch_timeline(rap.hash(), visualization_data, resource_owners_layout, *id);
+            let cx = timeline.x_val as f64;
+            let cy = get_y_axis_pos(*line_number) as f64;
+
+            let leg: f64 = 10.0;
+            let head_offset: f64 = 18.0;
+            let arrow_tip_protrusion: f64 = 12.75;
+            // Bend at the same x as the InitRefParam L's bend
+            // (cx + head_offset + leg), so caller-in and caller-
+            // out arrows have their vertical legs at the same
+            // column. Vertical stroke is half the input L's leg
+            // length to keep the L compact (matches the spirit
+            // of the input L's shortened vertical, which clears
+            // the label above the param dot).
+            let source_x = cx + 5.25;
+            let bend_x = cx + head_offset + leg;
+            let vertical_line: f64 = leg / 2.0;
+            let head_end_y = cy - vertical_line;
+
+            let polyline_pts = format!(
+                "{} {} {} {} {} {}",
+                source_x, cy,        // source = dot's right edge (open end)
+                bend_x, cy,          // bend
+                bend_x, head_end_y,  // head end (top of vertical line)
+            );
+
+            // Arrowhead at the top of the vertical, pointing UP.
+            // Direction at endpoint = (0, -1), tip extends 12.75
+            // upward; base half-width 6 to either side.
+            let head_v1 = (bend_x - 6.0, head_end_y);
+            let head_v2 = (bend_x, head_end_y - arrow_tip_protrusion);
+            let head_v3 = (bend_x + 6.0, head_end_y);
+
+            let title = hover_messages::event_dot_move_to_caller(
+                &rap.name().to_string(),
+                &"the caller".to_string(),
+            );
+
+            let rendered = format!(
+                "        <g class=\"tooltip-trigger\" data-tooltip-text=\"{title}\">\n\
+                    \x20           <polyline stroke-width=\"5px\" stroke=\"gray\" points=\"{polyline_pts}\" style=\"fill: none;\"/>\n\
+                    \x20           <polygon points=\"{},{} {},{} {},{}\" fill=\"gray\"/>\n\
+                    \x20       </g>\n",
+                head_v1.0, head_v1.1, head_v2.0, head_v2.1, head_v3.0, head_v3.1,
+                title = title,
+                polyline_pts = polyline_pts,
+            );
+
+            if timeline.is_struct_group {
+                if timeline.is_member {
+                    output.get_mut(&(timeline.owner.to_owned() as i64)).unwrap().1.arrows.push_str(&rendered);
+                } else {
+                    output.get_mut(&(timeline.owner.to_owned() as i64)).unwrap().0.arrows.push_str(&rendered);
+                }
+            } else {
+                output.get_mut(&-1).unwrap().0.arrows.push_str(&rendered);
+            }
+        }
         _ => {
             // get the resource owners involved in the event
             let (from, to) = ResourceAccessPoint_extract(external_event);
             match (from, to) { // don't render arrow for anything to caller or anonymous or fn -> fn
-                (ResourceTy::Anonymous, _) | (_, ResourceTy::Caller) | (_, ResourceTy::Anonymous) 
+                (ResourceTy::Anonymous, _) | (_, ResourceTy::Caller) | (_, ResourceTy::Anonymous)
                 | (ResourceTy::Value(ResourceAccessPoint::Function(_)), ResourceTy::Value(ResourceAccessPoint::Function(_))) => return,
                 _ => {}
             }
@@ -796,11 +1010,31 @@ fn render_arrow (
             let mut data = ArrowData {
                 coordinates: Vec::new(),
                 coordinates_hbs: String::new(),
+                head_points: String::new(),
                 title: title
             };
 
             let arrow_length = 20;
 
+            // How far to pull the polyline endpoint back along the
+            // arrow's direction before drawing, so the marker-end
+            // arrow head's tip lands on the destination's near edge
+            // rather than over its center.
+            //
+            // arrowHead marker geometry: viewBox 0 0 10 10, refX=0,
+            // markerWidth=3 × strokeWidth=5 = 15 user units, tip at
+            // viewBox x=8.5 → ~12.75px past the polyline endpoint.
+            //
+            //   - For arrows ending on a 5px-radius event dot we want
+            //     12.75 + 5 = ~17.75 of pullback. 18 leaves a hairline
+            //     gap so the head doesn't touch the dot.
+            //   - For arrows ending at a function logo (no dot to
+            //     overlap, the head should sit close to the `f`)
+            //     the long-standing 10px works visually.
+            //
+            // Each arm of the match below sets this based on what its
+            // marker-end actually points at.
+            let mut head_offset: f64 = 18.0;
 
             match (from, to, external_event) {
                 (ResourceTy::Value(ResourceAccessPoint::Function(from_function)), to_variable, _)  => {  // (Some(function), Some(variable), _)
@@ -808,7 +1042,12 @@ fn render_arrow (
                     // arrow go from (x2, y2) -> (x1, y1)
                     // get position of to_variable
                     let to_timeline = fetch_timeline(to_variable.hash(), visualization_data, resource_owners_layout, external_event.get_id());
-                    let x1 = to_timeline.x_val + 3; // adjust arrow head pos
+                    // Anchor the polyline endpoint on the dot center;
+                    // the post-match `head_offset` pullback (18px)
+                    // moves it the right distance to land the tip on
+                    // the dot's near edge. The historical `+ 3` was
+                    // a hand-tuned partial fix for the same problem.
+                    let x1 = to_timeline.x_val;
                     let x2 = x1 + arrow_length;
                     let y1 = get_y_axis_pos(*line_number);
                     let y2 = get_y_axis_pos(*line_number);
@@ -870,6 +1109,10 @@ fn render_arrow (
                     let styled_fn_name = SPAN_BEGIN.to_string() + &to_function.name + SPAN_END;
                     //  ro1 (to_function) <- ro2 (from_variable)
                     let from_timeline = fetch_timeline(from_variable.hash(), visualization_data, resource_owners_layout, external_event.get_id());
+                    // Marker-end terminates near the function logo
+                    // (no dot to clear) so the gentler 10px pullback
+                    // looks better than the dot-clearing 18px.
+                    head_offset = 10.0;
                     let x2 = from_timeline.x_val - 5;
                     let x1 = x2 - arrow_length;
                     let y1 = get_y_axis_pos(*line_number);
@@ -953,12 +1196,12 @@ fn render_arrow (
                     // <-------------------
                     if data.coordinates[0].0 < data.coordinates[last_index].0 {
 
-                        data.coordinates[0].0 += 10 as f64;
+                        data.coordinates[0].0 += head_offset;
                     }
                     // [last index]     [0]
                     // ------------------->
                     else {
-                        data.coordinates[0].0 -= 10 as f64;
+                        data.coordinates[0].0 -= head_offset;
                     }
                 } else {
 
@@ -966,16 +1209,48 @@ fn render_arrow (
                         let hypotenuse = (((data.coordinates[1].0 - data.coordinates[0].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
                         let cos_ratio = ((data.coordinates[1].0 - data.coordinates[0].0) as f64) / hypotenuse;
                         let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
-                        data.coordinates[0].0 += cos_ratio*10 as f64;
-                        data.coordinates[0].1 += sin_ratio*10 as f64;
+                        data.coordinates[0].0 += cos_ratio * head_offset;
+                        data.coordinates[0].1 += sin_ratio * head_offset;
                     }
                     else {
                         let hypotenuse = (((data.coordinates[0].0 - data.coordinates[1].0) as f64).powi(2) + ((data.coordinates[1].1 - data.coordinates[0].1) as f64).powi(2)).sqrt();
                         let cos_ratio = ((data.coordinates[0].0 - data.coordinates[1].0) as f64) / hypotenuse;
                         let sin_ratio = ((data.coordinates[1].1 - data.coordinates[0].1) as f64) / hypotenuse;
-                        data.coordinates[0].0 -= cos_ratio*10 as f64;
-                        data.coordinates[0].1 += sin_ratio*10 as f64;
+                        data.coordinates[0].0 -= cos_ratio * head_offset;
+                        data.coordinates[0].1 += sin_ratio * head_offset;
                     }
+                }
+
+                // Compute the inline arrow-head triangle, sized to
+                // match the previous SVG marker (viewBox 0 0 10 10,
+                // markerWidth=3 × strokeWidth=5, path M 0 0 L 8.5 4
+                // L 0 8 z). In user coordinates the marker is 15px
+                // square; the path's tip at viewBox (8.5, 4) maps
+                // to 12.75 user units forward of the reference, and
+                // the base half-height is 6 user units. Reference
+                // point sits at the polyline endpoint coord[0].
+                //
+                // Direction at the endpoint = vector from coord[1]
+                // (the segment immediately preceding the endpoint
+                // in the polyline traversal, both for 2-point lines
+                // and for the kinked trapezoid form) to coord[0].
+                {
+                    let ex = data.coordinates[0].0;
+                    let ey = data.coordinates[0].1;
+                    let dx = ex - data.coordinates[1].0;
+                    let dy = ey - data.coordinates[1].1;
+                    let len = (dx * dx + dy * dy).sqrt();
+                    let (cos, sin) = if len > 0.0 { (dx / len, dy / len) } else { (1.0, 0.0) };
+                    // V1 / V3 are the two base corners (perpendicular
+                    // ±6 from the endpoint), V2 is the tip 12.75 along
+                    // the line direction beyond the endpoint.
+                    let v1 = (ex + 6.0 * sin, ey - 6.0 * cos);
+                    let v2 = (ex + 12.75 * cos, ey + 12.75 * sin);
+                    let v3 = (ex - 6.0 * sin, ey + 6.0 * cos);
+                    data.head_points = format!(
+                        "{},{} {},{} {},{}",
+                        v1.0, v1.1, v2.0, v2.1, v3.0, v3.1
+                    );
                 }
 
                 while !data.coordinates.is_empty() {
@@ -1012,13 +1287,18 @@ fn render_arrows_string_external_events_version(
     for (line_number, external_event) in &visualization_data.external_events {
         match external_event {
             // events that should be skipped (we don't render arrows for them)
-            ExternalEvent::Bind {..} | ExternalEvent::GoOutOfScope {..} | ExternalEvent::InitRefParam { .. }
+            ExternalEvent::Bind {..} | ExternalEvent::GoOutOfScope {..}
             | ExternalEvent::RefDie {..} => {}
+            // InitRefParam falls into render_arrow because owned-param
+            // initializations get an L-shaped "ownership from caller"
+            // arrow there. Ref params are filtered out inside
+            // render_arrow itself rather than here, since the
+            // event-vs-arrow split is already a render_arrow concern.
 
             _ => {
 
                 // render external event arrow
-                render_arrow(line_number, 
+                render_arrow(line_number,
                     external_event,
                     output, visualization_data, resource_owners_layout, registry)
             }

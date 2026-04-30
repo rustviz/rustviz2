@@ -238,6 +238,41 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  // Best-effort answer to "does this RAP currently own a resource?",
+  // derived from the events emitted so far. Used to decide whether a
+  // reassignment should produce an OwnerDropAtReassign — `let mut y;
+  // y = x;` and `let mut y = a; let z = y; y = x;` both reach the
+  // same reassignment site but only the first has a prior resource
+  // to drop; for the second, y was moved out at the prior `let z = y`.
+  // Walks `preprocessed_events` newest → oldest, looking for the
+  // most recent ownership-affecting event involving the named RAP.
+  // Borrow/lend events don't transfer ownership and are ignored.
+  pub fn rap_holds_resource_now(&self, rap_name: &str) -> bool {
+    for (_, ev) in self.preprocessed_events.iter().rev() {
+      match ev {
+        ExternalEvent::Move { from, to, .. } => {
+          if to.extract_rap().map_or(false, |r| r.name() == rap_name) {
+            return true;
+          }
+          if from.extract_rap().map_or(false, |r| r.name() == rap_name) {
+            return false;
+          }
+        }
+        ExternalEvent::Copy { to, .. }
+        | ExternalEvent::Bind { to, .. } => {
+          if to.extract_rap().map_or(false, |r| r.name() == rap_name) {
+            return true;
+          }
+        }
+        _ => {}
+      }
+    }
+    // No prior ownership event — variable was declared but never
+    // initialized (`let mut y; y = x;` first iteration), so there's
+    // nothing to drop.
+    false
+  }
+
   pub fn ext_ev_of_evt(&self, evt: Evt, lhs: ResourceTy, rhs: ResourceTy, id: usize, is_partial: bool) -> ExternalEvent{
     match evt {
       Evt::Bind => ExternalEvent::Bind { from: rhs, to: lhs, id },

@@ -433,6 +433,15 @@ pub enum ExternalEvent {
         ro: ResourceAccessPoint,
         id: usize
     },
+    // The previously-held resource of an owner is dropped when that
+    // owner is overwritten by a new value (`y = x` where `y: String`,
+    // or `*p = x` for `p: &mut String`). The owner stays in scope and
+    // immediately reacquires from the rhs — this event records the
+    // drop of the OLD value at the assignment line.
+    OwnerDropAtReassign {
+        ro: ResourceAccessPoint,
+        id: usize
+    },
     // only use this event to initialize fn parameters
     InitRefParam {
         param: ResourceAccessPoint,
@@ -476,12 +485,13 @@ impl ExternalEvent {
     
     pub fn get_id(&self) -> usize {
         match self {
-            &ExternalEvent::Copy {id, ..} | &ExternalEvent::Move {id, ..} | 
-            &ExternalEvent::StaticBorrow {id, ..} | &ExternalEvent::StaticDie {id, ..} | 
+            &ExternalEvent::Copy {id, ..} | &ExternalEvent::Move {id, ..} |
+            &ExternalEvent::StaticBorrow {id, ..} | &ExternalEvent::StaticDie {id, ..} |
             &ExternalEvent::MutableBorrow {id, ..} | &ExternalEvent::MutableDie {id,..} |
-            &ExternalEvent::Branch { id, .. } | &ExternalEvent::GoOutOfScope { id , ..} | 
-            &ExternalEvent::RefDie { id, .. } | &ExternalEvent::Bind { id, .. } | 
-            &ExternalEvent::PassByStaticReference { id, .. } | &ExternalEvent::PassByMutableReference {id, .. } | 
+            &ExternalEvent::Branch { id, .. } | &ExternalEvent::GoOutOfScope { id , ..} |
+            &ExternalEvent::OwnerDropAtReassign { id, .. } |
+            &ExternalEvent::RefDie { id, .. } | &ExternalEvent::Bind { id, .. } |
+            &ExternalEvent::PassByStaticReference { id, .. } | &ExternalEvent::PassByMutableReference {id, .. } |
             &ExternalEvent::InitRefParam { id, .. }=> id
         }
     }
@@ -615,11 +625,17 @@ pub enum Event {
       id: usize
     },
     // this happens when a owner is returned this line,
-    // or if this owner's scope ends at this line. The data must be dropped. 
+    // or if this owner's scope ends at this line. The data must be dropped.
     OwnerGoOutOfScope,
-    // this happens when a vairable that is not an owner goes out of scope. 
+    // this happens when a vairable that is not an owner goes out of scope.
     // The data is not dropped in this case
     RefGoOutOfScope,
+    // The previously-held resource is dropped at a reassignment
+    // (`y = x` or `*p = x`). The owner stays alive — its state is
+    // unchanged across this event because the matching Acquire from
+    // rhs lands on the same line and immediately re-establishes
+    // FullPrivilege.
+    OwnerDropAtReassign,
     // SPECIAL CASE: use only to initialize a fn's paramter
     // Requires param to be Owner, StaticRef, or MutRef (cannot be Function)
     InitRefParam {
@@ -827,10 +843,13 @@ impl Display for Event {
             Event::StaticDie{ to , ..} => { write!(f, "Partially returns resource to {}", to.name())},
             Event::StaticReacquire{ from , ..} => { write!(f, "Partially acquires resource from {}", from.name()) },
             Event::InitRefParam{ param: _ , ..} => { write!(f, "Function parameter is initialized") },
-            Event::OwnerGoOutOfScope => { 
+            Event::OwnerGoOutOfScope => {
                 write!(f, "Goes out of Scope as an owner of resource" ) }
             Event::RefGoOutOfScope => {
                 write!(f, "Goes out of Scope as a reference to resource")
+            },
+            Event::OwnerDropAtReassign => {
+                write!(f, "Previous resource is dropped at reassignment")
             },
             Event::RefDie { from, .. } => {
               write!(f, "{} reference dies", from.name())
@@ -845,11 +864,11 @@ impl Display for Event {
 impl Event {
     pub fn get_id(&self) -> usize {
         match self {
-            Event::Duplicate {id: x , ..} | Event::Move {id: x, ..} | Event::StaticLend {id : x, ..} | 
-            Event::MutableLend {id: x, ..} | Event::MutableDie {id: x, ..} | Event::StaticDie {id: x, ..} | 
+            Event::Duplicate {id: x , ..} | Event::Move {id: x, ..} | Event::StaticLend {id : x, ..} |
+            Event::MutableLend {id: x, ..} | Event::MutableDie {id: x, ..} | Event::StaticDie {id: x, ..} |
             Event::Acquire { id: x, .. } | Event::Copy { id: x, .. } | Event::MutableBorrow { id: x, .. } |
             Event::StaticBorrow { id: x, .. } | Event::StaticReacquire { id: x, .. } | Event::MutableReacquire {id: x, ..}
-            | Event::Branch { id: x, .. } => {
+            | Event::Branch { id: x, .. } | Event::InitRefParam { id: x, .. } => {
                 *x
             }
             _ => 1000000000
@@ -895,14 +914,26 @@ impl Event {
     pub fn print_message_with_name(&self, my_name: &mut String) -> String {
         match self {
             // no arrow involved
-            Event::OwnerGoOutOfScope => { 
+            Event::OwnerGoOutOfScope => {
                 hover_messages::event_dot_owner_go_out_out_scope(my_name)
             }
             Event::RefGoOutOfScope => {
                 hover_messages::event_dot_ref_go_out_out_scope(my_name)
             }
-            Event::InitRefParam{ param: _, .. } => {
-                hover_messages::event_dot_init_param(my_name)
+            Event::OwnerDropAtReassign => {
+                hover_messages::event_dot_owner_drop_at_reassign(my_name)
+            }
+            Event::InitRefParam{ param, .. } => {
+                // Owner / Struct params receive ownership from the
+                // caller — call that out by name so the dot's hover
+                // matches the L-arrow's. Ref params are just borrows
+                // and keep the older generic message.
+                match param {
+                    ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) => {
+                        hover_messages::event_dot_owner_init_from_caller(my_name)
+                    }
+                    _ => hover_messages::event_dot_init_param(my_name),
+                }
             }
             // arrow going out
             Event::Duplicate{ to ,..} => {
@@ -1263,7 +1294,14 @@ impl Visualizable for VisualizationData {
                 State::OutOfScope
             }
             (_, Event::OwnerGoOutOfScope) | (_, Event::RefGoOutOfScope) => State::OutOfScope,
-            
+
+            // OwnerDropAtReassign is paired with an Acquire/Move on
+            // the same line that immediately re-establishes ownership,
+            // so the visible state should be the same as before. We
+            // preserve the previous state for any input — the dot is
+            // a visual annotation, not an ownership transition.
+            (_, Event::OwnerDropAtReassign) => (*previous_state).clone(),
+
 
             (_, _) => State::Invalid,
         }
@@ -1493,6 +1531,9 @@ impl Visualizable for VisualizationData {
               );
             }
           }
+        },
+        ExternalEvent::OwnerDropAtReassign{..} => {
+          vec![(line_num, Event::OwnerDropAtReassign)]
         },
 
         _ => panic!("should not be calling this on branches")
@@ -1736,6 +1777,9 @@ impl Visualizable for VisualizationData {
                         );
                     }
                 }
+            },
+            ExternalEvent::OwnerDropAtReassign{ro, ..} => {
+                maybe_append_event(self, &ResourceTy::Value(ro), Event::OwnerDropAtReassign, line_number);
             },
         }
     }

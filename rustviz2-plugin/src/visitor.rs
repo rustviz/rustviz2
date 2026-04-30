@@ -363,7 +363,62 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
           }
         }
 
+        // Owned non-Copy reassignment: the previous value is dropped
+        // at this line. Two shapes:
+        //   `y = x`  — drop y's prior resource (its own resource is
+        //              what's being overwritten).
+        //   `*p = x` — drop the resource currently pointed to via p
+        //              (i.e. the lender's resource, found through the
+        //              borrow_map alias chain).
+        // Skip when the type is Copy (i32 etc.) or a reference (the
+        // ref-reassignment branch above already emits the appropriate
+        // SDie / MDie / RefDie events for those).
+        // Decide the drop target BEFORE match_rhs runs, since
+        // match_rhs would update rap_holds_resource_now's state for
+        // the lhs (the new Move-into makes it look like the old
+        // resource is still held). Emit the event AFTER match_rhs so
+        // its dot is drawn over the regular Acquire dot at the same
+        // (x, y) — otherwise the colored Acquire circle paints over
+        // the white down-arrow triangle and the drop becomes
+        // invisible.
+        let drop_target: Option<ResourceAccessPoint> =
+          if !lhs_ty.is_ref() && !is_copyable {
+            match &lhs_rty {
+              ResourceTy::Value(rap) => {
+                // Plain reassign — only emit the drop if y currently
+                // holds a resource (rules out `let y; y = x;` first
+                // assignment, and `let y = a; let z = y; y = x;` where
+                // y was moved out before reassignment).
+                if self.rap_holds_resource_now(rap.name()) {
+                  Some(rap.clone())
+                } else {
+                  None
+                }
+              }
+              ResourceTy::Deref(p_rap) => {
+                // Deref reassign through a &mut — the lender is what
+                // holds the resource being overwritten. Borrow checker
+                // guarantees the lender currently holds (otherwise *p
+                // wouldn't be a valid place to write to), so we don't
+                // need rap_holds_resource_now here.
+                self.borrow_map.get(p_rap.name())
+                  .and_then(|rd| rd.lender.extract_rap().cloned())
+              }
+              _ => None,
+            }
+          } else {
+            None
+          };
+
         self.match_rhs(lhs_rty.clone(), rhs_expr, e);
+
+        if let Some(rap) = drop_target {
+          self.add_external_event(line_num, ExternalEvent::OwnerDropAtReassign {
+            ro: rap,
+            id: *self.unique_id,
+          });
+          *self.unique_id += 1;
+        }
       }
 
       // a block eg: {}

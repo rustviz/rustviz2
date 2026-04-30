@@ -22,6 +22,11 @@ const SVG = {
         'staticref': 'static_ref_line',
         'mutref': 'mut_ref_line'
     },
+    // Arrows are <g> wrappers around <polyline> + <polygon> so the
+    // shaft and head share a single hover region. (Older standalone
+    // <polyline> arrows kept here for any pre-RV2 SVGs that still
+    // use them.)
+    'g': 'arrow',
     'polyline': 'arrow',
     'circle': 'event',
     'line': 'timeline_mut',
@@ -226,6 +231,16 @@ function displayTooltip(tooltip, classname) {
             else if (e.currentTarget.tagName === 'polyline') {
                 let arr = e.currentTarget.getAttribute('points').split(' ');
                 begin = end = parseInt(arr[1]) + 5;
+            }
+            else if (e.currentTarget.tagName === 'g') {
+                // RV2 arrow wrapper: <g><polyline/><polygon/></g>.
+                // Read the y-coord from the inner polyline, same
+                // shape as the standalone-polyline branch above.
+                let polyline = e.currentTarget.querySelector('polyline');
+                if (polyline) {
+                    let arr = polyline.getAttribute('points').split(' ');
+                    begin = end = parseInt(arr[1]) + 5;
+                }
             }
             else { // e.currentTarget.tagName === 'text'
                 begin = end = parseInt(e.currentTarget.getAttribute('y'));
