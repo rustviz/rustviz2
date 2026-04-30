@@ -845,18 +845,21 @@ fn render_arrow (
             let cx = timeline.x_val as f64;
             let cy = get_y_axis_pos(*line_number) as f64;
 
-            // L sized so each visible leg spans the same total
-            // distance from the bend (`target_visible`), making
-            // the L a square. The arrowhead-leg's stroke is `leg`
-            // long; the arrowhead body adds the remaining 12.75
-            // protrusion. The arrowless leg's stroke fills the
-            // full `target_visible` distance directly.
+            // L sized so the visible horizontal span equals
+            // `target_visible` from the bend out to the arrow
+            // tip. The vertical leg is shortened to a third of
+            // that so it doesn't poke up into the row above —
+            // the param dot sits at the same y as the function-
+            // header line, and the variable's bold name label is
+            // drawn just above the dot. A leg the full
+            // `target_visible` tall would cut across the label.
             let leg: f64 = 10.0;
             let head_offset: f64 = 18.0;
             let arrow_tip_protrusion: f64 = 12.75;
             let target_visible: f64 = leg + arrow_tip_protrusion;
+            let vertical_line: f64 = target_visible / 3.0;
             let bend_x = cx + head_offset + leg;
-            let top_y = cy - target_visible;
+            let top_y = cy - vertical_line;
             // Horizontal head end after pullback: the leg of the
             // polyline runs from (bend_x, cy) leftward; pulling
             // back by 18 puts the polyline endpoint at cx + 18.
