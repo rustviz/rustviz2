@@ -604,7 +604,16 @@ pub fn find_lender(rhs: &Expr, tcx: &TyCtxt, raps: &HashMap<String, RapData>, bo
         ResourceTy::Value(raps.get(&name).unwrap().rap.to_owned())
       }
     }
-    ExprKind::Call(..) | ExprKind::MethodCall(..) | ExprKind::Lit(_) => {
+    // For method-call chains that return a reference, the lender is
+    // the chain's *base* receiver, not the outer call. Walk down
+    // through `.method().method()` to the leftmost receiver and try
+    // resolving that as the lender (it's commonly a Path or Field).
+    // If we can't resolve it (e.g. the chain bottoms out in a
+    // literal or another call), fall back to Anonymous as before.
+    ExprKind::MethodCall(_, recv, _, _) => {
+      find_lender(recv, tcx, raps, borrow_map)
+    }
+    ExprKind::Call(..) | ExprKind::Lit(_) => {
       ResourceTy::Anonymous
     }
     ExprKind::AddrOf(_, _, expr) => {
