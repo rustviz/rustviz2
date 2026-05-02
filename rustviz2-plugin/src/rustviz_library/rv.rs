@@ -3,7 +3,7 @@ use crate::svg_generator::{
   svg_frontend::svg_generation
 };
 use anyhow::Result;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 pub struct Rustviz{
   code_panel_svg : String,
@@ -11,7 +11,14 @@ pub struct Rustviz{
 }
 
 impl Rustviz {
-  pub fn new(a_src_str: &str, src_str: &str, p_evts: Vec<(usize, ExternalEvent)> , ev_map: BTreeMap<usize, Vec<ExternalEvent>>, num_raps: usize) -> Result<Rustviz>{
+  pub fn new(
+    a_src_str: &str,
+    src_str: &str,
+    p_evts: Vec<(usize, ExternalEvent)>,
+    ev_map: BTreeMap<usize, Vec<ExternalEvent>>,
+    num_raps: usize,
+    fn_start_lines: HashMap<u64, usize>,
+  ) -> Result<Rustviz>{
     /* ******************************************
             --- Build VisualizationData ---
     ****************************************** */
@@ -20,7 +27,8 @@ impl Rustviz {
       external_events: Vec::new(),
       preprocess_external_events: p_evts,
       event_line_map: ev_map,
-      num_valid_raps: num_raps
+      num_valid_raps: num_raps,
+      fn_start_lines,
     };
     /* ******************************************
             --- Render SVG images ---

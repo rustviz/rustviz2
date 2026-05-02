@@ -60,9 +60,14 @@ pub struct RefData {
 
 #[derive(Debug, Clone)]
 pub struct RapData {
-  pub rap: ResourceAccessPoint, 
+  pub rap: ResourceAccessPoint,
   pub scope: usize,
-  pub is_global: bool
+  pub is_global: bool,
+  // Line of the fn signature where this RAP was registered. Drives
+  // per-fn label and column placement in the renderer; identical
+  // RAPs across fns get distinct hashes so `BTreeMap<u64, Timeline>`
+  // already disambiguates.
+  pub fn_start_line: usize,
 }
 
 
@@ -76,12 +81,22 @@ pub struct ExprVisitor<'a, 'tcx:'a> {
   // borrower name -> RefData
   pub borrow_map: HashMap<String, RefData>,
 
-  // Where all the RAPs are stored
-  // Rap name -> RapData
-  pub raps: &'a mut HashMap<String, RapData>,
+  // RAPs registered in *this* fn body. Each `visit_body` call
+  // owns its own map so two fns with the same variable name
+  // (e.g. both have `let x = …`) don't clobber each other; the
+  // shared `rap_hashes` counter still gives every RAP a globally
+  // unique hash, so the rendering pipeline (which keys on hash)
+  // sees them as distinct. After the visit, plugin.rs can drain
+  // this map into any cross-fn structure it needs.
+  pub raps: HashMap<String, RapData>,
 
   // Used to determine the current scope when visiting expressions
   pub current_scope: usize,
+
+  // Line of the current fn's signature; written into each new
+  // RapData so the renderer can group columns + place labels
+  // per-fn. Set once in visit_body.
+  pub current_fn_start: usize,
 
   // Vestigial code, look at aquascope permissions_boundary map to see more
   pub analysis_result : HashMap<usize, Vec<String>>,
@@ -198,7 +213,11 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
 
   pub fn add_rap(&mut self, r: ResourceAccessPoint, scope: usize, is_global: bool) {
-    self.raps.entry(r.name().to_string()).or_insert_with(|| {self.rap_hashes += 1; RapData{rap: r, scope, is_global}});
+    let fn_start_line = self.current_fn_start;
+    self.raps.entry(r.name().to_string()).or_insert_with(|| {
+      self.rap_hashes += 1;
+      RapData { rap: r, scope, is_global, fn_start_line }
+    });
   }
 
   pub fn update_rap(&mut self, r: &ResourceAccessPoint, line_num: usize) {

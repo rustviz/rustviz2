@@ -7,7 +7,7 @@
 //! we should use when rendering it's respective timeline in the frontend).
 
 
-use std::collections::{HashSet, BTreeMap};
+use std::collections::{HashMap, HashSet, BTreeMap};
 use std::vec::Vec;
 use std::fmt::{Formatter, Result, Display};
 use std::hash::{Hash, Hasher};
@@ -1024,7 +1024,7 @@ pub struct VisualizationData {
     //      timelines: an orderred map from a Variable's hash to 
     //      the Variable's Timeline.
     pub timelines: BTreeMap<u64, Timeline>,
-    
+
     pub external_events: Vec<(usize, ExternalEvent)>,
     //temp container for external_events
     pub preprocess_external_events: Vec<(usize, ExternalEvent)>,
@@ -1032,6 +1032,12 @@ pub struct VisualizationData {
     pub event_line_map: BTreeMap<usize, Vec<ExternalEvent>>,
 
     pub num_valid_raps: usize,
+
+    /// rap.hash() → line of the fn signature where the RAP was
+    /// registered. Used by the renderer to group columns and place
+    /// labels per-fn instead of in one shared row at the top of
+    /// the SVG. Populated from plugin.rs's merged rap_map.
+    pub fn_start_lines: HashMap<u64, usize>,
 }
 
 #[allow(non_snake_case)]
