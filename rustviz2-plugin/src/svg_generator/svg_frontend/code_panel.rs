@@ -23,12 +23,24 @@ pub fn render_code_panel(
         .is_ok());
     
     // figure out that max length
+    let mut total_lines: usize = 0;
     for line in lines {
-        // if let line_string = line {
-            *max_x_space = max(line.len() as i64, *max_x_space);
-        // }
+        *max_x_space = max(line.len() as i64, *max_x_space);
+        total_lines += 1;
     }
-    
+
+    // Account for the extra arrow rows the timeline panel reserves
+    // for arrow events that share a line — without this, a snippet
+    // with 9 source lines but an arrow stack pushing the rendered
+    // count to 10+ would lose its line-number alignment when the
+    // last few rendered numbers cross to two digits.
+    let total_with_arrow_rows: usize = total_lines + l_map.values().sum::<usize>();
+    // Right-align line numbers to the widest one. With left-aligned
+    // numbers (`9  ` vs `10  `) the trailing spaces shift content
+    // by a column whenever a digit boundary is crossed; right-align
+    // them and the content column stays put across the whole file.
+    let num_width = total_with_arrow_rows.max(1).to_string().len();
+
     /* Render the code segment of the svg to a String */
     let x = 20;
     let mut y = 90;
@@ -41,8 +53,8 @@ pub fn render_code_panel(
         data.insert("Y_VAL".to_string(), y.to_string());
         /* automatically add line numbers to code */
         let fmt_line = format!(
-            "<tspan fill=\"#AAA\">{}  </tspan>{}",
-            line_of_code, line_string
+            "<tspan fill=\"#AAA\">{:>width$}  </tspan>{}",
+            line_of_code, line_string, width = num_width,
         );
         data.insert("LINE".to_string(), fmt_line);
         output.push_str(&handlebars.render("code_line_template", &data).unwrap());
@@ -59,7 +71,10 @@ pub fn render_code_panel(
             data.insert("Y_VAL".to_string(), y.to_string());
             /* automatically add line numbers to code */
             line_of_code = line_of_code + 1;
-            let empty_line = format!("<tspan fill=\"#AAA\">{}</tspan>", line_of_code);
+            let empty_line = format!(
+                "<tspan fill=\"#AAA\">{:>width$}</tspan>",
+                line_of_code, width = num_width,
+            );
             data.insert("LINE".to_string(), empty_line);
             output.push_str(&handlebars.render("code_line_template", &data).unwrap());
             y = y + LINE_SPACE;
