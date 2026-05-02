@@ -142,6 +142,14 @@ pub fn render_svg(
     let size: usize = visualization_data.preprocess_external_events.len();
     let mut event_line_map_replace: BTreeMap<usize, Vec<ExternalEvent>> = BTreeMap::new();
     let mut extra_lines: usize = 0;
+    // (source_line, extras_inserted_immediately_after_this_line). Records
+    // each stacked-arrow site so we can apply the same shift to
+    // fn_start_lines below — otherwise per-fn label y is computed in
+    // source-line space while everything else (events, code panel rows)
+    // is in visual-row space, and a fn whose signature sits past a
+    // stacked arrow would land its label on top of the previous fn's
+    // last timeline row.
+    let mut extras_at_source_line: Vec<(usize, usize)> = Vec::new();
     let mut skippable_ev: HashSet<usize> = HashSet::new();
     let mut line_insertion_map: HashMap<usize, usize> = HashMap::new();
     while i < size {
@@ -196,7 +204,10 @@ pub fn render_svg(
                     0
                 }
             };
-    
+
+            if ex > 0 {
+                extras_at_source_line.push((line_num, ex));
+            }
             extra_lines += ex;
         }
         else {
@@ -210,6 +221,21 @@ pub fn render_svg(
     visualization_data.external_events.sort_by(|(l, _), (l1, _)| l.cmp(l1));
     info!("processed events {:#?}", visualization_data.external_events);
     visualization_data.event_line_map = event_line_map_replace;
+
+    // Convert each fn_start_line from a source line number to the
+    // corresponding visual row by adding the cumulative extras
+    // inserted strictly before that source line. Events with the
+    // same source line as a fn signature don't shift the signature
+    // (the extras are placed *after* the event's row, not before).
+    extras_at_source_line.sort_by_key(|(s, _)| *s);
+    for src_line in visualization_data.fn_start_lines.values_mut() {
+        let extras_before: usize = extras_at_source_line
+            .iter()
+            .take_while(|(s, _)| *s < *src_line)
+            .map(|(_, n)| *n)
+            .sum();
+        *src_line += extras_before;
+    }
 
 
     //------------------------sort HashMap<usize, Vec<ExternalEvent>>----------------------
