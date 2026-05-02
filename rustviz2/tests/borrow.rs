@@ -496,3 +496,120 @@ fn main() {
         lines[0]
     );
 }
+
+#[test]
+fn struct_field_definitions_render_with_their_types() {
+    // Regression: annotate_struct_field used to overwrite the
+    // entire `name: Type` declaration with just the field name,
+    // erasing the type annotation. This pins that the rendered
+    // code panel keeps `x: i32` and `y: String` intact.
+    let src = "\
+struct Foo {
+    x: i32,
+    y: String,
+}
+
+fn main() {
+    let _y = String::from(\"bar\");
+    let f = Foo { x: 5, y: _y };
+    println!(\"{}\", f.x);
+    println!(\"{}\", f.y);
+}
+";
+    let code_panel = run(src).code_panel_string();
+    let stripped: String = code_panel
+        .lines()
+        .map(|l| {
+            // strip inline tags so we can match the bare prose
+            let mut out = l.to_string();
+            while let (Some(o), Some(c)) = (out.find('<'), out.find('>')) {
+                if o < c { out.replace_range(o..=c, ""); } else { break; }
+            }
+            out
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        stripped.contains("x: i32,"),
+        "field type `i32` missing from rendered struct definition"
+    );
+    assert!(
+        stripped.contains("y: String,"),
+        "field type `String` missing from rendered struct definition"
+    );
+}
+
+#[test]
+fn struct_box_aligns_with_per_fn_label_row() {
+    // The struct bounding `<rect>` used to hardcode y=50, which
+    // matched the legacy "all labels at top of SVG" layout. After
+    // per-fn label positioning, the box has to follow its parent
+    // struct's fn — otherwise it floats away from the columns it's
+    // supposed to enclose. Pin: the box's y_top equals the f-group
+    // label_y minus 20 (the box vertically centers on the label
+    // row, which is 30px tall).
+    let src = "\
+struct Foo {
+    x: i32,
+    y: String,
+}
+
+fn main() {
+    let f = Foo { x: 5, y: String::from(\"bar\") };
+    println!(\"{} {}\", f.x, f.y);
+}
+";
+    let timeline = run(src).timeline_panel_string();
+
+    // Tiny attribute scrape: find an attr `key="value"` inside a tag
+    // substring. Saves pulling regex into the dev-deps just for these.
+    fn attr<'s>(tag: &'s str, key: &str) -> Option<&'s str> {
+        let needle = format!("{}=\"", key);
+        let start = tag.find(&needle)? + needle.len();
+        let end = tag[start..].find('"')? + start;
+        Some(&tag[start..end])
+    }
+
+    // Locate the f-group variable label y. Labels render as
+    // `<text x="..." y="Y" data-hash="H" class="label …" …>f<tspan>|</tspan>*f</text>`
+    // for refs and `…>name</text>` for owners. We want the parent
+    // struct label `f`, which is an owner-style Struct RAP.
+    let label_y: i64 = timeline
+        .lines()
+        .find_map(|l| {
+            if !l.contains("class=\"label") { return None; }
+            // strip nested tags from the body so `f<tspan>|</tspan>*f`
+            // collapses to `f|*f`; bare label `f` stays `f`.
+            let open = l.find("<text")?;
+            let body_start = l[open..].find('>')? + open + 1;
+            let body_end = l[body_start..].find("</text>")? + body_start;
+            let mut bare = String::new();
+            let mut depth = 0;
+            for ch in l[body_start..body_end].chars() {
+                match ch { '<' => depth += 1, '>' => depth -= 1, _ if depth == 0 => bare.push(ch), _ => {} }
+            }
+            if bare.trim() == "f" || bare.starts_with("f|") {
+                attr(&l[open..body_start], "y")?.parse().ok()
+            } else {
+                None
+            }
+        })
+        .expect("could not locate label `f` in timeline");
+
+    // Locate the struct box `<rect …/>`.
+    let rect_line = timeline
+        .lines()
+        .find(|l| l.trim_start().starts_with("<rect"))
+        .expect("expected struct bounding box <rect> in timeline");
+    let box_y: i64 = attr(rect_line, "y").and_then(|s| s.parse().ok()).unwrap();
+    let box_h: i64 = attr(rect_line, "height").and_then(|s| s.parse().ok()).unwrap();
+
+    // Box vertically centers on label row: top = label_y - 20.
+    assert_eq!(
+        box_y,
+        label_y - 20,
+        "struct box y={} does not align with f-group label_y={} (expected box_y = label_y - 20)",
+        box_y, label_y
+    );
+    assert_eq!(box_h, 30, "struct box height changed unexpectedly");
+}

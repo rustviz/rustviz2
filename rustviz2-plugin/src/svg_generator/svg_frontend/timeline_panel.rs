@@ -178,7 +178,7 @@ pub fn render_timeline_panel(visualization_data : & mut VisualizationData) -> (S
     render_dots_string(&mut output, visualization_data, &resource_owners_layout, &registry); // dot events
     render_ref_line(&mut output, visualization_data, &resource_owners_layout, &registry); // reference lines
     render_arrows_string_external_events_version(&mut output, visualization_data, &resource_owners_layout, &registry); // arrows
-    render_struct_box(&mut output, &structs_info, &registry); // struct box
+    render_struct_box(&mut output, &structs_info, &visualization_data.fn_start_lines, &registry); // struct box
 
     let mut output_string : String = String::new();
     for (hash, (timelinepanel, member_timelinepanel)) in output{
@@ -1754,22 +1754,33 @@ fn render_ref_line(
 
 fn render_struct_box(
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
-    structs_info: &StructsInfo, 
+    structs_info: &StructsInfo,
+    fn_start_lines: &HashMap<u64, usize>,
     registry: &Handlebars,
 ) {
+    // Default y matches the legacy "all labels at the top of the
+    // SVG" layout (label_y=70, box=50..80). Per-fn struct boxes
+    // override below to track their fn's label row.
+    const DEFAULT_BOX_Y: i64 = 50;
     for (owner, owner_x, last_x) in structs_info.structs.iter() {
-        let mut box_data = BoxData {
-            name: owner.clone() as u64,
+        let owner_hash = *owner as u64;
+        let y = match fn_start_lines.get(&owner_hash) {
+            // Labels sit on the row directly above the fn signature
+            // (see render_labels_string). Box centers on that label
+            // row: 20px above (matches the legacy 70 - 20 = 50 offset)
+            // and 30px tall.
+            Some(&line) => get_y_axis_pos(line) - LINE_SPACE - 20,
+            None => DEFAULT_BOX_Y,
+        };
+        let box_data = BoxData {
+            name: owner_hash,
             hash: 0,
-            x: 0,
-            y: 50,
-            w: 0,
-            h: 0,
+            x: owner_x - 20,
+            y,
+            w: last_x - owner_x + 60,
+            h: 30,
             title: String::new(),
-        };   
-        box_data.x = owner_x - 20;
-        box_data.w = last_x - owner_x + 60;
-        box_data.h = 30;
+        };
         output.get_mut(owner).unwrap().1.arrows.push_str(&registry.render("box_template", &box_data).unwrap());
     }
 }
