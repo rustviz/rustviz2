@@ -26,9 +26,13 @@ pub fn annotate_struct_field (
     current_hash
   });
 
-  let line: usize = m.sess.source_map().lookup_char_pos(field.span.lo()).line;
-  let left: usize = m.sess.source_map().lookup_char_pos(field.span.lo()).col_display;
-  let right: usize = m.sess.source_map().lookup_char_pos(field.span.hi()).col_display;
+  // Use the *ident* span, not the whole field span. `field.span`
+  // covers the entire `x: i32` declaration; replacing that range
+  // with just the field name eats the colon + type and the rendered
+  // struct definition shows `x,` instead of `x: i32,`.
+  let line: usize = m.sess.source_map().lookup_char_pos(field.ident.span.lo()).line;
+  let left: usize = m.sess.source_map().lookup_char_pos(field.ident.span.lo()).col_display;
+  let right: usize = m.sess.source_map().lookup_char_pos(field.ident.span.hi()).col_display;
 
   let mut line_contents = line_str.to_string();
   let replace_with = format!("[_tspan data-hash=\"{}\"_]{}[_/tspan_]", hash, name);
