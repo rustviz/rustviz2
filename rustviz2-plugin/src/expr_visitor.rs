@@ -186,11 +186,52 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   }
   
   pub fn add_static_ref(&mut self, name: String, mutability: bool, scope: usize, is_global: bool) {
-    self.add_rap(ResourceAccessPoint::StaticRef(StaticRef { name: name, hash: self.rap_hashes as u64, is_mut: mutability }), scope, is_global);
+    self.add_static_ref_member(name, mutability, scope, is_global, None);
   }
 
   pub fn add_mut_ref(&mut self, name: String, mutability: bool, scope: usize, is_global: bool) {
-    self.add_rap(ResourceAccessPoint::MutRef(MutRef { name: name, hash: self.rap_hashes as u64, is_mut: mutability }), scope, is_global);
+    self.add_mut_ref_member(name, mutability, scope, is_global, None);
+  }
+
+  /// `add_static_ref` with optional struct-membership. Pass
+  /// `Some(parent_hash)` for ref-typed struct fields so the
+  /// layout pass groups them under their parent's bounding box.
+  pub fn add_static_ref_member(
+    &mut self,
+    name: String,
+    mutability: bool,
+    scope: usize,
+    is_global: bool,
+    member_of: Option<u64>,
+  ) {
+    self.add_rap(
+      ResourceAccessPoint::StaticRef(StaticRef {
+        name,
+        hash: self.rap_hashes as u64,
+        is_mut: mutability,
+        member_of,
+      }),
+      scope, is_global,
+    );
+  }
+
+  pub fn add_mut_ref_member(
+    &mut self,
+    name: String,
+    mutability: bool,
+    scope: usize,
+    is_global: bool,
+    member_of: Option<u64>,
+  ) {
+    self.add_rap(
+      ResourceAccessPoint::MutRef(MutRef {
+        name,
+        hash: self.rap_hashes as u64,
+        is_mut: mutability,
+        member_of,
+      }),
+      scope, is_global,
+    );
   }
 
   // Adds a function RAP
@@ -424,9 +465,52 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
         AdtKind::Struct => {
           let owner_hash = self.rap_hashes as u64;
           self.add_struct(name.clone(), owner_hash, false, mutability, self.current_scope,!self.inside_branch);
+          // Resolve each field's substituted type so we can tell
+          // which fields are references (a `Excerpt<'a> { p: &'a
+          // str }` has p: &str at construction time, modelled as
+          // a StaticRef RAP that's a member of the parent struct)
+          // versus owned values (registered as Struct members
+          // exactly as before).
+          let generic_args = match ty.kind() {
+            TyKind::Adt(_, args) => *args,
+            _ => unreachable!("ty.is_adt() but kind is not Adt"),
+          };
           for field in ty.ty_adt_def().unwrap().all_fields() {
             let field_name = format!("{}.{}", name.clone(), field.name.as_str());
-            self.add_struct(field_name, owner_hash, true, mutability, self.current_scope,  !self.inside_branch);
+            let field_ty = field.ty(self.tcx, generic_args);
+            if field_ty.is_ref() {
+              let ref_mutability = bool_of_mut(field_ty.ref_mutability().unwrap());
+              // The field's lender is whatever the user passed in
+              // for that field at the construction site; we wire
+              // that up later in match_rhs's Struct arm via the
+              // already-computed get_ref_data path. For now, seed
+              // borrow_map with Anonymous lender as a placeholder
+              // so the renderer can still draw the ref-line; the
+              // Struct arm will overwrite it.
+              if ref_mutability {
+                self.add_mut_ref_member(field_name.clone(), mutability,
+                    self.current_scope, !self.inside_branch, Some(owner_hash));
+              } else {
+                self.add_static_ref_member(field_name.clone(), mutability,
+                    self.current_scope, !self.inside_branch, Some(owner_hash));
+              }
+              // The borrow stored in this field is alive for as
+              // long as the parent struct is — so the loan
+              // extends to the end of the enclosing scope, same
+              // policy as fn-param refs which also borrow for
+              // the full body. Without this the ref-line
+              // trapezoid collapses (assigned_at == lifetime).
+              self.borrow_map.insert(field_name, RefData {
+                lender: ResourceTy::Anonymous,
+                assigned_at: expr_to_line(&expr, &self.tcx),
+                lifetime: self.current_scope,
+                ref_mutability,
+                aliasing: VecDeque::new(),
+              });
+            } else {
+              self.add_struct(field_name, owner_hash, true, mutability,
+                  self.current_scope, !self.inside_branch);
+            }
           }
         },
         AdtKind::Union => {
@@ -601,13 +685,39 @@ pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr, evt: Evt){
     } 
     ExprKind::MethodCall(name_and_generic_args, rcvr, _,  _) => {
       let line_num = span_to_line(&rcvr.span, &self.tcx);
+
+      // If the lhs is a ref, the chain is most likely returning a
+      // borrow rooted at some receiver in the chain (think
+      // `n.split('.').next().expect(..)` returning `&str` borrowed
+      // from n). define_lhs already populated `borrow_map[lhs]` by
+      // walking the chain via find_lender; if it found a real
+      // lender, emit a StaticBorrow / MutableBorrow from that
+      // lender into lhs instead of the generic Copy/Move from the
+      // outer function-call result. Otherwise (lender = Anonymous)
+      // fall through to the historical behaviour.
+      let chain_lender = match &lhs {
+        ResourceTy::Value(rap) if rap.is_ref() => {
+          self.borrow_map.get(rap.name()).map(|rd| rd.lender.clone())
+        }
+        _ => None,
+      };
+      if let Some(ResourceTy::Value(_)) = chain_lender {
+        let lender_rty = chain_lender.unwrap();
+        let borrow_evt = match &lhs {
+          ResourceTy::Value(rap) if rap.is_mutref() => Evt::MBorrow,
+          _ => Evt::SBorrow,
+        };
+        self.add_ev(line_num, borrow_evt, lhs, lender_rty, false);
+        return;
+      }
+
       let fn_name = hirid_to_var_name(name_and_generic_args.hir_id, &self.tcx).unwrap();
       let rhs_rap = self.raps.get(&fn_name).unwrap().rap.to_owned();
       self.add_ev(line_num, evt, lhs, ResourceTy::Value(rhs_rap), false);
     }
     // Struct intializer list:
     // ex struct = {a: <expr>, b: <expr>, c: <expr>}
-    ExprKind::Struct(_qpath, expr_fields, _base) => { 
+    ExprKind::Struct(_qpath, expr_fields, _base) => {
       let line_num = span_to_line(&rhs.span, &self.tcx);
       self.add_ev(line_num, Evt::Bind, lhs.clone(), ResourceTy::Anonymous, false);
       for field in expr_fields.iter() {
@@ -622,10 +732,24 @@ pub fn match_rhs(&mut self, lhs: ResourceTy, rhs:&'tcx Expr, evt: Evt){
             }
           } else {
             match is_copyable {
-              true => Evt::Copy, 
+              true => Evt::Copy,
               false => Evt::Move
             }
           };
+          // For ref-typed fields, define_lhs registered the field
+          // as a StaticRef/MutRef with a placeholder Anonymous
+          // lender. Resolve the real lender from the field's
+          // initialiser expression here (same path as a `let r =
+          // …` outside a struct) so print_lifetimes can pair the
+          // borrow with its return-of-borrow at end-of-loan and
+          // the ref-line trapezoid covers the right range.
+          if field_ty.is_ref() {
+            let (lender, aliasing) = self.get_ref_data(&field.expr);
+            if let Some(rd) = self.borrow_map.get_mut(&new_lhs_name) {
+              rd.lender = lender;
+              rd.aliasing = aliasing;
+            }
+          }
           self.match_rhs(ResourceTy::Value(field_rap), field.expr, e);
       }
     },

@@ -299,6 +299,81 @@ fn main() {
 }
 
 #[test]
+fn struct_with_ref_field_models_borrow_chain() {
+    // Tutorial "Struct with lifetime" example, condensed: a value
+    // sliced out of `n` flows through a method chain into `first`,
+    // which is then stored in a struct field `i.p`. After the
+    // borrow-chain + ref-field plumbing, both `first` and `i.p`
+    // should appear as immutable borrows of `n`, each with a
+    // visible loan-region trapezoid, and `i.p` should land inside
+    // i's struct bounding box.
+    let src = "\
+struct Excerpt<'a> {
+    p: &'a str,
+}
+
+fn some_function() {
+    let n = String::from(\"Ok. I'm fine.\");
+    let first = n.split('.').next().expect(\"...\");
+    let i = Excerpt { p: first };
+}
+
+fn main() {
+    some_function();
+}
+";
+    let timeline = timeline_of(src);
+
+    // first acquires its borrow from n via the method chain (the
+    // bug being closed: pre-fix this rendered as Copy from
+    // expect()).
+    assert!(
+        timeline.contains("Immutable borrow from n to first"),
+        "first didn't get a Borrow event from n; got tooltips:\n{}",
+        timeline
+    );
+    assert!(
+        timeline.contains("first holds an immutable reference"),
+        "first's ref-line tooltip missing"
+    );
+
+    // i.p inherits the same borrow (Copy of a ref → ref RAP).
+    assert!(
+        timeline.contains("i.p holds an immutable reference"),
+        "i.p's ref-line tooltip missing — likely still modelled as a Struct field"
+    );
+
+    // print_lifetimes resolves i.p's transitive lender (n) and
+    // emits the matching return-of-borrow at end of scope.
+    assert!(
+        timeline.contains("Return immutably borrowed resource from i.p to n"),
+        "i.p didn't return its borrow to n"
+    );
+
+    // Both ref-lines render with a real trapezoid range.
+    let lines = ref_line_paths(&timeline);
+    assert!(
+        lines.len() >= 2,
+        "expected ref-lines for both first and i.p, got {}",
+        lines.len()
+    );
+    for d in &lines {
+        assert!(
+            ref_line_v(d) > 10.0,
+            "loan trapezoid collapsed: {:?}",
+            d
+        );
+    }
+
+    // Struct bounding box around i + i.p is drawn.
+    let raw = run(src).timeline_panel_string();
+    assert!(
+        raw.contains("<rect id=\""),
+        "struct bounding box missing for Excerpt"
+    );
+}
+
+#[test]
 fn struct_box_renders_when_struct_group_is_last_in_iteration() {
     // The bounding `<rect>` around r/r.field timelines is finalised
     // when compute_column_layout transitions from a struct member

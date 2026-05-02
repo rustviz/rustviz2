@@ -105,6 +105,10 @@ pub struct MutRef {         // let (mut) r1 = &mut a;
     pub name: String,
     pub hash: u64,
     pub is_mut: bool,
+    /// Hash of the parent struct when this ref is a struct field
+    /// (e.g. `Excerpt { p: &mut x }` makes p a MutRef whose
+    /// member_of is Excerpt's hash). None for free-standing refs.
+    pub member_of: Option<u64>,
 }
 
 // a reference of type & T
@@ -113,6 +117,10 @@ pub struct StaticRef {                // let (mut) r1 = & a;
     pub name: String,
     pub hash: u64,
     pub is_mut: bool,
+    /// Same as MutRef::member_of — set when this ref is a struct
+    /// field. Lets the layout pass include it in the parent's
+    /// bounding box.
+    pub member_of: Option<u64>,
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
@@ -245,10 +253,16 @@ impl ResourceAccessPoint {
         }
     }
 
+    /// True if this RAP is part of a struct grouping — either the
+    /// struct itself or any of its fields (Struct fields and
+    /// ref-typed fields modelled as MutRef/StaticRef with
+    /// `member_of` set).
     pub fn is_struct_group(&self) -> bool {
         match self {
             ResourceAccessPoint::Struct(_) => true,
-            _ => false
+            ResourceAccessPoint::MutRef(MutRef{member_of: Some(_), ..})
+            | ResourceAccessPoint::StaticRef(StaticRef{member_of: Some(_), ..}) => true,
+            _ => false,
         }
     }
 
@@ -262,7 +276,9 @@ impl ResourceAccessPoint {
     pub fn is_member(&self) -> bool {
         match self {
             ResourceAccessPoint::Struct(Struct{is_member, ..}) => *is_member,
-            _ => false
+            ResourceAccessPoint::MutRef(MutRef{member_of, ..})
+            | ResourceAccessPoint::StaticRef(StaticRef{member_of, ..}) => member_of.is_some(),
+            _ => false,
         }
     }
 
@@ -270,8 +286,10 @@ impl ResourceAccessPoint {
         match self {
             ResourceAccessPoint::Owner(Owner{hash, ..}) => hash.to_owned(),
             ResourceAccessPoint::Struct(Struct{owner, ..}) => owner.to_owned(),
-            ResourceAccessPoint::MutRef(MutRef{hash, ..}) => hash.to_owned(),
-            ResourceAccessPoint::StaticRef(StaticRef{hash, ..}) => hash.to_owned(),
+            ResourceAccessPoint::MutRef(MutRef{hash, member_of, ..}) =>
+                member_of.unwrap_or(*hash),
+            ResourceAccessPoint::StaticRef(StaticRef{hash, member_of, ..}) =>
+                member_of.unwrap_or(*hash),
             ResourceAccessPoint::Function(Function{hash, ..}) => hash.to_owned(),
         }
     }

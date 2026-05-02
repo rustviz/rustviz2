@@ -1514,7 +1514,23 @@ fn append_line(
             }
         },
         ResourceAccessPoint::StaticRef(_) | ResourceAccessPoint::MutRef(_) => {
-            output.get_mut(&-1).unwrap().0.timelines.push_str(&create_reference_line_string(rap, state, data, registry));
+            // Ref RAPs that participate in a struct group (member_of
+            // is set) get routed under the parent's output entry,
+            // same as Struct members above. Otherwise the struct
+            // bounding box doesn't pick them up and the ref-line /
+            // timeline lands outside the box.
+            if timeline_data.is_struct_group && timeline_data.is_member {
+                let owner = timeline_data.owner.to_owned() as i64;
+                if !output.contains_key(&owner) {
+                    output.insert(owner, (
+                        TimelinePanelData{ labels: String::new(), dots: String::new(), timelines: String::new(), ref_line: String::new(), arrows: String::new() },
+                        TimelinePanelData{ labels: String::new(), dots: String::new(), timelines: String::new(), ref_line: String::new(), arrows: String::new() },
+                    ));
+                }
+                output.get_mut(&owner).unwrap().1.timelines.push_str(&create_reference_line_string(rap, state, data, registry));
+            } else {
+                output.get_mut(&-1).unwrap().0.timelines.push_str(&create_reference_line_string(rap, state, data, registry));
+            }
         },
     }
 }
