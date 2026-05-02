@@ -145,6 +145,24 @@ fn main() {
     println!("{}", s);
 }`,
       },
+      {
+        // Not from the upstream tutorial — added to demo the per-fn
+        // timeline layout: each fn has its own `x` with its own
+        // column, even though the names collide. The plugin used to
+        // share a single column for both (one would silently
+        // clobber the other in the global raps map).
+        name: "Same name in different functions",
+        code: `fn main() {
+    let x = String::from("main's hello");
+    helper();
+    println!("{}", x);
+}
+
+fn helper() {
+    let x = String::from("helper's hello");
+    println!("{}", x);
+}`,
+      },
     ],
   },
   {
