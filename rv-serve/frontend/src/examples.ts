@@ -308,7 +308,7 @@ fn some_function() {
     let i = Excerpt {
         p: first,
     };
-    // 'i' cannot be returned be returned
+    // 'i' cannot be returned
     // because the struct outlives 'n'
 }
 
