@@ -469,9 +469,9 @@ fn compute_column_layout<'a>(
                 }
 
                 resource_owners_layout.insert(*hash, TimelineColumnData
-                    { 
-                        name: name.clone(), 
-                        x_val: x, 
+                    {
+                        name: name.clone(),
+                        x_val: x,
                         title: styled_name.clone() + ", " + &title,
                         is_ref: ref_bool,
                         is_struct_group: timeline.resource_access_point.is_struct_group(),
@@ -481,6 +481,16 @@ fn compute_column_layout<'a>(
                 x += branch_offset;
             }
         }
+    }
+    // Finalize any open struct group whose members run to the end
+    // of iteration. Without this, when the struct happens to occupy
+    // the highest hashes in `timelines` (BTreeMap iterates by key —
+    // e.g. fn-parameter refs registered before the user struct take
+    // smaller hashes and shift the struct group to the end), no
+    // non-struct RAP follows to trigger the push and the bounding
+    // box never gets drawn.
+    if owner != -1 {
+        structs_info.structs.push((owner, owner_x, last_x));
     }
     for (h, timeline) in visualization_data.timelines.iter_mut() {
 
