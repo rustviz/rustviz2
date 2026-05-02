@@ -87,6 +87,11 @@ pub struct Owner {
     pub name: String,
     pub hash: u64,
     pub is_mut: bool,                     // let a = 42; vs let mut a = 42;
+    /// True iff this owner's type implements Copy — drives the
+    /// "drop-at-OOS" rendering. Copy types have no destructor, so
+    /// going out of scope reclaims storage but doesn't run any
+    /// drop glue; we surface that distinction visually.
+    pub is_copy: bool,
 }
 
 // when something is a struct member
@@ -95,8 +100,11 @@ pub struct Struct {
     pub name: String,
     pub hash: u64,
     pub owner: u64,
-    pub is_mut: bool,                     
+    pub is_mut: bool,
     pub is_member: bool,
+    /// Copy-ness of this struct (or member's type). Same role as
+    /// Owner::is_copy.
+    pub is_copy: bool,
 }
 
 // a reference of type &mut T
@@ -243,6 +251,18 @@ impl ResourceAccessPoint {
         match self {
             ResourceAccessPoint::MutRef(_) | ResourceAccessPoint::StaticRef(_) => true,
             _ => false
+        }
+    }
+
+    /// True iff this RAP's type implements Copy. References are
+    /// always Copy; functions don't model resources at all, so we
+    /// say Copy too (no drop indicator would ever apply to them).
+    pub fn is_copy(&self) -> bool {
+        match self {
+            ResourceAccessPoint::Owner(Owner{is_copy, ..}) => *is_copy,
+            ResourceAccessPoint::Struct(Struct{is_copy, ..}) => *is_copy,
+            ResourceAccessPoint::MutRef(_) | ResourceAccessPoint::StaticRef(_) => true,
+            ResourceAccessPoint::Function(_) => true,
         }
     }
 
