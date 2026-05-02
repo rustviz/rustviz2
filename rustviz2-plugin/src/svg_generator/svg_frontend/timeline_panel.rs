@@ -653,10 +653,21 @@ fn render_dot(
         if let Some(mut name) = visualization_data.get_name_from_hash(hash) {
             match event {
                 Event::OwnerGoOutOfScope => {
+                    let ro = &visualization_data.timelines[hash].resource_access_point;
+                    let is_copy = ro.is_copy();
                     if !resource_hold {
+                        // Resource was already moved out — same copy
+                        // for both Copy and non-Copy types: just note
+                        // there's nothing to drop here.
                         let resource_info: &str = ". No resource is dropped.";
                         data.title = event.print_message_with_name(& mut name);
                         data.title.push_str(resource_info);
+                    } else if is_copy {
+                        // Copy types have no Drop glue — going out of
+                        // scope just reclaims storage. Render a plain
+                        // dot (no drop triangle) and skip the
+                        // "resource is dropped" suffix.
+                        data.title = event.print_message_with_name(&mut name);
                     } else {
                         // Render with a down-arrow triangle inside the
                         // dot to make the drop visible at a glance.

@@ -167,9 +167,21 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
     }
   }
 
+  /// True iff `ty` implements Copy in the context of the given
+  /// owner DefId (typically `expr.hir_id.owner` or
+  /// `pat.hir_id.owner`). Centralised so all RAP-construction sites
+  /// agree on the predicate used to populate `Owner::is_copy` /
+  /// `Struct::is_copy`.
+  pub fn ty_is_copy(&self, ty: Ty<'tcx>, owner: rustc_hir::OwnerId) -> bool {
+    self.tcx.type_is_copy_modulo_regions(
+      rustc_middle::ty::TypingEnv::post_analysis(self.tcx, owner),
+      ty,
+    )
+  }
+
   // Adds an owner RAP
-  pub fn add_owner(&mut self, name: String, mutability: bool, scope: usize, is_global: bool) {
-    self.add_rap(ResourceAccessPoint::Owner(Owner{name: name, hash: self.rap_hashes as u64, is_mut: mutability}), scope, is_global);
+  pub fn add_owner(&mut self, name: String, mutability: bool, is_copy: bool, scope: usize, is_global: bool) {
+    self.add_rap(ResourceAccessPoint::Owner(Owner{name: name, hash: self.rap_hashes as u64, is_mut: mutability, is_copy}), scope, is_global);
   }
 
   // Adds a reference RAP
@@ -243,13 +255,14 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
   // To be honest this struct logic is leftover from RV1 and should eventually be reworked
   // It doesn't make much sense that a struct should be represented any different than an owner
   // the reason for this is that in the frontend structs are visualized differently in the timeline header
-  pub fn add_struct(&mut self, name: String, owner: u64, mem: bool, mutability: bool, scope: usize, is_global: bool) {
-    self.add_rap(ResourceAccessPoint::Struct(Struct { 
-      name: name, 
-      hash: self.rap_hashes as u64, 
-      owner: owner, 
-      is_mut: mutability, 
-      is_member: mem }),
+  pub fn add_struct(&mut self, name: String, owner: u64, mem: bool, mutability: bool, is_copy: bool, scope: usize, is_global: bool) {
+    self.add_rap(ResourceAccessPoint::Struct(Struct {
+      name: name,
+      hash: self.rap_hashes as u64,
+      owner: owner,
+      is_mut: mutability,
+      is_member: mem,
+      is_copy }),
       scope, is_global);
   }
 
@@ -464,7 +477,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
       match ty.ty_adt_def().unwrap().adt_kind() {
         AdtKind::Struct => {
           let owner_hash = self.rap_hashes as u64;
-          self.add_struct(name.clone(), owner_hash, false, mutability, self.current_scope,!self.inside_branch);
+          let parent_is_copy = self.ty_is_copy(ty, expr.hir_id.owner);
+          self.add_struct(name.clone(), owner_hash, false, mutability, parent_is_copy, self.current_scope,!self.inside_branch);
           // Resolve each field's substituted type so we can tell
           // which fields are references (a `Excerpt<'a> { p: &'a
           // str }` has p: &str at construction time, modelled as
@@ -508,7 +522,8 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 aliasing: VecDeque::new(),
               });
             } else {
-              self.add_struct(field_name, owner_hash, true, mutability,
+              let field_is_copy = self.ty_is_copy(field_ty, expr.hir_id.owner);
+              self.add_struct(field_name, owner_hash, true, mutability, field_is_copy,
                   self.current_scope, !self.inside_branch);
             }
           }
@@ -517,15 +532,17 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
           warn!("lhs union not implemented yet")
         },
         AdtKind::Enum => {
-          self.add_owner(name, mutability, self.current_scope, !self.inside_branch);
+          let is_copy = self.ty_is_copy(ty, expr.hir_id.owner);
+          self.add_owner(name, mutability, is_copy, self.current_scope, !self.inside_branch);
         }
       }
     }
     else if ty.is_fn() {
       error!("cannot have fn as lhs of expr");
     }
-    else { 
-      self.add_owner(name, mutability, self.current_scope, !self.inside_branch);
+    else {
+      let is_copy = self.ty_is_copy(ty, expr.hir_id.owner);
+      self.add_owner(name, mutability, is_copy, self.current_scope, !self.inside_branch);
     }
   }
 
@@ -559,21 +576,30 @@ impl<'a, 'tcx> ExprVisitor<'a, 'tcx>{
                 match ty.ty_adt_def().unwrap().adt_kind() {
                     AdtKind::Struct => {
                         let owner_hash = self.rap_hashes as u64; // Assuming self.rap_hashes exists
-                        self.add_struct(name.clone(), owner_hash, false, muta, scope, false);
+                        let parent_is_copy = self.ty_is_copy(ty, pat.hir_id.owner);
+                        self.add_struct(name.clone(), owner_hash, false, muta, parent_is_copy, scope, false);
+                        let generic_args = match ty.kind() {
+                            TyKind::Adt(_, args) => *args,
+                            _ => unreachable!("ty.is_adt() but kind is not Adt"),
+                        };
                         for field in ty.ty_adt_def().unwrap().all_fields() {
                             let field_name = format!("{}.{}", name, field.name.as_str());
-                            self.add_struct(field_name, owner_hash, true, muta, scope, false);
+                            let field_ty = field.ty(self.tcx, generic_args);
+                            let field_is_copy = self.ty_is_copy(field_ty, pat.hir_id.owner);
+                            self.add_struct(field_name, owner_hash, true, muta, field_is_copy, scope, false);
                         }
                     },
                     AdtKind::Union => {
                         panic!("union not implemented yet")
                     },
                     AdtKind::Enum => {
-                        self.add_owner(name.clone(), muta, scope, false);
+                        let is_copy = self.ty_is_copy(ty, pat.hir_id.owner);
+                        self.add_owner(name.clone(), muta, is_copy, scope, false);
                     }
                 }
             } else {
-                self.add_owner(name.clone(), muta, scope, false);
+                let is_copy = self.ty_is_copy(ty, pat.hir_id.owner);
+                self.add_owner(name.clone(), muta, is_copy, scope, false);
             }
 
             let evt = if parent_ty.is_ref() {

@@ -252,10 +252,12 @@ fn main() {
 fn immutable_struct_renders_hollow_and_drops_at_oos() {
     // `let r = Rect { .. }` — r is an immutable Struct binding.
     // Both r and its fields r.w / r.h should render Hollow (not
-    // Solid; they can't be reassigned), and at end of main r's
-    // OOS dot should show "Its resource is dropped" rather than
-    // "No resource is dropped" — the struct value still has a
-    // destructor to run.
+    // Solid; they can't be reassigned). Drop-indicator wording
+    // diverges by Copy-ness: Rect is non-Copy (no derive), so r
+    // shows "Its resource is dropped" at OOS; r.w / r.h are u32
+    // which IS Copy, so they get the plain "goes out of scope"
+    // tooltip — Copy types have no destructor and the renderer
+    // shouldn't pretend otherwise.
     let src = "\
 struct Rect { w: u32, h: u32 }
 
@@ -266,18 +268,25 @@ fn main() {
 ";
     let timeline = timeline_of(src);
 
-    // Drop indicator wording on each owner-like RAP.
-    for who in ["r", "r.w", "r.h"] {
-        let needle = format!("{} goes out of scope. Its resource is dropped.", who);
+    // Non-Copy struct: drop tooltip + drop dot.
+    let r_drop = "r goes out of scope. Its resource is dropped.";
+    assert!(
+        timeline.contains(r_drop),
+        "expected drop tooltip for r (non-Copy struct), not found"
+    );
+
+    // Copy fields: plain OOS tooltip, NO "Its resource is dropped".
+    for who in ["r.w", "r.h"] {
+        let plain = format!("{} goes out of scope", who);
         assert!(
-            timeline.contains(&needle),
-            "expected drop tooltip for {}: not found in timeline",
+            timeline.contains(&plain),
+            "expected plain OOS tooltip for {}, not found",
             who
         );
-        let bad = format!("{} goes out of scope. No resource is dropped.", who);
+        let bad = format!("{} goes out of scope. Its resource is dropped.", who);
         assert!(
             !timeline.contains(&bad),
-            "expected drop indicator on {} but got the No-resource message",
+            "{} is Copy (u32) — should NOT carry the drop suffix",
             who
         );
     }
@@ -296,6 +305,57 @@ fn main() {
         !has_solid_segment_for(&timeline, r_hash),
         "r is immutable; should not render any Solid segment"
     );
+}
+
+#[test]
+fn copy_owner_oos_omits_drop_indicator_and_suffix() {
+    // Primitives implement Copy → no Drop glue runs at OOS, so the
+    // tooltip should NOT carry "Its resource is dropped" and no
+    // drop-triangle dot should be emitted. A non-Copy owner in the
+    // same snippet still gets the drop suffix; lets us verify that
+    // the gate is per-RAP, not workspace-wide.
+    let src = "\
+fn main() {
+    let n: i32 = 5;
+    let s = String::from(\"hi\");
+    println!(\"{} {}\", n, s);
+}
+";
+    let timeline = timeline_of(src);
+
+    // i32 owner — bare OOS, no drop suffix.
+    assert!(
+        timeline.contains("n goes out of scope"),
+        "expected plain OOS tooltip for n"
+    );
+    assert!(
+        !timeline.contains("n goes out of scope. Its resource is dropped."),
+        "n is i32 (Copy) — should NOT carry the drop suffix"
+    );
+
+    // String owner — drop suffix present.
+    assert!(
+        timeline.contains("s goes out of scope. Its resource is dropped."),
+        "expected drop tooltip for s (non-Copy String)"
+    );
+
+    // No drop-dot group should be emitted for n. The drop-dot
+    // template wraps `<circle>` + `<polygon>` in a single
+    // `<g data-hash="{hash}" ... data-tooltip-text="{...}">` —
+    // looking for an n-hashed group whose tooltip mentions the
+    // drop suffix detects the drop wrapper specifically (regular
+    // OOS dots don't carry that suffix).
+    let n_hash = label_hash(&timeline, "n")
+        .expect("could not locate hash for label 'n' in timeline");
+    let drop_group = format!("data-hash=\"{}\"", n_hash);
+    for line in timeline.lines() {
+        if line.contains("<g ")
+            && line.contains(&drop_group)
+            && line.contains("Its resource is dropped")
+        {
+            panic!("found a drop wrapper bound to n (Copy type): {}", line);
+        }
+    }
 }
 
 #[test]
