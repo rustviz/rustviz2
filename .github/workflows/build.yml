@@ -264,12 +264,16 @@ jobs:
     # orchestration (~5 min). Worst-case observed: ~55 min. 90 leaves
     # comfortable headroom; bump if you see CI hitting the cap.
     timeout-minutes: 90
-    # Serialize deploys so a second push to main during a deploy doesn't
-    # double-pump the fleet. cancel-in-progress=false because aborting
-    # mid-deploy can leave the fleet in a half-rolled state.
+    # On a burst of merges, kill the in-progress deploy and run the
+    # latest one. Aborting mid-deploy can briefly leave the fleet in
+    # a half-rolled state, but deploy.sh's Phase 1 is a
+    # destroy-and-recreate, so the run that immediately follows the
+    # cancel resets everything cleanly. Net effect on a 5-PR burst:
+    # only the last PR's image actually ends up live, vs. waiting
+    # ~30 min per intermediate deploy with cancel-in-progress=false.
     concurrency:
       group: fly-deploy
-      cancel-in-progress: false
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v5
       - uses: superfly/flyctl-actions/setup-flyctl@master
