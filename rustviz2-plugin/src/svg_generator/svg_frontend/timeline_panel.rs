@@ -34,6 +34,7 @@ struct TimelinePanelData {
 #[derive(Serialize)]
 struct ResourceAccessPointLabelData {
     x_val: i64,
+    y_val: i64,
     hash: String,
     name: String,
     title: String
@@ -173,7 +174,7 @@ pub fn render_timeline_panel(visualization_data : & mut VisualizationData) -> (S
     
     // render resource owner labels
     render_timelines(&mut output, visualization_data, &resource_owners_layout, &registry); // vertical bars
-    render_labels_string(&mut output, &resource_owners_layout, &registry); // headers
+    render_labels_string(&mut output, &resource_owners_layout, &visualization_data.fn_start_lines, &registry); // headers
     render_dots_string(&mut output, visualization_data, &resource_owners_layout, &registry); // dot events
     render_ref_line(&mut output, visualization_data, &resource_owners_layout, &registry); // reference lines
     render_arrows_string_external_events_version(&mut output, visualization_data, &resource_owners_layout, &registry); // arrows
@@ -222,7 +223,7 @@ fn prepare_registry(registry: &mut Handlebars) {
              \t</g>\n    ";
     
     let label_template =
-        "        <text x=\"{{x_val}}\" y=\"70\" style=\"text-anchor:middle\" data-hash=\"{{hash}}\" class=\"label tooltip-trigger\" data-tooltip-text=\"{{title}}\">{{name}}</text>\n";
+        "        <text x=\"{{x_val}}\" y=\"{{y_val}}\" style=\"text-anchor:middle\" data-hash=\"{{hash}}\" class=\"label tooltip-trigger\" data-tooltip-text=\"{{title}}\">{{name}}</text>\n";
     let dot_template =
         "        <circle cx=\"{{dot_x}}\" cy=\"{{dot_y}}\" r=\"5\" data-hash=\"{{hash}}\" class=\"tooltip-trigger\" data-tooltip-text=\"{{title}}\"/>\n";
     // Used for Owner end-of-scope dots when the owner is still
@@ -410,10 +411,7 @@ fn compute_column_layout<'a>(
     structs_info: &'a mut StructsInfo,
 ) -> (BTreeMap< u64, TimelineColumnData>, i32) {
     let mut resource_owners_layout = BTreeMap::new();
-    let mut x = 0; // Right-most Column x-offset.
-    let mut owner = -1;
-    let mut owner_x = 0;
-    let mut last_x = 0;
+    let mut max_x: i64 = 0;
     let mut w_map: HashMap<u64, i64> = HashMap::new();
 
     // get all the widths of each timeline
@@ -421,77 +419,88 @@ fn compute_column_layout<'a>(
         let width = compute_width(&mut timeline.history);
         w_map.insert(*h, width as i64);
     }
-    
+
+    // Group RAPs by their owning fn so each fn's columns get their
+    // own x-axis (restarting from 0). Different fns occupy different
+    // y ranges, so columns sharing x positions across fns don't
+    // collide visually. Within a group, hashes are sorted to keep
+    // declaration order.
+    let mut by_fn: BTreeMap<usize, Vec<u64>> = BTreeMap::new();
     for (hash, timeline) in visualization_data.timelines.iter() {
-
-        // only put variable in the column layout
-        match timeline.resource_access_point {
-            ResourceAccessPoint::Function(_) => {
-                /* do nothing */
-            },
-            ResourceAccessPoint::Owner(_) | ResourceAccessPoint::Struct(_) | ResourceAccessPoint::MutRef(_) | ResourceAccessPoint::StaticRef(_) =>
-            {
-                let name = match visualization_data.get_name_from_hash(hash) {
-                    Some(_name) => _name,
-                    None => panic!("no matching resource owner for hash {}", hash),
-                };
-                let mut x_space = cmp::max(70, (&(name.len() as i64)-1)*13);
-                let branch_width = *w_map.get(hash).unwrap() * BRANCH_WEIGHT;
-                let branch_offset = branch_width / 2;
-                x = x + x_space + branch_offset;
-                let title = match visualization_data.is_mut(hash) {
-                    true => String::from("mutable"),
-                    false => String::from("immutable"),
-                };
-                let mut ref_bool = false;
-
-                // render reference label
-                if timeline.resource_access_point.is_ref() {
-                    let temp_name = name.clone() + "|*" + &name; // used for calculating x_space
-                    x = x - x_space; // reset
-                    x_space = cmp::max(90, (&(temp_name.len() as i64)-1)*7); // new x_space
-                    x = x + x_space; // new x pos
-                    ref_bool = true; // hover msg displays only "s" rather than "s|*s"
-                }
-
-                let styled_name = SPAN_BEGIN.to_string() + &name + SPAN_END;
-                
-                if (owner == -1) && timeline.resource_access_point.is_struct_group() && !timeline.resource_access_point.is_member() {
-                    owner = timeline.resource_access_point.hash().clone() as i64;
-                    owner_x = x;
-                } else if (owner != -1) && timeline.resource_access_point.is_struct_group() && timeline.resource_access_point.is_member() {
-                    last_x = x;
-                } else if (owner != -1) && !timeline.resource_access_point.is_struct_group() {
-                    structs_info.structs.push((owner, owner_x, last_x));
-                    owner = -1;
-                    owner_x = 0;
-                    last_x = 0;
-                }
-
-                resource_owners_layout.insert(*hash, TimelineColumnData
-                    {
-                        name: name.clone(),
-                        x_val: x,
-                        title: styled_name.clone() + ", " + &title,
-                        is_ref: ref_bool,
-                        is_struct_group: timeline.resource_access_point.is_struct_group(),
-                        is_member: timeline.resource_access_point.is_member(),
-                        owner: timeline.resource_access_point.get_owner(),
-                    });
-                x += branch_offset;
-            }
+        if matches!(timeline.resource_access_point, ResourceAccessPoint::Function(_)) {
+            continue;
         }
+        let fn_line = visualization_data.fn_start_lines.get(hash).copied().unwrap_or(0);
+        by_fn.entry(fn_line).or_default().push(*hash);
     }
-    // Finalize any open struct group whose members run to the end
-    // of iteration. Without this, when the struct happens to occupy
-    // the highest hashes in `timelines` (BTreeMap iterates by key —
-    // e.g. fn-parameter refs registered before the user struct take
-    // smaller hashes and shift the struct group to the end), no
-    // non-struct RAP follows to trigger the push and the bounding
-    // box never gets drawn.
-    if owner != -1 {
-        structs_info.structs.push((owner, owner_x, last_x));
+
+    for (_fn_line, hashes) in by_fn.iter() {
+        let mut x: i64 = 0; // reset per fn
+        let mut owner: i64 = -1;
+        let mut owner_x: i64 = 0;
+        let mut last_x: i64 = 0;
+
+        for hash in hashes {
+            let timeline = &visualization_data.timelines[hash];
+            let name = match visualization_data.get_name_from_hash(hash) {
+                Some(_name) => _name,
+                None => panic!("no matching resource owner for hash {}", hash),
+            };
+            let mut x_space = cmp::max(70, (&(name.len() as i64) - 1) * 13);
+            let branch_width = *w_map.get(hash).unwrap() * BRANCH_WEIGHT;
+            let branch_offset = branch_width / 2;
+            x = x + x_space + branch_offset;
+            let title = match visualization_data.is_mut(hash) {
+                true => String::from("mutable"),
+                false => String::from("immutable"),
+            };
+            let mut ref_bool = false;
+
+            // render reference label
+            if timeline.resource_access_point.is_ref() {
+                let temp_name = name.clone() + "|*" + &name;
+                x = x - x_space;
+                x_space = cmp::max(90, (&(temp_name.len() as i64) - 1) * 7);
+                x = x + x_space;
+                ref_bool = true;
+            }
+
+            let styled_name = SPAN_BEGIN.to_string() + &name + SPAN_END;
+
+            if (owner == -1) && timeline.resource_access_point.is_struct_group() && !timeline.resource_access_point.is_member() {
+                owner = timeline.resource_access_point.hash().clone() as i64;
+                owner_x = x;
+            } else if (owner != -1) && timeline.resource_access_point.is_struct_group() && timeline.resource_access_point.is_member() {
+                last_x = x;
+            } else if (owner != -1) && !timeline.resource_access_point.is_struct_group() {
+                structs_info.structs.push((owner, owner_x, last_x));
+                owner = -1;
+                owner_x = 0;
+                last_x = 0;
+            }
+
+            resource_owners_layout.insert(*hash, TimelineColumnData
+                {
+                    name: name.clone(),
+                    x_val: x,
+                    title: styled_name.clone() + ", " + &title,
+                    is_ref: ref_bool,
+                    is_struct_group: timeline.resource_access_point.is_struct_group(),
+                    is_member: timeline.resource_access_point.is_member(),
+                    owner: timeline.resource_access_point.get_owner(),
+                });
+            x += branch_offset;
+        }
+        // Finalize any open struct group at the end of this fn
+        // (same trailing-struct fix as before, scoped per-fn).
+        if owner != -1 {
+            structs_info.structs.push((owner, owner_x, last_x));
+        }
+        max_x = cmp::max(max_x, x);
     }
+
+    // After per-fn x assignment, update each Timeline's history with
+    // its TimelineColumnData (used downstream for arrow rendering).
     for (h, timeline) in visualization_data.timelines.iter_mut() {
 
         match timeline.resource_access_point {
@@ -503,17 +512,33 @@ fn compute_column_layout<'a>(
         }
     }
 
-    (resource_owners_layout, (x as i32)+100)
+    (resource_owners_layout, (max_x as i32) + 100)
 }
 
 fn render_labels_string(
     output: &mut BTreeMap<i64, (TimelinePanelData, TimelinePanelData)>,
     resource_owners_layout: &BTreeMap<u64, TimelineColumnData>,
+    fn_start_lines: &HashMap<u64, usize>,
     registry: &Handlebars
 ) {
+    // Default label-y matches the legacy "all labels at the top of
+    // the SVG" behavior; per-fn RAPs override below.
+    const DEFAULT_LABEL_Y: i64 = 70;
     for (hash, column_data) in resource_owners_layout.iter() {
+        // Position the label on the row directly above the fn's
+        // first source line so each fn gets its own label header
+        // adjacent to its body. `get_y_axis_pos(line)` is the
+        // baseline for source line `line`; subtracting LINE_SPACE
+        // puts us on the row above. Falls back to the legacy
+        // top-of-svg position for RAPs without an fn association
+        // (e.g. globals — none today, but defensive).
+        let y_val = match fn_start_lines.get(hash) {
+            Some(&line) => get_y_axis_pos(line) - LINE_SPACE,
+            None => DEFAULT_LABEL_Y,
+        };
         let mut data = ResourceAccessPointLabelData {
             x_val: column_data.x_val,
+            y_val,
             hash: hash.to_string(),
             name: column_data.name.clone(),
             title: column_data.title.clone(),

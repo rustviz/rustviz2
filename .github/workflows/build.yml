@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain (from rust-toolchain.toml)
         run: |
@@ -34,7 +34,7 @@ jobs:
           cargo --version
 
       - name: Cache cargo registry + target
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -43,14 +43,14 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
           cache-dependency-path: rv-serve/frontend/package-lock.json
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Run setup.sh (toolchain, plugin install, frontend build, runner image)
         run: ./setup.sh
@@ -103,17 +103,102 @@ jobs:
   # deploying tested plugin code against a stale `:latest` if the two
   # workflows finish in a different order.
   #
+  # Per-arch jobs run on native runners (no QEMU). Compiling
+  # rustviz2-plugin under user-mode QEMU was sporadically crashing
+  # rustc with `signal 5 (Trace/breakpoint trap)` ~17 minutes into
+  # the arm64 leg; native arm64 sidesteps that entirely and runs in
+  # parallel with amd64. Each job pushes a content-addressed,
+  # tagless manifest by digest; the merge job below stitches them
+  # into a multi-arch manifest under the user-facing tags.
+  #
   # Only runs on real pushes to main (PRs don't push to GHCR).
   runner-image:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runs-on: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            runs-on: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runs-on }}
     timeout-minutes: 45
     env:
       REGISTRY: ghcr.io
       # Lower-case so docker tag is happy on case-insensitive filesystems too.
       IMAGE_NAME: rustviz/rustviz-runner
+    outputs:
+      digest-amd64: ${{ steps.export-digest.outputs.digest-amd64 }}
+      digest-arm64: ${{ steps.export-digest.outputs.digest-arm64 }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: runner/Dockerfile
+          platforms: ${{ matrix.platform }}
+          # Push without a name; downstream merge job will tag the
+          # multi-arch manifest. `outputs` here matches the buildx
+          # docs' multi-platform pattern.
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          # Per-arch registry cache so the two jobs don't trample
+          # each other's layers.
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-${{ matrix.arch }},mode=max
+
+      - name: Export digest as workflow artifact
+        id: export-digest
+        run: |
+          mkdir -p /tmp/digests
+          digest='${{ steps.build.outputs.digest }}'
+          # Strip the `sha256:` prefix for the filename — easier on
+          # downstream globbing — but also expose the full digest as
+          # a job output so the merge step can name images by it.
+          echo "${digest#sha256:}" > "/tmp/digests/${{ matrix.arch }}"
+          echo "digest-${{ matrix.arch }}=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-image-digest-${{ matrix.arch }}
+          path: /tmp/digests/${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # Stitch the two per-arch digests into a single multi-arch manifest
+  # under the user-facing tags (latest, sha-XXXX, branch ref). Runs
+  # only after both arch builds succeed.
+  runner-image-merge:
+    needs: runner-image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: rustviz/rustviz-runner
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: runner-image-digest-*
+          merge-multiple: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -135,23 +220,23 @@ jobs:
             type=sha,format=short
             type=ref,event=branch
 
-      - name: Build and push runner image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: runner/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # amd64 is what Fly Machines run in production; arm64 lets us
-          # pull and run the image locally on Apple Silicon dev boxes for
-          # debugging without cross-emulation overhead. Roughly doubles the
-          # workflow runtime; with the registry buildcache below it stays
-          # well under the timeout-minutes ceiling.
-          platforms: linux/amd64,linux/arm64
-          # Keep an inline registry cache so reruns reuse layers.
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+      - name: Create multi-arch manifest and push
+        working-directory: /tmp/digests
+        run: |
+          # imagetools create accepts one or more sources by digest
+          # and points each tag at a manifest list combining them.
+          digests=()
+          for f in *; do
+            digests+=("${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:$(cat "$f")")
+          done
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("--tag " + .) | join(" ")' <<< '${{ steps.meta.outputs.json }}') \
+            "${digests[@]}"
+
+      - name: Inspect manifest
+        run: |
+          docker buildx imagetools inspect \
+            "$(jq -cr '.tags[0]' <<< '${{ steps.meta.outputs.json }}')"
 
   # Deploy job, gated on build AND runner-image success and on a real
   # push to main (so PR runs build but never deploy). Calls
@@ -166,7 +251,7 @@ jobs:
   #
   # Requires a FLY_API_TOKEN secret in Settings → Secrets → Actions.
   deploy:
-    needs: [build, runner-image]
+    needs: [build, runner-image-merge]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # deploy.sh's phase 1 cold-pulls the runner image on every fresh
@@ -179,14 +264,18 @@ jobs:
     # orchestration (~5 min). Worst-case observed: ~55 min. 90 leaves
     # comfortable headroom; bump if you see CI hitting the cap.
     timeout-minutes: 90
-    # Serialize deploys so a second push to main during a deploy doesn't
-    # double-pump the fleet. cancel-in-progress=false because aborting
-    # mid-deploy can leave the fleet in a half-rolled state.
+    # On a burst of merges, kill the in-progress deploy and run the
+    # latest one. Aborting mid-deploy can briefly leave the fleet in
+    # a half-rolled state, but deploy.sh's Phase 1 is a
+    # destroy-and-recreate, so the run that immediately follows the
+    # cancel resets everything cleanly. Net effect on a 5-PR burst:
+    # only the last PR's image actually ends up live, vs. waiting
+    # ~30 min per intermediate deploy with cancel-in-progress=false.
     concurrency:
       group: fly-deploy
-      cancel-in-progress: false
+      cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: superfly/flyctl-actions/setup-flyctl@master
       # ubuntu-latest already has jq, but assert it explicitly so a
       # future runner-image change doesn't silently break the script.

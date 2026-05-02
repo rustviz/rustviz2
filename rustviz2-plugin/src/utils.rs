@@ -141,11 +141,12 @@ impl RV1Helper {
     return Ok(line_map);
   }
 
-  pub fn generate_vis(& mut self, 
-    mut line_map: BTreeMap<usize, Vec<ExternalEvent>>, 
-    p_events: Vec<(usize, ExternalEvent)>, 
+  pub fn generate_vis(& mut self,
+    mut line_map: BTreeMap<usize, Vec<ExternalEvent>>,
+    p_events: Vec<(usize, ExternalEvent)>,
     a_map: & mut BTreeMap<usize, Vec<String>>,
     num_raps: usize,
+    fn_start_lines: HashMap<u64, usize>,
     write_to_cwd: bool) -> Result<()> {
     let mut keys_to_remove: Vec<usize> = Vec::new();
     for (k, v) in line_map.iter() {
@@ -163,7 +164,7 @@ impl RV1Helper {
 
 
     // send stuff to RV1
-    let rv = Rustviz::new(&annotated_source_str, &self.source_str, p_events, line_map, num_raps)?;
+    let rv = Rustviz::new(&annotated_source_str, &self.source_str, p_events, line_map, num_raps, fn_start_lines)?;
 
     if write_to_cwd { // write the SVG files
       self.source_path.pop(); // just write to inside cwd

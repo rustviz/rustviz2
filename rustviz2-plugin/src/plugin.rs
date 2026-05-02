@@ -9,7 +9,33 @@ use rustc_utils::mir::borrowck_facts;
 use crate::expr_visitor::{ExprVisitor, RapData};
 use crate::RVPluginArgs;
 use crate::utils::{RV1Helper, annotate_enum_variant, annotate_toplevel_fn, annotate_struct_field};
-use crate::svg_generator::data::ExternalEvent;
+use crate::svg_generator::data::{ExternalEvent, ResourceAccessPoint};
+
+/// Drain a per-fn visitor's `raps` into a global rap_map.
+///
+/// Variable RAPs (Owner / Struct / MutRef / StaticRef) get a
+/// fully-qualified key `<fn_start_line>::<name>` so two fns with
+/// the same local name don't clobber each other. Function RAPs
+/// keep their bare name so `annotate_toplevel_fn`'s lookup works
+/// and recursive / cross-fn calls share a single Function entry.
+fn merge_visitor_raps(
+  global: &mut HashMap<String, RapData>,
+  per_fn: HashMap<String, RapData>,
+  fn_start_line: usize,
+) {
+  for (name, data) in per_fn {
+    match data.rap {
+      ResourceAccessPoint::Function(_) => {
+        global.entry(name).or_insert(data);
+      }
+      _ => {
+        let fq_name = format!("{}::{}", fn_start_line, name);
+        global.insert(fq_name, data);
+      }
+    }
+  }
+}
+
 // "The main function"
 pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
 
@@ -90,6 +116,7 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
             let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, local_def_id);
             let body = &bwf.body;
             let output = matches!(fn_sig.decl.output, FnRetTy::Return(_));
+            let fn_start_line = tcx.sess.source_map().lookup_char_pos(fn_sig.span.lo()).line;
 
             let mut visitor = ExprVisitor {
               tcx,
@@ -97,8 +124,9 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
               hir_body,
               bwf,
               current_scope: 0,
+              current_fn_start: fn_start_line,
               borrow_map: HashMap::new(),
-              raps: &mut rap_map,
+              raps: HashMap::new(),
               analysis_result: HashMap::new(),
               event_line_map: &mut line_map2,
               preprocessed_events: &mut pre_events,
@@ -114,17 +142,21 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
             visitor.print_lifetimes();
             visitor.print_out_of_scope();
             rap_hash_num = visitor.rap_hashes;
+            merge_visitor_raps(&mut rap_map, visitor.raps, fn_start_line);
           }
         }
       }
       ItemKind::Fn { sig: fn_sig, body: body_id, ident: _, .. } => {
-        // Visualize every fn at file scope. Each fn body becomes its
-        // own set of timelines for its locals and parameters; the
-        // shared `raps` map is keyed by name, so two fns that happen
-        // to use the same parameter / local name will share a column
-        // (and therefore a single timeline). That's a known
-        // limitation — fix when it bites; for the canonical tutorial
-        // examples names don't collide.
+        // Each fn body has its own raps map so two fns with the
+        // same variable name (`let x = …` in both `main` and a
+        // helper) don't clobber each other; the shared rap_hashes
+        // counter still gives every RAP a globally unique hash, so
+        // the renderer (keyed on hash) sees them as distinct
+        // timelines. After each visit, merge_visitor_raps drains
+        // the visitor's map into the global one with FQ keys for
+        // variable RAPs and bare names for Function RAPs (so e.g.
+        // `compare_strings` stays single-instance for source
+        // colorization in annotate_toplevel_fn).
         let hir_body = tcx.hir_body(*body_id);
         let def_id = tcx.hir_body_owner_def_id(*body_id);
         let bwf = borrowck_facts::get_body_with_borrowck_facts(tcx, def_id);
@@ -135,6 +167,7 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
           }
           _ => false
         };
+        let fn_start_line = tcx.sess.source_map().lookup_char_pos(fn_sig.span.lo()).line;
 
         let mut visitor = ExprVisitor {
           tcx,
@@ -142,8 +175,9 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
           hir_body: hir_body,
           bwf: bwf,
           current_scope: 0,
+          current_fn_start: fn_start_line,
           borrow_map: HashMap::new(),
-          raps: &mut rap_map,
+          raps: HashMap::new(),
           analysis_result: HashMap::new(),
           event_line_map: & mut line_map2,
           preprocessed_events: & mut pre_events,
@@ -159,6 +193,7 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
         visitor.print_lifetimes();
         visitor.print_out_of_scope();
         rap_hash_num = visitor.rap_hashes;
+        merge_visitor_raps(&mut rap_map, visitor.raps, fn_start_line);
       },
       _ => {}
     }
@@ -199,8 +234,18 @@ pub fn rv_visitor(tcx: TyCtxt, args: &RVPluginArgs) {
 
   pre_events.sort_by_key(|k| k.0);
 
+  // Build the rap.hash() → fn_start_line map for the renderer.
+  // Functions are excluded — they don't get columns and span the
+  // whole file, so giving them a single fn_start would mis-locate
+  // their (non-existent) labels.
+  let fn_start_lines: HashMap<u64, usize> = rap_map
+    .values()
+    .filter(|d| !matches!(d.rap, ResourceAccessPoint::Function(_)))
+    .map(|d| (*d.rap.hash(), d.fn_start_line))
+    .collect();
+
   // Pass information to svg-generator
-  match testing_helper.generate_vis(line_map2, pre_events, & mut a_line_map, rap_map.len() + 1, args.write_to_cwd) {
+  match testing_helper.generate_vis(line_map2, pre_events, & mut a_line_map, rap_map.len() + 1, fn_start_lines, args.write_to_cwd) {
     Ok(_) => {}
     Err(e) => {
       eprintln!("{}", e);
