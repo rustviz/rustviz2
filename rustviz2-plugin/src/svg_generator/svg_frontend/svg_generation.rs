@@ -121,6 +121,41 @@ pub fn mutate_branch_lines(b_data: & mut ExtBranchData, l_map: & mut HashMap<usi
 
 }
 
+/// Recursively shift every source-line reference inside an
+/// `ExternalEvent` by `shift(line)`. Used when we inject blank
+/// source lines between back-to-back functions.
+fn shift_event_lines<F: Fn(usize) -> usize>(ev: &mut ExternalEvent, shift: &F) {
+    if let ExternalEvent::Branch { branches, branch_type, split_point, merge_point, .. } = ev {
+        *split_point = shift(*split_point);
+        *merge_point = shift(*merge_point);
+        match branch_type {
+            crate::svg_generator::data::BranchType::If(_, v)
+            | crate::svg_generator::data::BranchType::Loop(_, v)
+            | crate::svg_generator::data::BranchType::Match(_, v) => {
+                for (s, e) in v.iter_mut() {
+                    *s = shift(*s);
+                    *e = shift(*e);
+                }
+            }
+        }
+        for branch in branches.iter_mut() {
+            for (line, sub) in branch.e_data.iter_mut() {
+                *line = shift(*line);
+                shift_event_lines(sub, shift);
+            }
+            let new_line_map: BTreeMap<usize, Vec<ExternalEvent>> = branch.line_map
+                .iter()
+                .map(|(k, v)| {
+                    let mut v = v.clone();
+                    for sub in v.iter_mut() { shift_event_lines(sub, shift); }
+                    (shift(*k), v)
+                })
+                .collect();
+            branch.line_map = new_line_map;
+        }
+    }
+}
+
 pub fn render_svg(
     annotated_src_str: &str,
     source_rs_str: &str,
@@ -129,6 +164,78 @@ pub fn render_svg(
     info!("preprocessed events : {:#?}", visualization_data.preprocess_external_events);
     info!("ev_line_map: {:#?}", visualization_data.event_line_map);
 
+    // Force a blank source line before each non-first fn that doesn't
+    // already have one. Without this, per-fn labels (which are placed
+    // one row above the fn signature) land on top of the previous
+    // fn's last timeline row. Done in source-line space at the top of
+    // render_svg so the rest of the pipeline sees consistent line
+    // numbers.
+    let a_lines_orig: Vec<&str> = annotated_src_str.lines().collect();
+    let s_lines_orig: Vec<&str> = source_rs_str.lines().collect();
+
+    let mut sorted_fn_starts: Vec<usize> = visualization_data
+        .fn_start_lines
+        .values()
+        .copied()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    sorted_fn_starts.sort();
+
+    let mut needs_blank_at: Vec<usize> = Vec::new();
+    for &src_f in sorted_fn_starts.iter().skip(1) {
+        if src_f < 2 { continue; }
+        let prev = a_lines_orig.get(src_f - 2).map(|s| s.trim()).unwrap_or("");
+        if !prev.is_empty() {
+            needs_blank_at.push(src_f);
+        }
+    }
+
+    let new_a_str: String;
+    let new_s_str: String;
+    if needs_blank_at.is_empty() {
+        new_a_str = annotated_src_str.to_string();
+        new_s_str = source_rs_str.to_string();
+    } else {
+        let needs_set: HashSet<usize> = needs_blank_at.iter().copied().collect();
+        let mut new_a: Vec<String> = Vec::with_capacity(a_lines_orig.len() + needs_blank_at.len());
+        let mut new_s: Vec<String> = Vec::with_capacity(s_lines_orig.len() + needs_blank_at.len());
+        for (i, line) in a_lines_orig.iter().enumerate() {
+            if needs_set.contains(&(i + 1)) { new_a.push(String::new()); }
+            new_a.push((*line).to_string());
+        }
+        for (i, line) in s_lines_orig.iter().enumerate() {
+            if needs_set.contains(&(i + 1)) { new_s.push(String::new()); }
+            new_s.push((*line).to_string());
+        }
+        new_a_str = new_a.join("\n");
+        new_s_str = new_s.join("\n");
+
+        let blanks = needs_blank_at.clone();
+        let shift = |line: usize| -> usize {
+            line + blanks.iter().filter(|&&f| f <= line).count()
+        };
+
+        for v in visualization_data.fn_start_lines.values_mut() {
+            *v = shift(*v);
+        }
+        for (line, ev) in visualization_data.preprocess_external_events.iter_mut() {
+            *line = shift(*line);
+            shift_event_lines(ev, &shift);
+        }
+        let shifted_elm: BTreeMap<usize, Vec<ExternalEvent>> = visualization_data
+            .event_line_map
+            .iter()
+            .map(|(k, v)| {
+                let mut v = v.clone();
+                for sub in v.iter_mut() { shift_event_lines(sub, &shift); }
+                (shift(*k), v)
+            })
+            .collect();
+        visualization_data.event_line_map = shifted_elm;
+    }
+    let annotated_src_str: &str = new_a_str.as_str();
+    let source_rs_str: &str = new_s_str.as_str();
 
     //-----------------------update line number for external events------------------
     // This might be the worst part of the code-base
