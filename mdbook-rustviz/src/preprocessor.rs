@@ -45,7 +45,13 @@ pub static HELPERS_STRING:  &'static str=r#"<script>
 };
 
 function helpers(classname) {
-    let page = document.querySelector('#page-wrapper');
+    // mdbook 0.4 wrapped the chapter in `<div id="page-wrapper">`;
+    // 0.5 renamed it to `#mdbook-page-wrapper`. Try the 0.5 id
+    // first, fall back to the legacy id, and finally `body` so a
+    // future rename doesn't null-deref the next line.
+    let page = document.querySelector('#mdbook-page-wrapper')
+            || document.querySelector('#page-wrapper')
+            || document.body;
     let tooltip = document.getElementById('svg_tooltip');
     if (!tooltip) {
         tooltip = document.createElement('p');
