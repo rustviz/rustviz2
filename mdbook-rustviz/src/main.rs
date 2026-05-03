@@ -18,7 +18,10 @@ pub type Result<Ok = (), Err = Box<dyn Error>> = std::result::Result<Ok, Err>;
 
 
 fn main() -> Result {
-	let opts = cli::init()?;
+	// `cli::init()` no longer returns Result — clap handles
+	// --help/--version/usage internally and exits with the right
+	// status code before we get here.
+	let opts = cli::init();
 	env_logger::init();
 
 

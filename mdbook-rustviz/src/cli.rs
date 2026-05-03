@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-use crate::Result;
 
 
 const DESCRIPTION: &str = concat!(crate_description!(), "\n", env!("CARGO_PKG_HOMEPAGE"));
@@ -19,9 +18,13 @@ pub enum Commands {
 }
 
 
-pub fn init() -> Result<Opts> {
-	Opts::try_parse().map_err(Into::into).map_err(|err| {
-		                                     println!("{}", err);
-		                                     err
-	                                     })
+/// Parse argv and exit early on `--help` / `--version` /
+/// usage errors with clap's conventional exit codes (0 for help
+/// and version; 2 for argument errors). The previous version used
+/// `try_parse` and routed everything through `main`'s `?`, which
+/// turned `--help` into a non-zero exit with the help text printed
+/// as an error blob — surprising for both interactive use and CI
+/// smoke checks.
+pub fn init() -> Opts {
+	Opts::parse()
 }
