@@ -38,9 +38,16 @@ function helpers(classname) {
     if (!tooltip) {
         tooltip = document.createElement('p');
         tooltip.id = 'svg_tooltip';
+        // max-width + overflow-wrap let the browser wrap long
+        // tooltips for us — `breakText` used to do this in JS but
+        // it tokenized on whitespace, which butchered the inline
+        // `<span style="...monospace, monospace !important;">name`
+        // wrappers (the cut would land inside the style attribute,
+        // leaking attribute fragments into the visible text).
         tooltip.style.cssText = "position: absolute; padding: 0.5em; font-size: 0.75em; border-radius: 8px;" +
                                 "font-family: 'Trebuchet MS', Helvetica, sans-serif;" +
-                                "background: rgb(70, 70, 70, 0.6); color: white; z-index: 100; display: none;";
+                                "background: rgb(70, 70, 70, 0.6); color: white; z-index: 100; display: none;" +
+                                "max-width: 360px; overflow-wrap: break-word;";
         page.parentNode.insertBefore(tooltip, page);
     }
 
@@ -123,8 +130,8 @@ function displayTooltip(tooltip, classname) {
         
         let text = e.currentTarget.getAttributeNS(null, "data-tooltip-text");
         tooltip.innerHTML = text;
-
-        if (tooltip.getBoundingClientRect().right >= document.body.clientWidth) breakText(text, tooltip);
+        // Wrapping is handled by CSS (max-width + overflow-wrap on
+        // the tooltip element itself); no JS string surgery here.
     }
 
     function hideTooltip(e) {
@@ -217,45 +224,6 @@ function removeUnderline(e, classname) {
     }
 }
 
-function breakText(text, tooltip) {
-    let split_text = text.split(' ');
-    let words = [];
-    let last = 0, span = false;
-    for(const elt of split_text) {
-        if (elt.startsWith('<')) {
-            span = true;
-            words.push(elt);
-            last = words.length-1;
-        }
-        else if (elt.startsWith('!important')) {
-            span = false;
-            words[last] += elt;
-        }
-        else {
-            if (span) {
-                words[last] = words[last] + ' ' + elt;
-            }
-            else {
-                words.push(elt);
-            }
-        }
-    }
-
-    tooltip.innerHTML = '';
-    let left = tooltip.getBoundingClientRect().left;
-    for (const word of words) {
-        tooltip.innerHTML += (word + ' ');
-        if (left + tooltip.clientWidth > document.body.clientWidth - 20) {
-            let idx = tooltip.innerHTML.lastIndexOf(' ', tooltip.innerHTML.length-2);
-            let temp = tooltip.innerHTML.substr(0, idx);
-            let other = tooltip.innerHTML.substr(idx + 1);
-
-            tooltip.innerHTML = '';
-            tooltip.innerHTML += temp;
-            tooltip.innerHTML += ('<br />' + other);
-        }
-    }
-}
 
 function toggleAll(turn_on) {
     let evt = new MouseEvent("click", {
