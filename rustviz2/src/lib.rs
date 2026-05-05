@@ -33,6 +33,19 @@ components = ["rust-src", "rustc-dev", "llvm-tools-preview"]"#;
 /// Default image tag for the docker backend.
 const DEFAULT_RUNNER_IMAGE: &str = "rustviz/rustviz-runner:latest";
 
+/// Tooltip + cross-panel highlighting glue for RustViz visualizations,
+/// as a raw JS string. Embed this between `<script>…</script>` tags
+/// in any HTML page that hosts a code panel + timeline panel pair
+/// (whether they're rendered as `<object>` tags loading external
+/// SVGs, or inlined directly as `<svg>` elements). Each visualization
+/// pair is identified by a shared CSS class plus the `code_panel` /
+/// `tl_panel` discriminator (e.g. `class="example-1 code_panel"`).
+///
+/// Both consumers — the mdbook preprocessor and the `rustviz` CLI's
+/// `--html` mode — pull the same JS from here so we have one place
+/// to update if the SVG schema shifts.
+pub const HELPERS_JS: &str = include_str!("helpers.js");
+
 /// Hard wall-clock cap on a single visualization request, in seconds.
 /// Compilation of legitimate examples completes well under a second; this is
 /// a safety net against malicious input that wedges rustc.
