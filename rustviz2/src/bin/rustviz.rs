@@ -1,7 +1,7 @@
 //! `rustviz` — render a single Rust source file to a RustViz
 //! visualization.
 //!
-//! Two output modes:
+//! Output modes:
 //!
 //! - `rustviz svg foo.rs [-o DIR]` writes `foo.code.svg` and
 //!   `foo.timeline.svg` side by side. Useful for embedding in your
@@ -9,23 +9,33 @@
 //! - `rustviz html foo.rs [-o FILE]` writes a single self-contained
 //!   `foo.html` with both SVGs inlined and the tooltip JS embedded.
 //!   Open in any browser; no server required.
+//! - `rustviz init` installs the nightly toolchain + plugin needed
+//!   for the above. One-time setup after `cargo install rustviz2`.
 //!
-//! Under the hood we call the same `rustviz2::Rustviz::new(code)`
-//! API that the playground and the mdbook preprocessor use, which
-//! shells out to the rustc plugin (see `rustviz2-plugin/`). That
-//! requires the nightly toolchain pinned by `rust-toolchain.toml`
-//! plus `cargo rv-plugin` on `PATH` — installed by `rustviz init`
-//! (TODO) or manually via `cargo install --path rustviz2-plugin`
-//! against this repo.
+//! `svg` and `html` call the same `rustviz2::Rustviz::new(code)`
+//! API the playground and the mdbook preprocessor use, which
+//! shells out to the rustc plugin (`cargo rv-plugin`).
 
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use rustviz2::{HELPERS_JS, Rustviz};
+
+/// Toolchain the rustc plugin links against. Must match
+/// `rust-toolchain.toml` at the workspace root.
+const NIGHTLY_TOOLCHAIN: &str = "nightly-2025-08-20";
+
+/// Default git source for the rustviz2-plugin install. Forward-
+/// looking to the eventual `rustviz/rustviz` consolidation; today
+/// the code lives at `rustviz/rustviz2`. Override with
+/// `--plugin-git` if you're working off a fork or a different
+/// branch.
+const DEFAULT_PLUGIN_GIT: &str = "https://github.com/rustviz/rustviz";
 
 #[derive(Parser)]
 #[command(
@@ -64,6 +74,30 @@ enum Commands {
         #[arg(long)]
         title: Option<String>,
     },
+    /// Install the nightly toolchain + rustc plugin needed by
+    /// `rustviz svg` / `rustviz html`. Run once after
+    /// `cargo install rustviz2`.
+    Init {
+        /// Git URL to install the rustviz2-plugin from. Defaults to
+        /// the canonical RustViz repo.
+        #[arg(long, default_value = DEFAULT_PLUGIN_GIT, value_name = "URL")]
+        plugin_git: String,
+        /// Git branch / tag / commit to install the plugin from.
+        /// Defaults to whatever the repo's default branch is.
+        #[arg(long, value_name = "REF")]
+        plugin_rev: Option<String>,
+        /// Skip the rustup step. Use if the toolchain is already
+        /// installed and you only want the plugin install retry.
+        #[arg(long)]
+        skip_toolchain: bool,
+        /// Skip the cargo-install step. Use if you only want the
+        /// rustup step.
+        #[arg(long)]
+        skip_plugin: bool,
+        /// Print the commands that would run, but don't execute.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -73,6 +107,13 @@ fn main() -> Result<()> {
         Commands::Html { input, output, title } => {
             render_html(&input, output.as_deref(), title.as_deref())
         }
+        Commands::Init {
+            plugin_git,
+            plugin_rev,
+            skip_toolchain,
+            skip_plugin,
+            dry_run,
+        } => init(&plugin_git, plugin_rev.as_deref(), skip_toolchain, skip_plugin, dry_run),
     }
 }
 
@@ -186,3 +227,80 @@ const STYLE_CSS: &str = r#"
     .vis-container { display: flex; align-items: flex-start; gap: 1em; }
     .vis-container > svg { background: #f1f1f1; }
 "#;
+
+/// One-shot toolchain + plugin bootstrap, equivalent to running
+/// the two `rustup` / `cargo install` commands a setup-from-scratch
+/// user would otherwise need to discover from docs.
+fn init(
+    plugin_git: &str,
+    plugin_rev: Option<&str>,
+    skip_toolchain: bool,
+    skip_plugin: bool,
+    dry_run: bool,
+) -> Result<()> {
+    if skip_toolchain && skip_plugin {
+        bail!("--skip-toolchain and --skip-plugin together leave nothing to do");
+    }
+
+    if !skip_toolchain {
+        let toolchain_args = [
+            "toolchain",
+            "install",
+            NIGHTLY_TOOLCHAIN,
+            "--profile",
+            "minimal",
+            "--component",
+            "rust-src,rustc-dev,llvm-tools-preview",
+        ];
+        run_cmd("rustup", &toolchain_args, dry_run)
+            .context("rustup toolchain install failed — make sure rustup is on PATH")?;
+    }
+
+    if !skip_plugin {
+        // Install via cargo + the +nightly toolchain selector so the
+        // plugin compiles against the same nightly the renderer
+        // expects, regardless of the user's `rustup default`.
+        let toolchain_arg = format!("+{}", NIGHTLY_TOOLCHAIN);
+        let mut args: Vec<&str> = vec![
+            &toolchain_arg,
+            "install",
+            "--git",
+            plugin_git,
+        ];
+        if let Some(r) = plugin_rev {
+            args.push("--rev");
+            args.push(r);
+        }
+        // The plugin crate name doesn't match the repo name, so name
+        // it explicitly. `--locked` keeps us on the lockfile the
+        // upstream repo committed.
+        args.extend_from_slice(&["--locked", "rustviz2-plugin"]);
+        run_cmd("cargo", &args, dry_run)
+            .context("cargo install rustviz2-plugin failed")?;
+    }
+
+    if dry_run {
+        eprintln!("(dry run — nothing was actually installed)");
+    } else {
+        eprintln!();
+        eprintln!("✓ rustviz init complete. Try: rustviz svg some_file.rs");
+    }
+    Ok(())
+}
+
+/// Run a child process inheriting stdio, mirroring its exit code.
+/// In dry-run mode just print what would have run and return Ok.
+fn run_cmd(program: &str, args: &[&str], dry_run: bool) -> Result<()> {
+    eprintln!("$ {} {}", program, args.join(" "));
+    if dry_run {
+        return Ok(());
+    }
+    let status = Command::new(program)
+        .args(args)
+        .status()
+        .with_context(|| format!("failed to spawn {}", program))?;
+    if !status.success() {
+        bail!("{} exited with {}", program, status);
+    }
+    Ok(())
+}
